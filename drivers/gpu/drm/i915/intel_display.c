@@ -11578,8 +11578,8 @@ static int
 intel_check_primary_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->crtc;
-	struct drm_framebuffer *fb = state->fb;
+	struct drm_crtc *crtc = state->base.crtc;
+	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_rect *dest = &state->dst;
 	struct drm_rect *src = &state->src;
 	const struct drm_rect *clip = &state->clip;
@@ -11595,8 +11595,8 @@ static int
 intel_prepare_primary_plane(struct drm_plane *plane,
 			    struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->crtc;
-	struct drm_framebuffer *fb = state->fb;
+	struct drm_crtc *crtc = state->base.crtc;
+	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_device *dev = crtc->dev;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	enum pipe pipe = intel_crtc->pipe;
@@ -11631,9 +11631,9 @@ static void
 intel_commit_primary_plane(struct drm_plane *plane,
 			   struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->crtc;
-	struct drm_framebuffer *fb = state->fb;
-	struct drm_device *dev = crtc->dev;
+	struct drm_crtc *crtc = state->base.crtc;
+	struct drm_framebuffer *fb = state->base.fb;
+	struct drm_device *dev = plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	enum pipe pipe = intel_crtc->pipe;
@@ -11732,8 +11732,8 @@ intel_primary_plane_setplane(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int ret;
 
-	state.crtc = crtc;
-	state.fb = fb;
+	state.base.crtc = crtc;
+	state.base.fb = fb;
 
 	/* sample coordinates in 16.16 fixed point */
 	state.src.x1 = src_x;
@@ -11846,9 +11846,9 @@ static int
 intel_check_cursor_plane(struct drm_plane *plane,
 			 struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->crtc;
+	struct drm_crtc *crtc = state->base.crtc;
 	struct drm_device *dev = crtc->dev;
-	struct drm_framebuffer *fb = state->fb;
+	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_rect *dest = &state->dst;
 	struct drm_rect *src = &state->src;
 	const struct drm_rect *clip = &state->clip;
@@ -11903,8 +11903,8 @@ intel_prepare_cursor_plane(struct drm_plane *plane,
 			   struct intel_plane_state *state)
 {
 	struct drm_device *dev = plane->dev;
-	struct drm_framebuffer *fb = state->fb;
-	struct intel_crtc *intel_crtc = to_intel_crtc(state->crtc);
+	struct drm_framebuffer *fb = state->base.fb;
+	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	struct drm_i915_gem_object *old_obj = intel_fb_obj(plane->fb);
 	enum pipe pipe = intel_crtc->pipe;
@@ -11936,11 +11936,11 @@ static void
 intel_commit_cursor_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->crtc;
+	struct drm_crtc *crtc = state->base.crtc;
 	struct drm_device *dev = crtc->dev;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_plane *intel_plane = to_intel_plane(plane);
-	struct drm_i915_gem_object *obj = intel_fb_obj(state->fb);
+	struct drm_i915_gem_object *obj = intel_fb_obj(state->base.fb);
 	enum pipe pipe = intel_crtc->pipe;
 	unsigned old_width;
 	uint32_t addr;
@@ -12001,8 +12001,8 @@ intel_cursor_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct intel_plane_state state;
 	int ret;
 
-	state.crtc = crtc;
-	state.fb = fb;
+	state.base.crtc = crtc;
+	state.base.fb = fb;
 
 	/* sample coordinates in 16.16 fixed point */
 	state.src.x1 = src_x;
