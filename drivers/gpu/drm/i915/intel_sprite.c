@@ -33,6 +33,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_rect.h>
+#include <drm/drm_plane_helper.h>
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
@@ -1392,6 +1393,8 @@ static const struct drm_plane_funcs intel_plane_funcs = {
 	.disable_plane = intel_disable_plane,
 	.destroy = intel_plane_destroy,
 	.set_property = intel_plane_set_property,
+	.atomic_duplicate_state = intel_plane_duplicate_state,
+	.atomic_destroy_state = intel_plane_destroy_state,
 };
 
 static uint32_t ilk_plane_formats[] = {
@@ -1452,6 +1455,9 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 	intel_plane = kzalloc(sizeof(*intel_plane), GFP_KERNEL);
 	if (!intel_plane)
 		return -ENOMEM;
+
+	intel_plane->base.state =
+		intel_plane_duplicate_state(&intel_plane->base);
 
 	switch (INTEL_INFO(dev)->gen) {
 	case 5:
@@ -1545,6 +1551,8 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 		drm_object_attach_property(&intel_plane->base.base,
 					   dev->mode_config.rotation_property,
 					   intel_plane->rotation);
+
+	drm_plane_helper_add(&intel_plane->base, &intel_plane_helper_funcs);
 
  out:
 	return ret;
