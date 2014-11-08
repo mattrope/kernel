@@ -479,6 +479,8 @@ struct intel_crtc {
 
 	int scanline_offset;
 	struct intel_mmio_flip mmio_flip;
+
+	uint32_t atomic_vbl_count;
 };
 
 struct intel_plane_wm_parameters {
@@ -557,6 +559,7 @@ struct cxsr_latency {
 #define to_intel_encoder(x) container_of(x, struct intel_encoder, base)
 #define to_intel_framebuffer(x) container_of(x, struct intel_framebuffer, base)
 #define to_intel_plane(x) container_of(x, struct intel_plane, base)
+#define to_intel_plane_state(x) container_of(x, struct intel_plane_state, base)
 #define intel_fb_obj(x) (x ? to_intel_framebuffer(x)->obj : NULL)
 
 struct intel_hdmi {
@@ -1228,5 +1231,13 @@ void intel_pipe_update_end(struct intel_crtc *crtc, u32 start_vbl_count);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_device *dev);
+
+/* intel_atomic.c */
+struct drm_plane_state *intel_plane_duplicate_state(struct drm_plane *plane);
+void intel_plane_destroy_state(struct drm_plane *plane,
+			       struct drm_plane_state *state);
+void intel_crtc_atomic_begin(struct drm_crtc *crtc);
+void intel_crtc_atomic_flush(struct drm_crtc *crtc);
+extern const struct drm_plane_helper_funcs intel_plane_helper_funcs;
 
 #endif /* __INTEL_DRV_H__ */

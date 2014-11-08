@@ -9728,6 +9728,8 @@ out_hang:
 static struct drm_crtc_helper_funcs intel_helper_funcs = {
 	.mode_set_base_atomic = intel_pipe_set_base_atomic,
 	.load_lut = intel_crtc_load_lut,
+	.atomic_begin = intel_crtc_atomic_begin,
+	.atomic_flush = intel_crtc_atomic_flush,
 };
 
 /**
@@ -11864,6 +11866,7 @@ intel_disable_plane(struct drm_plane *plane)
 void intel_plane_destroy(struct drm_plane *plane)
 {
 	struct intel_plane *intel_plane = to_intel_plane(plane);
+	intel_plane_destroy_state(plane, plane->state);
 	drm_plane_cleanup(plane);
 	kfree(intel_plane);
 }
@@ -11872,7 +11875,10 @@ static const struct drm_plane_funcs intel_primary_plane_funcs = {
 	.update_plane = intel_update_plane,
 	.disable_plane = intel_disable_plane,
 	.destroy = intel_plane_destroy,
-	.set_property = intel_plane_set_property
+	.set_property = intel_plane_set_property,
+	.atomic_duplicate_state = intel_plane_duplicate_state,
+	.atomic_destroy_state = intel_plane_destroy_state,
+
 };
 
 static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
@@ -11886,6 +11892,7 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 	if (primary == NULL)
 		return NULL;
 
+	primary->base.state = intel_plane_duplicate_state(&primary->base);
 	primary->can_scale = false;
 	primary->max_downscale = 1;
 	primary->pipe = pipe;
@@ -11922,6 +11929,8 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 				dev->mode_config.rotation_property,
 				primary->rotation);
 	}
+
+	drm_plane_helper_add(&primary->base, &intel_plane_helper_funcs);
 
 	return &primary->base;
 }
@@ -12071,6 +12080,8 @@ static const struct drm_plane_funcs intel_cursor_plane_funcs = {
 	.disable_plane = intel_disable_plane,
 	.destroy = intel_plane_destroy,
 	.set_property = intel_plane_set_property,
+	.atomic_duplicate_state = intel_plane_duplicate_state,
+	.atomic_destroy_state = intel_plane_destroy_state,
 };
 
 static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
@@ -12082,6 +12093,7 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 	if (cursor == NULL)
 		return NULL;
 
+	cursor->base.state = intel_plane_duplicate_state(&cursor->base);
 	cursor->can_scale = false;
 	cursor->max_downscale = 1;
 	cursor->pipe = pipe;
@@ -12109,6 +12121,8 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 				dev->mode_config.rotation_property,
 				cursor->rotation);
 	}
+
+	drm_plane_helper_add(&cursor->base, &intel_plane_helper_funcs);
 
 	return &cursor->base;
 }
