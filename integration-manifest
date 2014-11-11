@@ -1,0 +1,16 @@
+origin/drm-intel-next-queued 477f799e966db4c36ca40198e1f48ff0af69e319
+	drm/i915: Plug memory leak in intel_shared_dpll_start_config()
+origin/drm-intel-next-fixes 07c338ce98263a5af631b991dd8f96cff6ca2548
+	drm/i915: fix short vs. long hpd detection
+origin/drm-intel-fixes e9d784d535e43777f9ff44d7e582946f4776c000
+	drm/i915: Fix obj->map_and_fenceable across tiling changes
+drm-upstream/drm-next cc7096fb6d1dfbdac5e7e2675c046fd40646cc66
+	drm/mode: document path property and function to set it. (v1.1)
+drm-upstream/drm-fixes 03dca708521d30153fc5c7e2ff136f780a7372c9
+	Merge tag 'drm-intel-fixes-2014-11-07' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff 554c53a3f02d39d96da8cc0ad06041cf31e1fd7a
+	drm/irq: BUG_ON() -> WARN_ON()
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next c63fcb9b67777b906c4515a868afbd96bae4e799
+	ALSA: usb-audio: Add duplex mode for Digidesign Mbox 1 and enable mixer
