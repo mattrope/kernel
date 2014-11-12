@@ -9548,7 +9548,6 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_plane *primary = crtc->primary;
-	struct intel_plane *intel_plane = to_intel_plane(primary);
 	enum pipe pipe = intel_crtc->pipe;
 	struct intel_unpin_work *work;
 	struct intel_engine_cs *ring;
@@ -9708,14 +9707,14 @@ free_work:
 	if (ret == -EIO) {
 out_hang:
 		ret = primary->funcs->update_plane(primary, crtc, fb,
-						   intel_plane->crtc_x,
-						   intel_plane->crtc_y,
-						   intel_plane->crtc_h,
-						   intel_plane->crtc_w,
-						   intel_plane->src_x,
-						   intel_plane->src_y,
-						   intel_plane->src_h,
-						   intel_plane->src_w);
+						   primary->state->crtc_x,
+						   primary->state->crtc_y,
+						   primary->state->crtc_h,
+						   primary->state->crtc_w,
+						   primary->state->src_x,
+						   primary->state->src_y,
+						   primary->state->src_h,
+						   primary->state->src_w);
 		if (ret == 0 && event) {
 			spin_lock_irq(&dev->event_lock);
 			drm_send_vblank_event(dev, pipe, event);
@@ -11739,14 +11738,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	crtc->x = src->x1 >> 16;
 	crtc->y = src->y1 >> 16;
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {
@@ -11920,8 +11911,7 @@ intel_pre_commit_cursor(struct drm_plane *plane,
 	}
 
 	if (intel_crtc->active) {
-		if (intel_crtc->cursor_width !=
-		    drm_rect_width(&state->orig_dst))
+		if (intel_crtc->cursor_width != state->base.crtc_w)
 			intel_update_watermarks(&intel_crtc->base);
 	}
 }
@@ -11952,14 +11942,6 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	crtc->cursor_x = state->base.crtc_x;
 	crtc->cursor_y = state->base.crtc_y;
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (intel_crtc->cursor_bo == obj)
@@ -11975,8 +11957,8 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	intel_crtc->cursor_addr = addr;
 	intel_crtc->cursor_bo = obj;
 update:
-	intel_crtc->cursor_width = drm_rect_width(&state->orig_dst);
-	intel_crtc->cursor_height = drm_rect_height(&state->orig_dst);
+	intel_crtc->cursor_width = state->base.crtc_w;
+	intel_crtc->cursor_height = state->base.crtc_h;
 
 	if (intel_crtc->active)
 		intel_crtc_update_cursor(crtc, state->visible);

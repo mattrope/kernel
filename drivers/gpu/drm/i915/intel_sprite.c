@@ -1064,7 +1064,6 @@ intel_check_sprite_plane(struct drm_plane *plane,
 	uint32_t src_x, src_y, src_w, src_h;
 	struct drm_rect *src = &state->src;
 	struct drm_rect *dst = &state->dst;
-	struct drm_rect *orig_src = &state->orig_src;
 	const struct drm_rect *clip = &state->clip;
 	int hscale, vscale;
 	int max_scale, min_scale;
@@ -1150,10 +1149,10 @@ intel_check_sprite_plane(struct drm_plane *plane,
 				    intel_plane->rotation);
 
 		/* sanity check to make sure the src viewport wasn't enlarged */
-		WARN_ON(src->x1 < (int) orig_src->x1 ||
-			src->y1 < (int) orig_src->y1 ||
-			src->x2 > (int) orig_src->x2 ||
-			src->y2 > (int) orig_src->y2);
+		WARN_ON(src->x1 < (int) state->base.src_x ||
+			src->y1 < (int) state->base.src_y ||
+			src->x2 > (int) state->base.src_x + state->base.src_w ||
+			src->y2 > (int) state->base.src_y + state->base.src_h);
 
 		/*
 		 * Hardware doesn't handle subpixel coordinates.
@@ -1289,14 +1288,6 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 	unsigned int crtc_w, crtc_h;
 	uint32_t src_x, src_y, src_w, src_h;
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {
@@ -1405,16 +1396,14 @@ int intel_plane_set_property(struct drm_plane *plane,
 
 int intel_plane_restore(struct drm_plane *plane)
 {
-	struct intel_plane *intel_plane = to_intel_plane(plane);
-
 	if (!plane->crtc || !plane->fb)
 		return 0;
 
 	return plane->funcs->update_plane(plane, plane->crtc, plane->fb,
-				  intel_plane->crtc_x, intel_plane->crtc_y,
-				  intel_plane->crtc_w, intel_plane->crtc_h,
-				  intel_plane->src_x, intel_plane->src_y,
-				  intel_plane->src_w, intel_plane->src_h);
+				  plane->state->crtc_x, plane->state->crtc_y,
+				  plane->state->crtc_w, plane->state->crtc_h,
+				  plane->state->src_x, plane->state->src_y,
+				  plane->state->src_w, plane->state->src_h);
 }
 
 static const struct drm_plane_funcs intel_plane_funcs = {
