@@ -1282,14 +1282,6 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 	primary_enabled = !drm_rect_equals(dst, clip) || colorkey_enabled(intel_plane);
 	WARN_ON(!primary_enabled && !state->visible && intel_crtc->active);
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {

@@ -11526,14 +11526,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	crtc->x = src->x1;
 	crtc->y = src->y1;
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {
@@ -11748,14 +11740,6 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	crtc->cursor_x = state->base.crtc_x;
 	crtc->cursor_y = state->base.crtc_y;
 
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
 	intel_plane->obj = obj;
 
 	if (fb != crtc->cursor->fb) {
