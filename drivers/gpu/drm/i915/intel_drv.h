@@ -946,6 +946,7 @@ int intel_prepare_plane_fb(struct drm_plane *plane,
 			   struct drm_framebuffer *fb);
 void intel_cleanup_plane_fb(struct drm_plane *plane,
 			    struct drm_framebuffer *fb);
+bool intel_crtc_has_pending_flip(struct drm_crtc *crtc);
 
 /* shared dpll functions */
 struct intel_shared_dpll *intel_crtc_to_shared_dpll(struct intel_crtc *crtc);
