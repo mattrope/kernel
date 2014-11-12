@@ -13679,3 +13679,24 @@ void intel_modeset_preclose(struct drm_device *dev, struct drm_file *file)
 		spin_unlock_irq(&dev->event_lock);
 	}
 }
+
+void intel_plane_disable(struct drm_plane *plane)
+{
+	if (!plane->crtc || !plane->fb)
+		return;
+
+	switch (plane->type) {
+	case DRM_PLANE_TYPE_PRIMARY:
+		intel_primary_plane_disable(plane);
+		break;
+	case DRM_PLANE_TYPE_CURSOR:
+		intel_cursor_plane_disable(plane);
+		break;
+	case DRM_PLANE_TYPE_OVERLAY:
+		intel_disable_plane(plane);
+		break;
+	default:
+		WARN(1, "Unknown plane type");
+	}
+}
+

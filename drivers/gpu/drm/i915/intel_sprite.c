@@ -1425,7 +1425,7 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	return 0;
 }
 
-static int
+int
 intel_disable_plane(struct drm_plane *plane)
 {
 	struct drm_device *dev = plane->dev;
@@ -1574,14 +1574,6 @@ int intel_plane_restore(struct drm_plane *plane)
 				  intel_plane->crtc_w, intel_plane->crtc_h,
 				  intel_plane->src_x, intel_plane->src_y,
 				  intel_plane->src_w, intel_plane->src_h);
-}
-
-void intel_plane_disable(struct drm_plane *plane)
-{
-	if (!plane->crtc || !plane->fb)
-		return;
-
-	intel_disable_plane(plane);
 }
 
 static const struct drm_plane_funcs intel_plane_funcs = {
