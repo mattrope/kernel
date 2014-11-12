@@ -1181,6 +1181,7 @@ int intel_plane_set_property(struct drm_plane *plane,
 			     struct drm_property *prop,
 			     uint64_t val);
 int intel_plane_restore(struct drm_plane *plane);
+void intel_plane_destroy(struct drm_plane *plane);
 int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv);
 int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
@@ -1188,7 +1189,7 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 bool intel_pipe_update_start(struct intel_crtc *crtc,
 			     uint32_t *start_vbl_count);
 void intel_pipe_update_end(struct intel_crtc *crtc, u32 start_vbl_count);
-int intel_disable_plane(struct drm_plane *plane);
+int intel_sprite_plane_disable(struct drm_plane *plane);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_device *dev);

@@ -1426,7 +1426,7 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 }
 
 int
-intel_disable_plane(struct drm_plane *plane)
+intel_sprite_plane_disable(struct drm_plane *plane)
 {
 	struct drm_device *dev = plane->dev;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
@@ -1467,14 +1467,6 @@ intel_disable_plane(struct drm_plane *plane)
 	}
 
 	return 0;
-}
-
-static void intel_destroy_plane(struct drm_plane *plane)
-{
-	struct intel_plane *intel_plane = to_intel_plane(plane);
-	intel_disable_plane(plane);
-	drm_plane_cleanup(plane);
-	kfree(intel_plane);
 }
 
 int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
@@ -1578,8 +1570,8 @@ int intel_plane_restore(struct drm_plane *plane)
 
 static const struct drm_plane_funcs intel_plane_funcs = {
 	.update_plane = intel_update_plane,
-	.disable_plane = intel_disable_plane,
-	.destroy = intel_destroy_plane,
+	.disable_plane = intel_sprite_plane_disable,
+	.destroy = intel_plane_destroy,
 	.set_property = intel_plane_set_property,
 };
 
