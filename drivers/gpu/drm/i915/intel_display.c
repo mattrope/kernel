@@ -2833,7 +2833,7 @@ intel_finish_fb(struct drm_framebuffer *old_fb)
 	return ret;
 }
 
-static bool intel_crtc_has_pending_flip(struct drm_crtc *crtc)
+bool intel_crtc_has_pending_flip(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
