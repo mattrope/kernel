@@ -21,6 +21,16 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+/**
+ * DOC: atomic plane helper support
+ *
+ * The functions here are used by the atomic plane helper functions to
+ * implement legacy plane updates (i.e., drm_plane->update_plane() and
+ * drm_plane->disable_plane()).  This allows plane updates to use the
+ * atomic state infrastructure and perform plane updates as separate
+ * prepare/check/commit/cleanup steps.
+ */
+
 #include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
