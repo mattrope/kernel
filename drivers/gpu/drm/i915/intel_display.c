@@ -11781,6 +11781,8 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct intel_plane_state state = {{ 0 }};
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	unsigned start_vbl_count;
+	bool atomic_update;
 	int ret;
 
 	state.base.crtc = crtc ? crtc : plane->crtc;
@@ -11818,7 +11820,13 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	if (intel_plane->pre_commit)
 		intel_plane->pre_commit(plane, &state);
+
+	/* Perform vblank evasion around commit operation */
+	atomic_update = intel_pipe_update_start(intel_crtc, &start_vbl_count);
 	intel_plane->commit_plane(plane, &state);
+	if (atomic_update)
+		intel_pipe_update_end(intel_crtc, start_vbl_count);
+
 	if (intel_plane->post_commit)
 		intel_plane->post_commit(plane, &state);
 
