@@ -205,6 +205,7 @@ void drm_mode_set_name(struct drm_display_mode *mode);
 int drm_mode_hsync(const struct drm_display_mode *mode);
 int drm_mode_vrefresh(const struct drm_display_mode *mode);
 
+void drm_mode_stereo_double(struct drm_display_mode *p);
 void drm_mode_set_crtcinfo(struct drm_display_mode *p,
 			   int adjust_flags);
 void drm_mode_copy(struct drm_display_mode *dst,

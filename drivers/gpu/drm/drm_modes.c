@@ -728,6 +728,30 @@ int drm_mode_vrefresh(const struct drm_display_mode *mode)
 EXPORT_SYMBOL(drm_mode_vrefresh);
 
 /**
+ * drm_mode_stereo_double - Adjust mode timings for stereo modes
+ * @p: mode to adjust vertical timings of
+ *
+ * Performs stereo doubling of mode parameters when required by the stereo
+ * layout.  This may be used directly in places where the additional
+ * adjustments of drm_mode_set_crtcinfo() are undesired.
+ */
+void drm_mode_stereo_double(struct drm_display_mode *p)
+{
+	unsigned int layout = p->flags & DRM_MODE_FLAG_3D_MASK;
+
+	switch (layout) {
+	case DRM_MODE_FLAG_3D_FRAME_PACKING:
+		p->crtc_clock *= 2;
+		p->crtc_vdisplay += p->crtc_vtotal;
+		p->crtc_vsync_start += p->crtc_vtotal;
+		p->crtc_vsync_end += p->crtc_vtotal;
+		p->crtc_vtotal += p->crtc_vtotal;
+		break;
+	}
+}
+EXPORT_SYMBOL(drm_mode_stereo_double);
+
+/**
  * drm_mode_set_crtcinfo - set CRTC modesetting timing parameters
  * @p: mode
  * @adjust_flags: a combination of adjustment flags
@@ -779,19 +803,8 @@ void drm_mode_set_crtcinfo(struct drm_display_mode *p, int adjust_flags)
 		p->crtc_vtotal *= p->vscan;
 	}
 
-	if (adjust_flags & CRTC_STEREO_DOUBLE) {
-		unsigned int layout = p->flags & DRM_MODE_FLAG_3D_MASK;
-
-		switch (layout) {
-		case DRM_MODE_FLAG_3D_FRAME_PACKING:
-			p->crtc_clock *= 2;
-			p->crtc_vdisplay += p->crtc_vtotal;
-			p->crtc_vsync_start += p->crtc_vtotal;
-			p->crtc_vsync_end += p->crtc_vtotal;
-			p->crtc_vtotal += p->crtc_vtotal;
-			break;
-		}
-	}
+	if (adjust_flags & CRTC_STEREO_DOUBLE)
+		drm_mode_stereo_double(p);
 
 	p->crtc_vblank_start = min(p->crtc_vsync_start, p->crtc_vdisplay);
 	p->crtc_vblank_end = max(p->crtc_vsync_end, p->crtc_vtotal);
