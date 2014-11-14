@@ -2165,7 +2165,8 @@ static void intel_disable_primary_hw_plane(struct drm_plane *plane,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 
-	assert_pipe_enabled(dev_priv, intel_crtc->pipe);
+	if (WARN_ON(!intel_crtc->active))
+		return;
 
 	if (!intel_crtc->primary_enabled)
 		return;
@@ -11861,6 +11862,12 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc)
 
 	if (intel_crtc->atomic.update_wm)
 		intel_update_watermarks(crtc);
+
+	/* Perform vblank evasion around commit operation */
+	if (intel_crtc->active)
+		intel_crtc->atomic.evade =
+			intel_pipe_update_start(intel_crtc,
+						&intel_crtc->atomic.start_vbl_count);
 }
 
 static void intel_finish_crtc_commit(struct drm_crtc *crtc)
@@ -11868,6 +11875,10 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc)
 	struct drm_device *dev = crtc->dev;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_plane *p;
+
+	if (intel_crtc->atomic.evade)
+		intel_pipe_update_end(intel_crtc,
+				      intel_crtc->atomic.start_vbl_count);
 
 	if (intel_crtc->atomic.wait_vblank)
 		intel_wait_for_vblank(dev, intel_crtc->pipe);
