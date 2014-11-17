@@ -248,8 +248,6 @@ struct intel_plane_state {
 	struct drm_rect src;
 	struct drm_rect dst;
 	struct drm_rect clip;
-	struct drm_rect orig_src;
-	struct drm_rect orig_dst;
 	bool visible;
 
 	/*
