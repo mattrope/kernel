@@ -1418,8 +1418,8 @@ int intel_plane_restore(struct drm_plane *plane)
 }
 
 static const struct drm_plane_funcs intel_plane_funcs = {
-	.update_plane = intel_update_plane,
-	.disable_plane = intel_disable_plane,
+	.update_plane = drm_plane_helper_update,
+	.disable_plane = drm_plane_helper_disable,
 	.destroy = intel_plane_destroy,
 	.set_property = intel_plane_set_property,
 	.atomic_duplicate_state = intel_plane_duplicate_state,
