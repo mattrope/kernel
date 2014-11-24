@@ -1,0 +1,16 @@
+origin/drm-intel-next-queued 5510d3e6c2ee2e05508f302c2885181e89b59b21
+	drm/i915: Remove user pinning code
+origin/drm-intel-next-fixes 07c338ce98263a5af631b991dd8f96cff6ca2548
+	drm/i915: fix short vs. long hpd detection
+origin/drm-intel-fixes bdfa7542d40e6251c232a802231b37116bd31b11
+	drm/i915: Ignore SURFLIVE and flip counter when the GPU gets reset
+drm-upstream/drm-next ed1e8777a56f3523712506d608a29f57ed37b613
+	Merge branch 'drm-next-3.19' of git://people.freedesktop.org/~agd5f/linux into drm-next
+drm-upstream/drm-fixes a0fc608178a9b38a5f782331909fcc208b742a7b
+	Merge branch 'drm-fixes-3.18' of git://people.freedesktop.org/~agd5f/linux into drm-fixes
+origin/topic/core-stuff aa02d6a2ce4c3a3f47fccee43620d2e9dcb37044
+	drm/locking: Allow NULL crtc in drm_modeset_legacy_acquire_ctx
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next 51e6f47dd2e3463dac6f37128fd7b7cb40c500de
+	ALSA: asihpi: used parts of message/response are zeroed before use
