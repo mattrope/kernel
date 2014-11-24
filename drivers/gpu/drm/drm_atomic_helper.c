@@ -249,7 +249,6 @@ static int
 mode_fixup(struct drm_atomic_state *state)
 {
 	int ncrtcs = state->dev->mode_config.num_crtc;
-	int nconnectors = state->dev->mode_config.num_connector;
 	struct drm_crtc_state *crtc_state;
 	struct drm_connector_state *conn_state;
 	int i;
@@ -264,7 +263,7 @@ mode_fixup(struct drm_atomic_state *state)
 		drm_mode_copy(&crtc_state->adjusted_mode, &crtc_state->mode);
 	}
 
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < state->num_connector; i++) {
 		struct drm_encoder_helper_funcs *funcs;
 		struct drm_encoder *encoder;
 
@@ -336,7 +335,6 @@ drm_atomic_helper_check_prepare(struct drm_device *dev,
 				struct drm_atomic_state *state)
 {
 	int ncrtcs = dev->mode_config.num_crtc;
-	int nconnectors = dev->mode_config.num_connector;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *crtc_state;
 	int i, ret;
@@ -361,7 +359,7 @@ drm_atomic_helper_check_prepare(struct drm_device *dev,
 		}
 	}
 
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < state->num_connector; i++) {
 		/*
 		 * This only sets crtc->mode_changed for routing changes,
 		 * drivers must set crtc->mode_changed themselves when connector
@@ -485,10 +483,9 @@ static void
 disable_outputs(struct drm_device *dev, struct drm_atomic_state *old_state)
 {
 	int ncrtcs = old_state->dev->mode_config.num_crtc;
-	int nconnectors = old_state->dev->mode_config.num_connector;
 	int i;
 
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < old_state->num_connector; i++) {
 		struct drm_connector_state *old_conn_state;
 		struct drm_connector *connector;
 		struct drm_encoder_helper_funcs *funcs;
@@ -553,12 +550,11 @@ disable_outputs(struct drm_device *dev, struct drm_atomic_state *old_state)
 static void
 set_routing_links(struct drm_device *dev, struct drm_atomic_state *old_state)
 {
-	int nconnectors = dev->mode_config.num_connector;
 	int ncrtcs = old_state->dev->mode_config.num_crtc;
 	int i;
 
 	/* clear out existing links */
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < old_state->num_connector; i++) {
 		struct drm_connector *connector;
 
 		connector = old_state->connectors[i];
@@ -573,7 +569,7 @@ set_routing_links(struct drm_device *dev, struct drm_atomic_state *old_state)
 	}
 
 	/* set new links */
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < old_state->num_connector; i++) {
 		struct drm_connector *connector;
 
 		connector = old_state->connectors[i];
@@ -608,7 +604,6 @@ static void
 crtc_set_mode(struct drm_device *dev, struct drm_atomic_state *old_state)
 {
 	int ncrtcs = old_state->dev->mode_config.num_crtc;
-	int nconnectors = old_state->dev->mode_config.num_connector;
 	int i;
 
 	for (i = 0; i < ncrtcs; i++) {
@@ -626,7 +621,7 @@ crtc_set_mode(struct drm_device *dev, struct drm_atomic_state *old_state)
 			funcs->mode_set_nofb(crtc);
 	}
 
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < old_state->num_connector; i++) {
 		struct drm_connector *connector;
 		struct drm_crtc_state *new_crtc_state;
 		struct drm_encoder_helper_funcs *funcs;
@@ -687,7 +682,6 @@ void drm_atomic_helper_commit_post_planes(struct drm_device *dev,
 					  struct drm_atomic_state *old_state)
 {
 	int ncrtcs = old_state->dev->mode_config.num_crtc;
-	int nconnectors = old_state->dev->mode_config.num_connector;
 	int i;
 
 	for (i = 0; i < ncrtcs; i++) {
@@ -706,7 +700,7 @@ void drm_atomic_helper_commit_post_planes(struct drm_device *dev,
 			funcs->commit(crtc);
 	}
 
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < old_state->num_connector; i++) {
 		struct drm_connector *connector;
 		struct drm_encoder_helper_funcs *funcs;
 		struct drm_encoder *encoder;
@@ -754,8 +748,18 @@ static void wait_for_fences(struct drm_device *dev,
 	}
 }
 
-static void
-wait_for_vblanks(struct drm_device *dev, struct drm_atomic_state *old_state)
+/**
+ * drm_atomic_helper_wait_for_vblanks - wait for vblank on crtcs
+ * @dev: DRM device
+ * @old_state: atomic state object with old state structures
+ *
+ * Helper to, after atomic commit, wait for vblanks on all effected
+ * crtcs (ie. before cleaning up old framebuffers using
+ * drm_atomic_helper_cleanup_planes())
+ */
+void
+drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
+		struct drm_atomic_state *old_state)
 {
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *old_crtc_state;
@@ -800,6 +804,7 @@ wait_for_vblanks(struct drm_device *dev, struct drm_atomic_state *old_state)
 		drm_crtc_vblank_put(crtc);
 	}
 }
+EXPORT_SYMBOL(drm_atomic_helper_wait_for_vblanks);
 
 /**
  * drm_atomic_helper_commit - commit validated state object
@@ -859,7 +864,7 @@ int drm_atomic_helper_commit(struct drm_device *dev,
 
 	drm_atomic_helper_commit_post_planes(dev, state);
 
-	wait_for_vblanks(dev, state);
+	drm_atomic_helper_wait_for_vblanks(dev, state);
 
 	drm_atomic_helper_cleanup_planes(dev, state);
 
@@ -971,18 +976,18 @@ EXPORT_SYMBOL(drm_atomic_helper_prepare_planes);
 /**
  * drm_atomic_helper_commit_planes - commit plane state
  * @dev: DRM device
- * @state: atomic state
+ * @old_state: atomic state object with old state structures
  *
  * This function commits the new plane state using the plane and atomic helper
  * functions for planes and crtcs. It assumes that the atomic state has already
  * been pushed into the relevant object state pointers, since this step can no
  * longer fail.
  *
- * It still requires the global state object @state to know which planes and
+ * It still requires the global state object @old_state to know which planes and
  * crtcs need to be updated though.
  */
 void drm_atomic_helper_commit_planes(struct drm_device *dev,
-				     struct drm_atomic_state *state)
+				     struct drm_atomic_state *old_state)
 {
 	int nplanes = dev->mode_config.num_total_plane;
 	int ncrtcs = dev->mode_config.num_crtc;
@@ -990,7 +995,7 @@ void drm_atomic_helper_commit_planes(struct drm_device *dev,
 
 	for (i = 0; i < ncrtcs; i++) {
 		struct drm_crtc_helper_funcs *funcs;
-		struct drm_crtc *crtc = state->crtcs[i];
+		struct drm_crtc *crtc = old_state->crtcs[i];
 
 		if (!crtc)
 			continue;
@@ -1005,7 +1010,7 @@ void drm_atomic_helper_commit_planes(struct drm_device *dev,
 
 	for (i = 0; i < nplanes; i++) {
 		struct drm_plane_helper_funcs *funcs;
-		struct drm_plane *plane = state->planes[i];
+		struct drm_plane *plane = old_state->planes[i];
 
 		if (!plane)
 			continue;
@@ -1020,7 +1025,7 @@ void drm_atomic_helper_commit_planes(struct drm_device *dev,
 
 	for (i = 0; i < ncrtcs; i++) {
 		struct drm_crtc_helper_funcs *funcs;
-		struct drm_crtc *crtc = state->crtcs[i];
+		struct drm_crtc *crtc = old_state->crtcs[i];
 
 		if (!crtc)
 			continue;
@@ -1207,8 +1212,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	/*
 	 * Someone might have exchanged the framebuffer while we dropped locks
@@ -1276,8 +1281,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	/*
 	 * Someone might have exchanged the framebuffer while we dropped locks
@@ -1295,7 +1300,6 @@ static int update_output_state(struct drm_atomic_state *state,
 {
 	struct drm_device *dev = set->crtc->dev;
 	struct drm_connector_state *conn_state;
-	int nconnectors = state->dev->mode_config.num_connector;
 	int ncrtcs = state->dev->mode_config.num_crtc;
 	int ret, i, j;
 
@@ -1324,7 +1328,7 @@ static int update_output_state(struct drm_atomic_state *state,
 	}
 
 	/* Then recompute connector->crtc links and crtc enabling state. */
-	for (i = 0; i < nconnectors; i++) {
+	for (i = 0; i < state->num_connector; i++) {
 		struct drm_connector *connector;
 
 		connector = state->connectors[i];
@@ -1454,8 +1458,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	/*
 	 * Someone might have exchanged the framebuffer while we dropped locks
@@ -1520,8 +1524,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	goto retry;
 }
@@ -1579,8 +1583,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	goto retry;
 }
@@ -1638,8 +1642,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	goto retry;
 }
@@ -1718,8 +1722,8 @@ fail:
 
 	return ret;
 backoff:
-	drm_atomic_legacy_backoff(state);
 	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
 
 	/*
 	 * Someone might have exchanged the framebuffer while we dropped locks

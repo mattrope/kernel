@@ -8630,6 +8630,9 @@ retry:
 		ret = drm_modeset_lock(&crtc->mutex, ctx);
 		if (ret)
 			goto fail_unlock;
+		ret = drm_modeset_lock(&crtc->primary->mutex, ctx);
+		if (ret)
+			goto fail_unlock;
 
 		old->dpms_mode = connector->dpms;
 		old->load_detect_temp = false;
@@ -8665,6 +8668,9 @@ retry:
 	}
 
 	ret = drm_modeset_lock(&crtc->mutex, ctx);
+	if (ret)
+		goto fail_unlock;
+	ret = drm_modeset_lock(&crtc->primary->mutex, ctx);
 	if (ret)
 		goto fail_unlock;
 	intel_encoder->new_crtc = to_intel_crtc(crtc);
