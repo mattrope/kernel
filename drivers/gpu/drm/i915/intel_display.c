@@ -11647,24 +11647,22 @@ intel_check_primary_plane(struct drm_plane *plane,
 		}
 	}
 
+	state->primary_was_enabled = to_intel_crtc(crtc)->primary_enabled;
+
 	return 0;
 }
 
 static void
-intel_commit_primary_plane(struct drm_plane *plane,
-			   struct intel_plane_state *state)
+intel_pre_commit_primary(struct drm_plane *plane,
+			 struct intel_plane_state *state)
 {
-	struct drm_crtc *crtc = state->base.crtc;
-	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_device *dev = plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	struct intel_plane *intel_plane = to_intel_plane(plane);
-	struct drm_rect *src = &state->src;
-	enum pipe pipe = intel_plane->pipe;
+	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
+	enum pipe pipe = intel_crtc->pipe;
 
-	if (!fb) {
+	if (!state->base.fb) {
 		/*
 		 * 'prepare' is never called when plane is being disabled, so
 		 * we need to handle frontbuffer tracking here
@@ -11674,20 +11672,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 				  INTEL_FRONTBUFFER_PRIMARY(pipe));
 		mutex_unlock(&dev->struct_mutex);
 	}
-
-	plane->fb = fb;
-	crtc->x = src->x1 >> 16;
-	crtc->y = src->y1 >> 16;
-
-	intel_plane->crtc_x = state->orig_dst.x1;
-	intel_plane->crtc_y = state->orig_dst.y1;
-	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
-	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
-	intel_plane->src_x = state->orig_src.x1;
-	intel_plane->src_y = state->orig_src.y1;
-	intel_plane->src_w = drm_rect_width(&state->orig_src);
-	intel_plane->src_h = drm_rect_height(&state->orig_src);
-	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {
 		/*
@@ -11706,10 +11690,65 @@ intel_commit_primary_plane(struct drm_plane *plane,
 		    intel_plane->rotation != BIT(DRM_ROTATE_0)) {
 			intel_disable_fbc(dev);
 		}
+	}
+}
 
+static void
+intel_post_commit_primary(struct drm_plane *plane,
+			  struct intel_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
+	enum pipe pipe = intel_crtc->pipe;
+
+	if (intel_crtc->active) {
 		if (state->visible) {
-			bool was_enabled = intel_crtc->primary_enabled;
+			/*
+			 * BDW signals flip done immediately if the plane
+			 * is disabled, even if the plane enable is already
+			 * armed to occur at the next vblank :(
+			 */
+			if (IS_BROADWELL(dev) && !state->primary_was_enabled)
+				intel_wait_for_vblank(dev, intel_crtc->pipe);
+		}
 
+		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_PRIMARY(pipe));
+
+		mutex_lock(&dev->struct_mutex);
+		intel_update_fbc(dev);
+		mutex_unlock(&dev->struct_mutex);
+	}
+}
+
+static void
+intel_commit_primary_plane(struct drm_plane *plane,
+			   struct intel_plane_state *state)
+{
+	struct drm_crtc *crtc = state->base.crtc;
+	struct drm_framebuffer *fb = state->base.fb;
+	struct drm_device *dev = plane->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
+	struct intel_plane *intel_plane = to_intel_plane(plane);
+	struct drm_rect *src = &state->src;
+
+	plane->fb = fb;
+	crtc->x = src->x1 >> 16;
+	crtc->y = src->y1 >> 16;
+
+	intel_plane->crtc_x = state->orig_dst.x1;
+	intel_plane->crtc_y = state->orig_dst.y1;
+	intel_plane->crtc_w = drm_rect_width(&state->orig_dst);
+	intel_plane->crtc_h = drm_rect_height(&state->orig_dst);
+	intel_plane->src_x = state->orig_src.x1;
+	intel_plane->src_y = state->orig_src.y1;
+	intel_plane->src_w = drm_rect_width(&state->orig_src);
+	intel_plane->src_h = drm_rect_height(&state->orig_src);
+	intel_plane->obj = obj;
+
+	if (intel_crtc->active) {
+		if (state->visible) {
 			/* FIXME: kill this fastboot hack */
 			intel_update_pipe_size(intel_crtc);
 
@@ -11717,14 +11756,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 
 			dev_priv->display.update_primary_plane(crtc, plane->fb,
 					crtc->x, crtc->y);
-
-			/*
-			 * BDW signals flip done immediately if the plane
-			 * is disabled, even if the plane enable is already
-			 * armed to occur at the next vblank :(
-			 */
-			if (IS_BROADWELL(dev) && !was_enabled)
-				intel_wait_for_vblank(dev, intel_crtc->pipe);
 		} else {
 			/*
 			 * If clipping results in a non-visible primary plane,
@@ -11735,12 +11766,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 			 */
 			intel_disable_primary_hw_plane(plane, plane->crtc);
 		}
-
-		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_PRIMARY(pipe));
-
-		mutex_lock(&dev->struct_mutex);
-		intel_update_fbc(dev);
-		mutex_unlock(&dev->struct_mutex);
 	}
 }
 
@@ -11753,7 +11778,7 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 {
 	struct drm_device *dev = plane->dev;
 	struct drm_framebuffer *old_fb = plane->fb;
-	struct intel_plane_state state;
+	struct intel_plane_state state = {{ 0 }};
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int ret;
@@ -11791,7 +11816,11 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 			return ret;
 	}
 
+	if (intel_plane->pre_commit)
+		intel_plane->pre_commit(plane, &state);
 	intel_plane->commit_plane(plane, &state);
+	if (intel_plane->post_commit)
+		intel_plane->post_commit(plane, &state);
 
 	if (fb != old_fb) {
 		if (intel_crtc->active)
@@ -11856,6 +11885,8 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 	primary->rotation = BIT(DRM_ROTATE_0);
 	primary->check_plane = intel_check_primary_plane;
 	primary->commit_plane = intel_commit_primary_plane;
+	primary->pre_commit = intel_pre_commit_primary;
+	primary->post_commit = intel_post_commit_primary;
 	if (HAS_FBC(dev) && INTEL_INFO(dev)->gen < 4)
 		primary->plane = !pipe;
 
@@ -11944,6 +11975,46 @@ intel_check_cursor_plane(struct drm_plane *plane,
 }
 
 static void
+intel_pre_commit_cursor(struct drm_plane *plane,
+			struct intel_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_i915_gem_object *obj = intel_fb_obj(state->base.fb);
+	struct drm_i915_gem_object *old_obj = intel_fb_obj(plane->fb);
+	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
+	enum pipe pipe = intel_crtc->pipe;
+
+	/*
+	 * 'prepare' is only called when fb != NULL; we still need to update
+	 * frontbuffer tracking for the 'disable' case here.
+	 */
+	if (!obj) {
+		mutex_lock(&dev->struct_mutex);
+		i915_gem_track_fb(old_obj, NULL,
+				  INTEL_FRONTBUFFER_CURSOR(pipe));
+		mutex_unlock(&dev->struct_mutex);
+	}
+
+	if (intel_crtc->active) {
+		if (intel_crtc->cursor_width !=
+		    drm_rect_width(&state->orig_dst))
+			intel_update_watermarks(&intel_crtc->base);
+	}
+}
+
+static void
+intel_post_commit_cursor(struct drm_plane *plane,
+			 struct intel_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
+	enum pipe pipe = intel_crtc->pipe;
+
+	if (intel_crtc->active)
+		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_CURSOR(pipe));
+}
+
+static void
 intel_commit_cursor_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
 {
@@ -11952,9 +12023,6 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_i915_gem_object *obj = intel_fb_obj(state->base.fb);
-	struct drm_i915_gem_object *old_obj = intel_fb_obj(plane->fb);
-	enum pipe pipe = intel_crtc->pipe;
-	unsigned old_width;
 	uint32_t addr;
 
 	crtc->cursor_x = state->orig_dst.x1;
@@ -11973,17 +12041,6 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	if (intel_crtc->cursor_bo == obj)
 		goto update;
 
-	/*
-	 * 'prepare' is only called when fb != NULL; we still need to update
-	 * frontbuffer tracking for the 'disable' case here.
-	 */
-	if (!obj) {
-		mutex_lock(&dev->struct_mutex);
-		i915_gem_track_fb(old_obj, NULL,
-				  INTEL_FRONTBUFFER_CURSOR(pipe));
-		mutex_unlock(&dev->struct_mutex);
-	}
-
 	if (!obj)
 		addr = 0;
 	else if (!INTEL_INFO(dev)->cursor_needs_physical)
@@ -11994,18 +12051,11 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	intel_crtc->cursor_addr = addr;
 	intel_crtc->cursor_bo = obj;
 update:
-	old_width = intel_crtc->cursor_width;
-
 	intel_crtc->cursor_width = drm_rect_width(&state->orig_dst);
 	intel_crtc->cursor_height = drm_rect_height(&state->orig_dst);
 
-	if (intel_crtc->active) {
-		if (old_width != intel_crtc->cursor_width)
-			intel_update_watermarks(crtc);
+	if (intel_crtc->active)
 		intel_crtc_update_cursor(crtc, state->visible);
-
-		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_CURSOR(pipe));
-	}
 }
 
 static const struct drm_plane_funcs intel_cursor_plane_funcs = {
@@ -12031,6 +12081,8 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 	cursor->rotation = BIT(DRM_ROTATE_0);
 	cursor->check_plane = intel_check_cursor_plane;
 	cursor->commit_plane = intel_commit_cursor_plane;
+	cursor->pre_commit = intel_pre_commit_cursor;
+	cursor->post_commit = intel_post_commit_cursor;
 
 	drm_universal_plane_init(dev, &cursor->base, 0,
 				 &intel_cursor_plane_funcs,

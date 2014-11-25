@@ -251,6 +251,16 @@ struct intel_plane_state {
 	struct drm_rect orig_src;
 	struct drm_rect orig_dst;
 	bool visible;
+
+	/*
+	 * used only for sprite planes to determine when to implicitly
+	 * enable/disable the primary plane
+	 */
+	bool hides_primary;
+	bool need_primary_enable;
+
+	/* used only for primary plane */
+	bool primary_was_enabled;
 };
 
 struct intel_plane_config {
@@ -513,6 +523,10 @@ struct intel_plane {
 			   struct intel_plane_state *state);
 	void (*commit_plane)(struct drm_plane *plane,
 			     struct intel_plane_state *state);
+	void (*pre_commit)(struct drm_plane *plane,
+			   struct intel_plane_state *state);
+	void (*post_commit)(struct drm_plane *plane,
+			   struct intel_plane_state *state);
 	int (*update_colorkey)(struct drm_plane *plane,
 			       struct drm_intel_sprite_colorkey *key);
 	void (*get_colorkey)(struct drm_plane *plane,

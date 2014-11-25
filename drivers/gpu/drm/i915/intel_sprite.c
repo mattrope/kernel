@@ -1260,44 +1260,75 @@ intel_check_sprite_plane(struct drm_plane *plane,
 	dst->y1 = crtc_y;
 	dst->y2 = crtc_y + crtc_h;
 
+	/*
+	 * Does this plane completely hide the primary plane?  If so, we can
+	 * disable the primary to save power.
+	 */
+	if (drm_rect_equals(dst, clip) && !colorkey_enabled(intel_plane))
+		state->hides_primary = true;
+	else
+		state->hides_primary = false;
+
 	return 0;
+}
+
+static void
+intel_pre_commit_sprite(struct drm_plane *plane,
+			struct intel_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_crtc *crtc = state->base.crtc;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+
+	/*
+	 * 'prepare' is never called when plane is being disabled, so
+	 * we need to handle frontbuffer tracking here
+	 */
+	if (!state->base.fb) {
+		mutex_lock(&dev->struct_mutex);
+		i915_gem_track_fb(intel_fb_obj(plane->fb), NULL,
+				  INTEL_FRONTBUFFER_SPRITE(intel_crtc->pipe));
+		mutex_unlock(&dev->struct_mutex);
+	}
+
+	if (intel_crtc->primary_enabled && state->hides_primary) {
+		intel_crtc_wait_for_pending_flips(crtc);
+		intel_pre_disable_primary(crtc);
+	}
+
+	if (!intel_crtc->primary_enabled && !state->hides_primary)
+		state->need_primary_enable = true;
+
+	intel_crtc->primary_enabled = !state->hides_primary;
+}
+
+static void
+intel_post_commit_sprite(struct drm_plane *plane,
+			 struct intel_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_crtc *crtc = state->base.crtc;
+	struct intel_plane *intel_plane = to_intel_plane(plane);
+
+	intel_frontbuffer_flip(dev,
+			       INTEL_FRONTBUFFER_SPRITE(intel_plane->pipe));
+
+	if (state->need_primary_enable)
+		intel_post_enable_primary(crtc);
 }
 
 static void
 intel_commit_sprite_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
 {
-	struct drm_device *dev = plane->dev;
 	struct drm_crtc *crtc = state->base.crtc;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_plane *intel_plane = to_intel_plane(plane);
-	enum pipe pipe = intel_crtc->pipe;
 	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	int crtc_x, crtc_y;
 	unsigned int crtc_w, crtc_h;
 	uint32_t src_x, src_y, src_w, src_h;
-	struct drm_rect *dst = &state->dst;
-	const struct drm_rect *clip = &state->clip;
-	bool primary_enabled;
-
-	/*
-	 * 'prepare' is never called when plane is being disabled, so we need
-	 * to handle frontbuffer tracking here
-	 */
-	if (!fb) {
-		mutex_lock(&dev->struct_mutex);
-		i915_gem_track_fb(intel_fb_obj(plane->fb), NULL,
-				  INTEL_FRONTBUFFER_SPRITE(pipe));
-		mutex_unlock(&dev->struct_mutex);
-	}
-
-	/*
-	 * If the sprite is completely covering the primary plane,
-	 * we can disable the primary and save power.
-	 */
-	primary_enabled = !drm_rect_equals(dst, clip) || colorkey_enabled(intel_plane);
-	WARN_ON(!primary_enabled && !state->visible && intel_crtc->active);
 
 	intel_plane->crtc_x = state->orig_dst.x1;
 	intel_plane->crtc_y = state->orig_dst.y1;
@@ -1310,16 +1341,6 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 	intel_plane->obj = obj;
 
 	if (intel_crtc->active) {
-		bool primary_was_enabled = intel_crtc->primary_enabled;
-
-		intel_crtc->primary_enabled = primary_enabled;
-
-		if (primary_was_enabled != primary_enabled)
-			intel_crtc_wait_for_pending_flips(crtc);
-
-		if (primary_was_enabled && !primary_enabled)
-			intel_pre_disable_primary(crtc);
-
 		if (state->visible) {
 			crtc_x = state->dst.x1;
 			crtc_y = state->dst.y1;
@@ -1335,12 +1356,6 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 		} else {
 			intel_plane->disable_plane(plane, crtc);
 		}
-
-
-		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_SPRITE(pipe));
-
-		if (!primary_was_enabled && primary_enabled)
-			intel_post_enable_primary(crtc);
 	}
 }
 
@@ -1589,6 +1604,8 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 	intel_plane->rotation = BIT(DRM_ROTATE_0);
 	intel_plane->check_plane = intel_check_sprite_plane;
 	intel_plane->commit_plane = intel_commit_sprite_plane;
+	intel_plane->pre_commit = intel_pre_commit_sprite;
+	intel_plane->post_commit = intel_post_commit_sprite;
 	possible_crtcs = (1 << pipe);
 	ret = drm_universal_plane_init(dev, &intel_plane->base, possible_crtcs,
 				       &intel_plane_funcs,
