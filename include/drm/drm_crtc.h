@@ -197,7 +197,7 @@ struct drm_framebuffer {
 struct drm_property_blob {
 	struct drm_mode_object base;
 	struct list_head head;
-	unsigned int length;
+	size_t length;
 	unsigned char data[];
 };
 
@@ -216,7 +216,7 @@ struct drm_property {
 	uint64_t *values;
 	struct drm_device *dev;
 
-	struct list_head enum_blob_list;
+	struct list_head enum_list;
 };
 
 struct drm_crtc;
@@ -751,6 +751,8 @@ struct drm_plane {
 	struct drm_device *dev;
 	struct list_head head;
 
+	struct drm_modeset_lock mutex;
+
 	struct drm_mode_object base;
 
 	uint32_t possible_crtcs;
@@ -823,6 +825,7 @@ struct drm_bridge {
  * @plane_states: pointer to array of plane states pointers
  * @crtcs: pointer to array of CRTC pointers
  * @crtc_states: pointer to array of CRTC states pointers
+ * @num_connector: size of the @connectors and @connector_states arrays
  * @connectors: pointer to array of connector pointers
  * @connector_states: pointer to array of connector states pointers
  * @acquire_ctx: acquire context for this atomic modeset state update
@@ -834,6 +837,7 @@ struct drm_atomic_state {
 	struct drm_plane_state **plane_states;
 	struct drm_crtc **crtcs;
 	struct drm_crtc_state **crtc_states;
+	int num_connector;
 	struct drm_connector **connectors;
 	struct drm_connector_state **connector_states;
 
@@ -1036,6 +1040,10 @@ struct drm_mode_config {
 	struct drm_property *aspect_ratio_property;
 	struct drm_property *dirty_info_property;
 
+	/* properties for virtual machine layout */
+	struct drm_property *suggested_x_property;
+	struct drm_property *suggested_y_property;
+
 	/* dumb ioctl parameters */
 	uint32_t preferred_depth, prefer_shadow;
 
@@ -1160,9 +1168,9 @@ extern void drm_mode_config_reset(struct drm_device *dev);
 extern void drm_mode_config_cleanup(struct drm_device *dev);
 
 extern int drm_mode_connector_set_path_property(struct drm_connector *connector,
-						char *path);
+						const char *path);
 extern int drm_mode_connector_update_edid_property(struct drm_connector *connector,
-						struct edid *edid);
+						   const struct edid *edid);
 
 static inline bool drm_property_type_is(struct drm_property *property,
 		uint32_t type)
@@ -1223,11 +1231,13 @@ extern void drm_property_destroy(struct drm_device *dev, struct drm_property *pr
 extern int drm_property_add_enum(struct drm_property *property, int index,
 				 uint64_t value, const char *name);
 extern int drm_mode_create_dvi_i_properties(struct drm_device *dev);
-extern int drm_mode_create_tv_properties(struct drm_device *dev, int num_formats,
-				     char *formats[]);
+extern int drm_mode_create_tv_properties(struct drm_device *dev,
+					 unsigned int num_modes,
+					 char *modes[]);
 extern int drm_mode_create_scaling_mode_property(struct drm_device *dev);
 extern int drm_mode_create_aspect_ratio_property(struct drm_device *dev);
 extern int drm_mode_create_dirty_info_property(struct drm_device *dev);
+extern int drm_mode_create_suggested_offset_properties(struct drm_device *dev);
 
 extern int drm_mode_connector_attach_encoder(struct drm_connector *connector,
 					     struct drm_encoder *encoder);
