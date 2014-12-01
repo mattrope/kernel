@@ -1,0 +1,16 @@
+origin/drm-intel-next-queued 5c8437fa462d45f5a6ae1020d340f6c8e6763df6
+	drm/i915: mask RPS IRQs properly when disabling RPS
+origin/drm-intel-next-fixes 07c338ce98263a5af631b991dd8f96cff6ca2548
+	drm/i915: fix short vs. long hpd detection
+origin/drm-intel-fixes 009d0431c3914de64666bec0d350e54fdd59df6a
+	Linux 3.18-rc7
+drm-upstream/drm-next 21769c675412a04bc2e435188a0c498ee5289142
+	Merge branch 'drm/du/adv7511' of git://linuxtv.org/pinchartl/fbdev into drm-next
+drm-upstream/drm-fixes 21124e5c52ecf87c3fdcb03855ec852563ce93cf
+	Merge tag 'drm-intel-fixes-2014-11-27' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff c465bbc87ce372088935b2a9792d4152b466f7fb
+	drm/edid: new drm_edid_block_checksum helper function V3
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next dacacb0aa0cb6fdeb69313db6acfc82456945d7e
+	ALSA: usb-audio: Add support for Zoom R16/24 capture and midi interfaces
