@@ -12061,7 +12061,7 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	unsigned old_width;
 	uint32_t addr;
 
-	plane->fb = state->fb;
+	plane->fb = state->base.fb;
 	crtc->cursor_x = state->orig_dst.x1;
 	crtc->cursor_y = state->orig_dst.y1;
 
