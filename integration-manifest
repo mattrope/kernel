@@ -1,0 +1,18 @@
+origin/drm-intel-next-queued b05ddd4dfb6303ee9dde359ec913aa7a918fd813
+	gpu: drm: i915: intel_display.c: Remove unused function
+origin/drm-intel-next-fixes ee86e80a6f976e76bcdb5f2071a9d07f5fd63c61
+	drm/i915: Don't complain about stolen conflicts on gen3
+origin/drm-intel-fixes b0616c5306b342ceca07044dbc4f917d95c4f825
+	drm/i915: Unlock panel even when LVDS is disabled
+drm-upstream/drm-next b75478d1c7e4758abcf15c8494d70d4dc4dcb553
+	Merge branch 'drm_iommu_v15' of https://github.com/markyzq/kernel-drm-rockchip into drm-next
+drm-upstream/drm-fixes 3e3282c0a23d8eb9438dcf4ac908a5eb48c7038b
+	Merge tag 'drm-intel-fixes-2014-12-04' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff a0a0bde32a4668656cdffac677032a101c170c6b
+	drm: Fix memory leak at error path of drm_read()
+origin/topic/atomic-core 6eb63d192a75c400d1b04974f46bbff39478dc47
+	drm/atomic: Introduce state->obj backpointers
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next bf35df66f1c613b46e054ca35ceb5caddacc6fa8
+	ALSA: jack: Add dummy snd_jack_set_key() definition
