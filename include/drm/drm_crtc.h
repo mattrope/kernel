@@ -237,7 +237,9 @@ struct drm_atomic_state;
 
 /**
  * struct drm_crtc_state - mutable CRTC state
+ * @crtc: backpointer to the CRTC
  * @enable: whether the CRTC should be enabled, gates all other state
+ * @active: whether the CRTC is actively displaying (used for DPMS)
  * @mode_changed: for use by helpers and drivers when computing state updates
  * @plane_mask: bitmask of (1 << drm_plane_index(plane)) of attached planes
  * @last_vblank_count: for helpers and drivers to capture the vblank of the
@@ -248,9 +250,18 @@ struct drm_atomic_state;
  * @event: optional pointer to a DRM event to signal upon completion of the
  * 	state update
  * @state: backpointer to global drm_atomic_state
+ *
+ * Note that the distinction between @enable and @active is rather subtile:
+ * Flipping @active while @enable is set without changing anything else may
+ * never return in a failure from the ->atomic_check callback. Userspace assumes
+ * that a DPMS On will always succeed. In other words: @enable controls resource
+ * assignment, @active controls the actual hardware state.
  */
 struct drm_crtc_state {
+	struct drm_crtc *crtc;
+
 	bool enable;
+	bool active;
 
 	/* computed state bits used by helpers and drivers */
 	bool planes_changed : 1;
@@ -449,11 +460,14 @@ struct drm_crtc {
 
 /**
  * struct drm_connector_state - mutable connector state
+ * @connector: backpointer to the connector
  * @crtc: CRTC to connect connector to, NULL if disabled
  * @best_encoder: can be used by helpers and drivers to select the encoder
  * @state: backpointer to global drm_atomic_state
  */
 struct drm_connector_state {
+	struct drm_connector *connector;
+
 	struct drm_crtc *crtc;  /* do not write directly, use drm_atomic_set_crtc_for_connector() */
 
 	struct drm_encoder *best_encoder;
@@ -693,6 +707,7 @@ struct drm_connector {
 
 /**
  * struct drm_plane_state - mutable plane state
+ * @plane: backpointer to the plane
  * @crtc: currently bound CRTC, NULL if disabled
  * @fb: currently bound framebuffer
  * @fence: optional fence to wait for before scanning out @fb
@@ -709,6 +724,8 @@ struct drm_connector {
  * @state: backpointer to global drm_atomic_state
  */
 struct drm_plane_state {
+	struct drm_plane *plane;
+
 	struct drm_crtc *crtc;   /* do not write directly, use drm_atomic_set_crtc_for_plane() */
 	struct drm_framebuffer *fb;  /* do not write directly, use drm_atomic_set_fb_for_plane() */
 	struct fence *fence;
