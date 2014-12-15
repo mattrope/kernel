@@ -1,0 +1,18 @@
+origin/drm-intel-next-queued 857eb318722d2f88e68b4630de20e86ec76a04b4
+	drm/i915: Warn about missing context state workarounds only once
+origin/drm-intel-next-fixes dbea3cea69508e9d548ed4a6be13de35492e5d15
+	drm/i915: sanitize RPS resetting during GPU reset
+origin/drm-intel-fixes b0616c5306b342ceca07044dbc4f917d95c4f825
+	drm/i915: Unlock panel even when LVDS is disabled
+drm-upstream/drm-next 4e0cd68115620bc3236ff4e58e4c073948629b41
+	drm: sti: fix module compilation issue
+drm-upstream/drm-fixes 3e3282c0a23d8eb9438dcf4ac908a5eb48c7038b
+	Merge tag 'drm-intel-fixes-2014-12-04' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff 7432ca5acec8a24a7e576c92d28449e2d790b734
+	drm/plane-helper: Test for plane disable earlier
+origin/topic/atomic-core 6eb63d192a75c400d1b04974f46bbff39478dc47
+	drm/atomic: Introduce state->obj backpointers
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next 99fcb3778b0ec12a8fa8b58435d75e9203bb430d
+	ALSA: hda - add codec ID for Skylake display audio codec
