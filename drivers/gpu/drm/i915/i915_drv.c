@@ -1642,6 +1642,18 @@ static int __init i915_init(void)
 #endif
 	}
 
+	/*
+	 * FIXME: We don't yet support full atomic modeset, just the plane
+	 * operations subset (i.e., the "nuclear pageflip" functionality).
+	 * Allow us to advertise atomic functionality when specifically
+	 * requested on the kernel command line.
+	 *
+	 * We'll remove this module parameter and just advertise DRIVER_ATOMIC
+	 * unconditionally once the rest of the atomic infrastructure is ready.
+	 */
+	if (i915.nuclear)
+		driver.driver_features |= DRIVER_ATOMIC;
+
 	return drm_pci_init(&driver, &i915_pci_driver);
 }
 
