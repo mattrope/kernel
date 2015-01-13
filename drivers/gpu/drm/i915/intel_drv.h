@@ -1270,6 +1270,9 @@ int intel_connector_atomic_get_property(struct drm_connector *connector,
 					const struct drm_connector_state *state,
 					struct drm_property *property,
 					uint64_t *val);
+struct drm_crtc_state *intel_crtc_duplicate_state(struct drm_crtc *crtc);
+void intel_crtc_destroy_state(struct drm_crtc *crtc,
+			       struct drm_crtc_state *state);
 
 /* intel_atomic_plane.c */
 struct drm_plane_state *intel_plane_duplicate_state(struct drm_plane *plane);
