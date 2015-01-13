@@ -496,6 +496,7 @@ void intel_fbc_update(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_crtc *crtc = NULL, *tmp_crtc;
 	struct intel_crtc *intel_crtc;
+	struct intel_plane_state *primary_state;
 	struct drm_framebuffer *fb;
 	struct drm_i915_gem_object *obj;
 	const struct drm_display_mode *adjusted_mode;
@@ -540,6 +541,7 @@ void intel_fbc_update(struct drm_device *dev)
 	}
 
 	intel_crtc = to_intel_crtc(crtc);
+	primary_state = to_intel_plane_state(crtc->primary->state);
 	fb = crtc->primary->fb;
 	obj = intel_fb_obj(fb);
 	adjusted_mode = &intel_crtc->config->base.adjusted_mode;
@@ -595,7 +597,7 @@ void intel_fbc_update(struct drm_device *dev)
 		goto out_disable;
 	}
 	if (INTEL_INFO(dev)->gen <= 4 && !IS_G4X(dev) &&
-	    to_intel_plane(crtc->primary)->rotation != BIT(DRM_ROTATE_0)) {
+	    primary_state->rotation != BIT(DRM_ROTATE_0)) {
 		if (set_no_fbc_reason(dev_priv, FBC_UNSUPPORTED_MODE))
 			DRM_DEBUG_KMS("Rotation unsupported, disabling\n");
 		goto out_disable;

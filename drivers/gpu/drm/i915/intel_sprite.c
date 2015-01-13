@@ -187,6 +187,8 @@ skl_update_plane(struct drm_plane *drm_plane, struct drm_crtc *crtc,
 	struct drm_device *dev = drm_plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_plane *intel_plane = to_intel_plane(drm_plane);
+	struct intel_plane_state *state =
+		to_intel_plane_state(drm_plane->state);
 	const int pipe = intel_plane->pipe;
 	const int plane = intel_plane->plane + 1;
 	u32 plane_ctl, stride;
@@ -256,7 +258,7 @@ skl_update_plane(struct drm_plane *drm_plane, struct drm_crtc *crtc,
 	default:
 		BUG();
 	}
-	if (intel_plane->rotation == BIT(DRM_ROTATE_180))
+	if (state->rotation == BIT(DRM_ROTATE_180))
 		plane_ctl |= PLANE_CTL_ROTATE_180;
 
 	plane_ctl |= PLANE_CTL_ENABLE;
@@ -407,6 +409,7 @@ vlv_update_plane(struct drm_plane *dplane, struct drm_crtc *crtc,
 	struct drm_device *dev = dplane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_plane *intel_plane = to_intel_plane(dplane);
+	struct intel_plane_state *state = to_intel_plane_state(dplane->state);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int pipe = intel_plane->pipe;
 	int plane = intel_plane->plane;
@@ -493,7 +496,7 @@ vlv_update_plane(struct drm_plane *dplane, struct drm_crtc *crtc,
 							fb->pitches[0]);
 	linear_offset -= sprsurf_offset;
 
-	if (intel_plane->rotation == BIT(DRM_ROTATE_180)) {
+	if (state->rotation == BIT(DRM_ROTATE_180)) {
 		sprctl |= SP_ROTATE_180;
 
 		x += src_w;
@@ -608,6 +611,7 @@ ivb_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct drm_device *dev = plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
+	struct intel_plane_state *state = to_intel_plane_state(plane->state);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int pipe = intel_plane->pipe;
 	u32 sprctl, sprscale = 0;
@@ -684,7 +688,7 @@ ivb_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 					       pixel_size, fb->pitches[0]);
 	linear_offset -= sprsurf_offset;
 
-	if (intel_plane->rotation == BIT(DRM_ROTATE_180)) {
+	if (state->rotation == BIT(DRM_ROTATE_180)) {
 		sprctl |= SPRITE_ROTATE_180;
 
 		/* HSW and BDW does this automagically in hardware */
@@ -813,6 +817,7 @@ ilk_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct drm_device *dev = plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
+	struct intel_plane_state *state = to_intel_plane_state(plane->state);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int pipe = intel_plane->pipe;
 	unsigned long dvssurf_offset, linear_offset;
@@ -884,7 +889,7 @@ ilk_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 					       pixel_size, fb->pitches[0]);
 	linear_offset -= dvssurf_offset;
 
-	if (intel_plane->rotation == BIT(DRM_ROTATE_180)) {
+	if (state->rotation == BIT(DRM_ROTATE_180)) {
 		dvscntr |= DVS_ROTATE_180;
 
 		x += src_w;
@@ -1125,7 +1130,7 @@ intel_check_sprite_plane(struct drm_plane *plane,
 	min_scale = intel_plane->can_scale ? 1 : (1 << 16);
 
 	drm_rect_rotate(src, fb->width << 16, fb->height << 16,
-			intel_plane->rotation);
+			state->rotation);
 
 	hscale = drm_rect_calc_hscale_relaxed(src, dst, min_scale, max_scale);
 	BUG_ON(hscale < 0);
@@ -1166,7 +1171,7 @@ intel_check_sprite_plane(struct drm_plane *plane,
 				     drm_rect_height(dst) * vscale - drm_rect_height(src));
 
 		drm_rect_rotate_inv(src, fb->width << 16, fb->height << 16,
-				    intel_plane->rotation);
+				    state->rotation);
 
 		/* sanity check to make sure the src viewport wasn't enlarged */
 		WARN_ON(src->x1 < (int) state->base.src_x ||
@@ -1367,7 +1372,7 @@ int intel_plane_set_property(struct drm_plane *plane,
 			     uint64_t val)
 {
 	struct drm_device *dev = plane->dev;
-	struct intel_plane *intel_plane = to_intel_plane(plane);
+	struct intel_plane_state *state = to_intel_plane_state(plane->state);
 	uint64_t old_val;
 	int ret = -ENOENT;
 
@@ -1376,14 +1381,14 @@ int intel_plane_set_property(struct drm_plane *plane,
 		if (hweight32(val & 0xf) != 1)
 			return -EINVAL;
 
-		if (intel_plane->rotation == val)
+		if (state->rotation == val)
 			return 0;
 
-		old_val = intel_plane->rotation;
-		intel_plane->rotation = val;
+		old_val = state->rotation;
+		state->rotation = val;
 		ret = intel_plane_restore(plane);
 		if (ret)
-			intel_plane->rotation = old_val;
+			state->rotation = old_val;
 	}
 
 	return ret;
@@ -1457,6 +1462,7 @@ int
 intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 {
 	struct intel_plane *intel_plane;
+	struct intel_plane_state *state;
 	unsigned long possible_crtcs;
 	const uint32_t *plane_formats;
 	int num_plane_formats;
@@ -1475,6 +1481,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 		kfree(intel_plane);
 		return -ENOMEM;
 	}
+	state = to_intel_plane_state(intel_plane->base.state);
 
 	switch (INTEL_INFO(dev)->gen) {
 	case 5:
@@ -1545,7 +1552,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 
 	intel_plane->pipe = pipe;
 	intel_plane->plane = plane;
-	intel_plane->rotation = BIT(DRM_ROTATE_0);
+	state->rotation = BIT(DRM_ROTATE_0);
 	intel_plane->check_plane = intel_check_sprite_plane;
 	intel_plane->commit_plane = intel_commit_sprite_plane;
 	possible_crtcs = (1 << pipe);
@@ -1567,7 +1574,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe, int plane)
 	if (dev->mode_config.rotation_property)
 		drm_object_attach_property(&intel_plane->base.base,
 					   dev->mode_config.rotation_property,
-					   intel_plane->rotation);
+					   state->rotation);
 
 	drm_plane_helper_add(&intel_plane->base, &intel_plane_helper_funcs);
 

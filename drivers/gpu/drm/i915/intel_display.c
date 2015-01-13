@@ -2435,6 +2435,8 @@ static void i9xx_update_primary_plane(struct drm_crtc *crtc,
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_plane_state *state =
+		to_intel_plane_state(crtc->primary->state);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_i915_gem_object *obj;
 	int plane = intel_crtc->plane;
@@ -2532,7 +2534,7 @@ static void i9xx_update_primary_plane(struct drm_crtc *crtc,
 		intel_crtc->dspaddr_offset = linear_offset;
 	}
 
-	if (to_intel_plane(crtc->primary)->rotation == BIT(DRM_ROTATE_180)) {
+	if (state->rotation == BIT(DRM_ROTATE_180)) {
 		dspcntr |= DISPPLANE_ROTATE_180;
 
 		x += (intel_crtc->config->pipe_src_w - 1);
@@ -2568,6 +2570,8 @@ static void ironlake_update_primary_plane(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_plane_state *state =
+		to_intel_plane_state(crtc->primary->state);
 	struct drm_i915_gem_object *obj;
 	int plane = intel_crtc->plane;
 	unsigned long linear_offset;
@@ -2634,7 +2638,7 @@ static void ironlake_update_primary_plane(struct drm_crtc *crtc,
 					       pixel_size,
 					       fb->pitches[0]);
 	linear_offset -= intel_crtc->dspaddr_offset;
-	if (to_intel_plane(crtc->primary)->rotation == BIT(DRM_ROTATE_180)) {
+	if (state->rotation == BIT(DRM_ROTATE_180)) {
 		dspcntr |= DISPPLANE_ROTATE_180;
 
 		if (!IS_HASWELL(dev) && !IS_BROADWELL(dev)) {
@@ -2673,6 +2677,8 @@ static void skylake_update_primary_plane(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_plane_state *state =
+		to_intel_plane_state(crtc->primary->state);
 	struct intel_framebuffer *intel_fb;
 	struct drm_i915_gem_object *obj;
 	int pipe = intel_crtc->pipe;
@@ -2731,7 +2737,7 @@ static void skylake_update_primary_plane(struct drm_crtc *crtc,
 	}
 
 	plane_ctl |= PLANE_CTL_PLANE_GAMMA_DISABLE;
-	if (to_intel_plane(crtc->primary)->rotation == BIT(DRM_ROTATE_180))
+	if (state->rotation == BIT(DRM_ROTATE_180))
 		plane_ctl |= PLANE_CTL_ROTATE_180;
 
 	I915_WRITE(PLANE_CTL(pipe, 0), plane_ctl);
@@ -8216,6 +8222,8 @@ static void i9xx_update_cursor(struct drm_crtc *crtc, u32 base)
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_plane_state *state =
+		to_intel_plane_state(crtc->cursor->state);
 	int pipe = intel_crtc->pipe;
 	uint32_t cntl;
 
@@ -8242,7 +8250,7 @@ static void i9xx_update_cursor(struct drm_crtc *crtc, u32 base)
 			cntl |= CURSOR_PIPE_CSC_ENABLE;
 	}
 
-	if (to_intel_plane(crtc->cursor)->rotation == BIT(DRM_ROTATE_180))
+	if (state->rotation == BIT(DRM_ROTATE_180))
 		cntl |= CURSOR_ROTATE_180;
 
 	if (intel_crtc->cursor_cntl != cntl) {
@@ -8265,6 +8273,8 @@ static void intel_crtc_update_cursor(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_plane_state *state =
+		to_intel_plane_state(crtc->cursor->state);
 	int pipe = intel_crtc->pipe;
 	int x = crtc->cursor_x;
 	int y = crtc->cursor_y;
@@ -8303,8 +8313,7 @@ static void intel_crtc_update_cursor(struct drm_crtc *crtc,
 	I915_WRITE(CURPOS(pipe), pos);
 
 	/* ILK+ do this automagically */
-	if (HAS_GMCH_DISPLAY(dev) &&
-		to_intel_plane(crtc->cursor)->rotation == BIT(DRM_ROTATE_180)) {
+	if (HAS_GMCH_DISPLAY(dev) && state->rotation == BIT(DRM_ROTATE_180)) {
 		base += (intel_crtc->cursor_height *
 			intel_crtc->cursor_width - 1) * 4;
 	}
@@ -11756,7 +11765,6 @@ intel_check_primary_plane(struct drm_plane *plane,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_crtc *crtc = state->base.crtc;
 	struct intel_crtc *intel_crtc;
-	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_rect *dest = &state->dst;
 	struct drm_rect *src = &state->src;
@@ -11790,7 +11798,7 @@ intel_check_primary_plane(struct drm_plane *plane,
 		if (intel_crtc->primary_enabled &&
 		    INTEL_INFO(dev)->gen <= 4 && !IS_G4X(dev) &&
 		    dev_priv->fbc.plane == intel_crtc->plane &&
-		    intel_plane->rotation != BIT(DRM_ROTATE_0)) {
+		    state->rotation != BIT(DRM_ROTATE_0)) {
 			intel_crtc->atomic.disable_fbc = true;
 		}
 
@@ -11974,6 +11982,7 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 						    int pipe)
 {
 	struct intel_plane *primary;
+	struct intel_plane_state *state;
 	const uint32_t *intel_primary_formats;
 	int num_formats;
 
@@ -11986,12 +11995,13 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 		kfree(primary);
 		return NULL;
 	}
+	state = to_intel_plane_state(primary->base.state);
 
 	primary->can_scale = false;
 	primary->max_downscale = 1;
 	primary->pipe = pipe;
 	primary->plane = pipe;
-	primary->rotation = BIT(DRM_ROTATE_0);
+	state->rotation = BIT(DRM_ROTATE_0);
 	primary->check_plane = intel_check_primary_plane;
 	primary->commit_plane = intel_commit_primary_plane;
 	if (HAS_FBC(dev) && INTEL_INFO(dev)->gen < 4)
@@ -12019,7 +12029,7 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 		if (dev->mode_config.rotation_property)
 			drm_object_attach_property(&primary->base.base,
 				dev->mode_config.rotation_property,
-				primary->rotation);
+				state->rotation);
 	}
 
 	drm_plane_helper_add(&primary->base, &intel_plane_helper_funcs);
@@ -12147,6 +12157,7 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 						   int pipe)
 {
 	struct intel_plane *cursor;
+	struct intel_plane_state *state;
 
 	cursor = kzalloc(sizeof(*cursor), GFP_KERNEL);
 	if (cursor == NULL)
@@ -12157,12 +12168,13 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 		kfree(cursor);
 		return NULL;
 	}
+	state = to_intel_plane_state(cursor->base.state);
 
 	cursor->can_scale = false;
 	cursor->max_downscale = 1;
 	cursor->pipe = pipe;
 	cursor->plane = pipe;
-	cursor->rotation = BIT(DRM_ROTATE_0);
+	state->rotation = BIT(DRM_ROTATE_0);
 	cursor->check_plane = intel_check_cursor_plane;
 	cursor->commit_plane = intel_commit_cursor_plane;
 
@@ -12181,7 +12193,7 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 		if (dev->mode_config.rotation_property)
 			drm_object_attach_property(&cursor->base.base,
 				dev->mode_config.rotation_property,
-				cursor->rotation);
+				state->rotation);
 	}
 
 	drm_plane_helper_add(&cursor->base, &intel_plane_helper_funcs);
