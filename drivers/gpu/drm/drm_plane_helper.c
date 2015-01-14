@@ -586,3 +586,108 @@ int drm_plane_helper_disable(struct drm_plane *plane)
 	return drm_plane_helper_commit(plane, plane_state, plane->fb);
 }
 EXPORT_SYMBOL(drm_plane_helper_disable);
+
+/**
+ * drm_plane_helper_set_property() - Transitional helper for property updates
+ * @plane: plane object to update
+ * @prop: property to update
+ * @val: value to set property to
+ *
+ * Provides a default plane property handler using the atomic plane update
+ * functions.  Drivers in the process of transitioning to atomic should
+ * replace their plane.set_property() entrypoint with this function and
+ * then implement the plane.atomic_set_property() entrypoint.
+ *
+ * This is useful for piecewise transitioning of a driver to the atomic helpers.
+ *
+ * Note that this helper assumes that no hardware programming should be
+ * performed if the plane is disabled.  When the plane is not attached to a
+ * crtc, we just swap in the validated plane state and return; there's no
+ * call to atomic_begin()/atomic_update()/atomic_flush().
+ *
+ * RETURNS:
+ * Zero on success, error code on failure
+ */
+int drm_plane_helper_set_property(struct drm_plane *plane,
+				  struct drm_property *prop,
+				  uint64_t val)
+{
+	struct drm_plane_state *plane_state;
+	struct drm_plane_helper_funcs *plane_funcs = plane->helper_private;
+	struct drm_crtc_helper_funcs *crtc_funcs;
+	int ret;
+
+	/*
+	 * Drivers may not have an .atomic_set_property() handler if they have
+	 * no driver-specific properties, but they generally wouldn't setup a
+	 * .set_property() handler (pointing to this function) for the plane in
+	 * that case either; throw a warning since this is probably a mistake.
+	 */
+	if (WARN_ON(!plane->funcs->atomic_set_property))
+		return -EINVAL;
+
+	if (plane->funcs->atomic_duplicate_state)
+		plane_state = plane->funcs->atomic_duplicate_state(plane);
+	else if (plane->state)
+		plane_state = drm_atomic_helper_plane_duplicate_state(plane);
+	else
+		plane_state = kzalloc(sizeof(*plane_state), GFP_KERNEL);
+	if (!plane_state)
+		return -ENOMEM;
+	plane_state->plane = plane;
+
+	/*
+	 * Update the state object with the new property value we want to
+	 * set.  If the property is not recognized as a driver-specific property,
+	 * -EINVAL will be returned here.
+	 */
+	ret = plane->funcs->atomic_set_property(plane, plane_state, prop, val);
+	if (ret)
+		goto out;
+
+	/*
+	 * Check that the updated plane state is actually programmable (e.g.,
+	 * doesn't violate hardware constraints).
+	 */
+	if (plane_funcs->atomic_check) {
+		ret = plane_funcs->atomic_check(plane, plane_state);
+		if (ret)
+			goto out;
+	}
+
+	/* Point of no return, commit sw state. */
+	swap(plane->state, plane_state);
+
+	/*
+	 * If the plane is disabled, we're done.  No hardware programming is
+	 * attempted when the plane is disabled.
+	 */
+	if (!plane->crtc)
+		goto out;
+
+	/* Start hardware transaction to commit new state to hardware */
+	crtc_funcs = plane->crtc->helper_private;
+	if (crtc_funcs && crtc_funcs->atomic_begin)
+		crtc_funcs->atomic_begin(plane->crtc);
+	plane_funcs->atomic_update(plane, plane_state);
+	if (crtc_funcs && crtc_funcs->atomic_flush)
+		crtc_funcs->atomic_flush(plane->crtc);
+
+	/*
+	 * Since we're not using full atomic yet, we still need to update the shadow
+	 * property value that's managed by the DRM core since that's where the
+	 * property values will be read back from.
+	 */
+	drm_object_property_set_value(&plane->base, prop, val);
+
+out:
+	if (plane_state) {
+		if (plane->funcs->atomic_destroy_state)
+			plane->funcs->atomic_destroy_state(plane, plane_state);
+		else
+			drm_atomic_helper_plane_destroy_state(plane, plane_state);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(drm_plane_helper_set_property);
