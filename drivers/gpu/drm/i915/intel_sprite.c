@@ -1094,6 +1094,10 @@ intel_check_sprite_plane(struct drm_plane *plane,
 
 	intel_crtc = intel_crtc ? intel_crtc : to_intel_crtc(plane->crtc);
 
+	/* CRTC may be unset if we're updating a property of a disabled plane */
+	if (!intel_crtc)
+		return 0;
+
 	if (!fb) {
 		state->visible = false;
 		goto finish;
@@ -1364,33 +1368,6 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 
 out_unlock:
 	drm_modeset_unlock_all(dev);
-	return ret;
-}
-
-int intel_plane_set_property(struct drm_plane *plane,
-			     struct drm_property *prop,
-			     uint64_t val)
-{
-	struct drm_device *dev = plane->dev;
-	struct intel_plane_state *state = to_intel_plane_state(plane->state);
-	uint64_t old_val;
-	int ret = -ENOENT;
-
-	if (prop == dev->mode_config.rotation_property) {
-		/* exactly one rotation angle please */
-		if (hweight32(val & 0xf) != 1)
-			return -EINVAL;
-
-		if (state->rotation == val)
-			return 0;
-
-		old_val = state->rotation;
-		state->rotation = val;
-		ret = intel_plane_restore(plane);
-		if (ret)
-			state->rotation = old_val;
-	}
-
 	return ret;
 }
 

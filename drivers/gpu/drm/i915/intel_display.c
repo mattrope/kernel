@@ -11774,6 +11774,10 @@ intel_check_primary_plane(struct drm_plane *plane,
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
 
+	/* CRTC may be unset if we're updating a property of a disabled plane */
+	if (!crtc)
+		return 0;
+
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
 					    src, dest, clip,
 					    DRM_PLANE_HELPER_NO_SCALING,
@@ -11972,7 +11976,7 @@ const struct drm_plane_funcs intel_plane_funcs = {
 	.update_plane = drm_plane_helper_update,
 	.disable_plane = drm_plane_helper_disable,
 	.destroy = intel_plane_destroy,
-	.set_property = intel_plane_set_property,
+	.set_property = drm_plane_helper_set_property,
 	.atomic_get_property = intel_plane_atomic_get_property,
 	.atomic_set_property = intel_plane_atomic_set_property,
 	.atomic_duplicate_state = intel_plane_duplicate_state,
@@ -12056,6 +12060,10 @@ intel_check_cursor_plane(struct drm_plane *plane,
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	/* CRTC may be unset if we're updating a property of a disabled plane */
+	if (!crtc)
+		return 0;
 
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
 					    src, dest, clip,

@@ -104,13 +104,20 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	intel_state->dst.x2 = state->crtc_x + state->crtc_w;
 	intel_state->dst.y2 = state->crtc_y + state->crtc_h;
 
-	/* Clip all planes to CRTC size, or 0x0 if CRTC is disabled */
+	/*
+	 * Clip all planes to CRTC size, or 0x0 if CRTC unset or disabled.
+	 * Note that CRTC may be unset if we're setting a property of a
+	 * disabled plane.
+	 */
 	intel_state->clip.x1 = 0;
 	intel_state->clip.y1 = 0;
-	intel_state->clip.x2 =
-		intel_crtc->active ? intel_crtc->config->pipe_src_w : 0;
-	intel_state->clip.y2 =
-		intel_crtc->active ? intel_crtc->config->pipe_src_h : 0;
+	if (crtc && intel_crtc->active) {
+		intel_state->clip.x2 = intel_crtc->config->pipe_src_w;
+		intel_state->clip.y2 = intel_crtc->config->pipe_src_h;
+	} else {
+		intel_state->clip.x2 = 0;
+		intel_state->clip.y2 = 0;
+	}
 
 	/*
 	 * Disabling a plane is always okay; we just need to update
@@ -118,6 +125,9 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	 * get called by the plane helpers.
 	 */
 	if (state->fb == NULL && plane->state->fb != NULL) {
+		if (WARN_ON(!crtc))
+			return -EINVAL;
+
 		/*
 		 * 'prepare' is never called when plane is being disabled, so
 		 * we need to handle frontbuffer tracking as a special case
@@ -125,6 +135,10 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 		intel_crtc->atomic.disabled_planes |=
 			(1 << drm_plane_index(plane));
 	}
+
+	/* Rotation property should contain only a single rotation bit */
+	if (hweight32(intel_state->rotation & 0xf) != 1)
+		return -EINVAL;
 
 	return intel_plane->check_plane(plane, intel_state);
 }
