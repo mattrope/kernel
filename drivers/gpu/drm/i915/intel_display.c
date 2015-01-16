@@ -8950,9 +8950,9 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 		kfree(work);
 	}
 
+	intel_crtc_set_state(intel_crtc, NULL);
 	drm_crtc_cleanup(crtc);
 
-	intel_crtc_set_state(intel_crtc, NULL);
 	kfree(intel_crtc);
 }
 
