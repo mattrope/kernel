@@ -1261,6 +1261,13 @@ void intel_pre_disable_primary(struct drm_crtc *crtc);
 void intel_tv_init(struct drm_device *dev);
 
 /* intel_atomic.c */
+int intel_atomic_check(struct drm_device *dev,
+		       struct drm_atomic_state *state);
+int intel_atomic_commit(struct drm_device *dev,
+			struct drm_atomic_state *state,
+			bool async);
+
+/* intel_atomic_plane.c */
 struct drm_plane_state *intel_plane_duplicate_state(struct drm_plane *plane);
 void intel_plane_destroy_state(struct drm_plane *plane,
 			       struct drm_plane_state *state);
