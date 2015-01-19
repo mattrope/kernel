@@ -1,0 +1,20 @@
+origin/drm-intel-next-queued 441406c2a74c8cf651503efa50afc2fc53e6bdd2
+	drm/i915: New offset for reading frequencies on CHV.
+origin/drm-intel-next-fixes b7392d2247cfe6771f95d256374f1a8e6a6f48d6
+	Linux 3.19-rc2
+origin/drm-intel-fixes 226e5ae9e5f9108beb0bde4ac69f68fe6210fed9
+	drm/i915: Fix mutex->owner inspection race under DEBUG_MUTEXES
+origin/topic/i915-hda-componentized fcf3aac5fc307f0cae429f5844ddc25761662858
+	drm/i915: remove unused power_well/get_cdclk_freq api
+drm-upstream/drm-next 426959c945538bace94ccc590d8630c02ecd6b0f
+	drm: fix mismerge in drm_crtc.c
+drm-upstream/drm-fixes 79305ec6e60d320832505e95c1a028d309fcd2b6
+	Merge tag 'amdkfd-fixes-2015-01-06' of git://people.freedesktop.org/~gabbayo/linux into drm-fixes
+origin/topic/core-stuff 2535ef6ae303ece199d6d855d4194f2b044752b7
+	next: drm/atomic: Use copy_from_user to copy 64 bit data from user space
+origin/topic/atomic-core 426959c945538bace94ccc590d8630c02ecd6b0f
+	drm: fix mismerge in drm_crtc.c
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next 53c098bfc5b614cd28c416215f5fa68815f1cce9
+	ALSA: add Studio Evolution SE6X support
