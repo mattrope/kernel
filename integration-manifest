@@ -1,0 +1,20 @@
+origin/drm-intel-next-queued e9413c76eb4c990bd3882d2c2ad1f228819b4e7d
+	drm/i915: Fix kzalloc() smatch warnings in get_initial_plane_config()
+origin/drm-intel-next-fixes b7392d2247cfe6771f95d256374f1a8e6a6f48d6
+	Linux 3.19-rc2
+origin/drm-intel-fixes 78f4e4767cdde8b50aae44642458fe02c631811d
+	drm/i915: BDW Fix Halo PCI IDs marked as ULT.
+origin/topic/i915-hda-componentized fcf3aac5fc307f0cae429f5844ddc25761662858
+	drm/i915: remove unused power_well/get_cdclk_freq api
+drm-upstream/drm-next fc83975348ebce07793e6b9f780edc3cbcffa9fc
+	Merge tag 'imx-drm-next-2015-01-09' of git://git.pengutronix.de/git/pza/linux into drm-next
+drm-upstream/drm-fixes 67cf2d391292f8bf0598236e7b4ec343eae6234f
+	Merge tag 'drm-amdkfd-fixes-2015-01-13' of git://people.freedesktop.org/~gabbayo/linux into drm-fixes
+origin/topic/core-stuff aef52e6f352abd0376e6b0ccdf64691bd1258a9a
+	drm/probe-helper: clamp unknown connector status in the poll work
+origin/topic/atomic-core 852d1461e137e1648970591ba55db3a65b49e5a1
+	drm/plane-helper: Fix transitional helper kerneldocs
+origin/topic/atomic-helpers 321ebf04dc7ab5c54d658f93db0ffe35277664ab
+	drm/atomic: Refcounting for plane_state->fb
+sound-upstream/for-next b4b33f9d64c3edcdcbea874acdc1e9626fd961f1
+	ALSA: hda - Enable docking station for an HP machine
