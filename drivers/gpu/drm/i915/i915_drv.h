@@ -556,11 +556,6 @@ struct drm_i915_display_funcs {
 	void (*audio_codec_disable)(struct intel_encoder *encoder);
 	void (*fdi_link_train)(struct drm_crtc *crtc);
 	void (*init_clock_gating)(struct drm_device *dev);
-	int (*queue_flip)(struct drm_device *dev, struct drm_crtc *crtc,
-			  struct drm_framebuffer *fb,
-			  struct drm_i915_gem_object *obj,
-			  struct intel_engine_cs *ring,
-			  uint32_t flags);
 	void (*update_primary_plane)(struct drm_crtc *crtc,
 				     struct drm_framebuffer *fb,
 				     int x, int y);
@@ -2526,7 +2521,6 @@ struct i915_params {
 	bool reset;
 	bool disable_display;
 	bool disable_vtd_wa;
-	int use_mmio_flip;
 	bool mmio_debug;
 	bool verbose_state_checks;
 	bool nuclear_pageflip;
