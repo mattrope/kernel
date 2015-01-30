@@ -76,6 +76,8 @@ int intel_atomic_check(struct drm_device *dev,
 	state->allow_modeset = false;
 	for (i = 0; i < ncrtcs; i++) {
 		struct intel_crtc *crtc = to_intel_crtc(state->crtcs[i]);
+		if (crtc)
+			state->crtc_states[i]->enable = crtc->active;
 		if (crtc && crtc->pipe != nuclear_pipe)
 			not_nuclear = true;
 	}
@@ -95,6 +97,87 @@ int intel_atomic_check(struct drm_device *dev,
 	return ret;
 }
 
+
+/*
+ * Wait until CRTC's have no pending flip, then atomically mark those CRTC's
+ * as busy.
+ */
+static int wait_for_pending_flip(uint32_t crtc_mask,
+				 struct intel_pending_atomic *commit)
+{
+	struct drm_i915_private *dev_priv = commit->dev->dev_private;
+	int ret;
+
+	spin_lock_irq(&dev_priv->pending_flip_queue.lock);
+	ret = wait_event_interruptible_locked(dev_priv->pending_flip_queue,
+					      !(dev_priv->pending_atomic & crtc_mask));
+	if (ret == 0)
+		dev_priv->pending_atomic |= crtc_mask;
+	spin_unlock_irq(&dev_priv->pending_flip_queue.lock);
+
+	return ret;
+}
+
+/* Finish pending flip operation on specified CRTC's */
+static void flip_completion(struct intel_pending_atomic *commit)
+{
+	struct drm_i915_private *dev_priv = commit->dev->dev_private;
+
+	spin_lock_irq(&dev_priv->pending_flip_queue.lock);
+	dev_priv->pending_atomic &= ~commit->crtc_mask;
+	wake_up_all_locked(&dev_priv->pending_flip_queue);
+	spin_unlock_irq(&dev_priv->pending_flip_queue.lock);
+}
+
+/*
+ * Finish an atomic commit.  The work here can be performed asynchronously
+ * if desired.  The new state has already been applied to the DRM objects
+ * and no modeset locks are needed.
+ */
+static void finish_atomic_commit(struct work_struct *work)
+{
+	struct intel_pending_atomic *commit =
+		container_of(work, struct intel_pending_atomic, work);
+	struct drm_device *dev = commit->dev;
+	struct drm_crtc *crtc;
+	struct drm_atomic_state *state = commit->state;
+	int i;
+
+	/*
+	 * FIXME:  The proper sequence here will eventually be:
+	 *
+	 * drm_atomic_helper_commit_pre_planes(dev, state);
+	 * drm_atomic_helper_commit_planes(dev, state);
+	 * drm_atomic_helper_commit_post_planes(dev, state);
+	 * drm_atomic_helper_wait_for_vblanks(dev, state);
+	 * drm_atomic_helper_cleanup_planes(dev, state);
+	 * drm_atomic_state_free(state);
+	 *
+	 * once we have full atomic modeset.  For now, just manually update
+	 * plane states to avoid clobbering good states with dummy states
+	 * while nuclear pageflipping.
+	 */
+	drm_atomic_helper_commit_planes(dev, state);
+	drm_atomic_helper_wait_for_vblanks(dev, state);
+
+	/* Send CRTC completion events. */
+	for (i = 0; i < dev->mode_config.num_crtc; i++) {
+		crtc = state->crtcs[i];
+		if (crtc && crtc->state->event) {
+			spin_lock_irq(&dev->event_lock);
+			drm_send_vblank_event(dev, to_intel_crtc(crtc)->pipe,
+					      crtc->state->event);
+			spin_unlock_irq(&dev->event_lock);
+			crtc->state->event = NULL;
+		}
+	}
+
+	drm_atomic_helper_cleanup_planes(dev, state);
+	drm_atomic_state_free(state);
+
+	flip_completion(commit);
+	kfree(commit);
+}
 
 /**
  * intel_atomic_commit - commit validated state object
@@ -116,34 +199,48 @@ int intel_atomic_commit(struct drm_device *dev,
 			struct drm_atomic_state *state,
 			bool async)
 {
+	struct intel_pending_atomic *commit;
 	int ret;
 	int i;
-
-	if (async) {
-		DRM_DEBUG_KMS("i915 does not yet support async commit\n");
-		return -EINVAL;
-	}
 
 	ret = drm_atomic_helper_prepare_planes(dev, state);
 	if (ret)
 		return ret;
 
-	/* Point of no return */
+	commit = kzalloc(sizeof(*commit), GFP_KERNEL);
+	if (!commit)
+		return -ENOMEM;
+
+	commit->dev = dev;
+	commit->state = state;
+
+	for (i = 0; i < dev->mode_config.num_crtc; i++)
+		if (state->crtcs[i])
+			commit->crtc_mask |=
+				(1 << drm_crtc_index(state->crtcs[i]));
 
 	/*
-	 * FIXME:  The proper sequence here will eventually be:
-	 *
-	 * drm_atomic_helper_swap_state(dev, state)
-	 * drm_atomic_helper_commit_pre_planes(dev, state);
-	 * drm_atomic_helper_commit_planes(dev, state);
-	 * drm_atomic_helper_commit_post_planes(dev, state);
-	 * drm_atomic_helper_wait_for_vblanks(dev, state);
-	 * drm_atomic_helper_cleanup_planes(dev, state);
-	 * drm_atomic_state_free(state);
-	 *
-	 * once we have full atomic modeset.  For now, just manually update
-	 * plane states to avoid clobbering good states with dummy states
-	 * while nuclear pageflipping.
+	 * If there's already a flip pending, we won't schedule another one
+	 * until it completes.  We may relax this in the future, but for now
+	 * this matches the legacy pageflip behavior.
+	 */
+	ret = wait_for_pending_flip(commit->crtc_mask, commit);
+	if (ret) {
+		kfree(commit);
+		return ret;
+	}
+
+	/*
+	 * Point of no return; everything from here on can't fail, so swap
+	 * the new state into the DRM objects.
+	 */
+
+	/*
+	 * FIXME:  Should eventually use drm_atomic_helper_swap_state().
+	 * However since we only handle planes at the moment, we don't
+	 * want to clobber our good crtc state with something bogus,
+	 * so just manually swap the plane states and copy over any completion
+	 * events for CRTC's.
 	 */
 	for (i = 0; i < dev->mode_config.num_total_plane; i++) {
 		struct drm_plane *plane = state->planes[i];
@@ -155,10 +252,29 @@ int intel_atomic_commit(struct drm_device *dev,
 		swap(state->plane_states[i], plane->state);
 		plane->state->state = NULL;
 	}
-	drm_atomic_helper_commit_planes(dev, state);
-	drm_atomic_helper_wait_for_vblanks(dev, state);
-	drm_atomic_helper_cleanup_planes(dev, state);
-	drm_atomic_state_free(state);
+
+	for (i = 0; i < dev->mode_config.num_crtc; i++) {
+		struct drm_crtc *crtc = state->crtcs[i];
+		struct drm_crtc_state *crtc_state = state->crtc_states[i];
+
+		if (!crtc || !crtc_state)
+			continue;
+
+		/* n.b., we only copy the event and enabled flag for now */
+		swap(crtc->state->event, crtc_state->event);
+		swap(crtc->state->enable, crtc_state->enable);
+	}
+
+	/*
+	 * From here on, we can do everything asynchronously without any
+	 * modeset locks.
+	 */
+	if (async) {
+		INIT_WORK(&commit->work, finish_atomic_commit);
+		schedule_work(&commit->work);
+	} else {
+		finish_atomic_commit(&commit->work);
+	}
 
 	return 0;
 }

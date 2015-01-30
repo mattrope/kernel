@@ -391,6 +391,14 @@ struct intel_crtc_state {
 	int pbn;
 };
 
+/* In-flight atomic operation */
+struct intel_pending_atomic {
+	struct work_struct work;
+	struct drm_device *dev;
+	struct drm_atomic_state *state;
+	uint32_t crtc_mask;
+};
+
 struct intel_pipe_wm {
 	struct intel_wm_level wm[5];
 	uint32_t linetime;
