@@ -691,6 +691,10 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 	if (cursor)
 		cursor->possible_crtcs = 1 << drm_crtc_index(crtc);
 
+	if (drm_core_check_feature(dev, DRIVER_ATOMIC)) {
+		drm_object_attach_property(&crtc->base, config->prop_active, 0);
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(drm_crtc_init_with_planes);
@@ -783,7 +787,7 @@ int drm_display_info_set_bus_formats(struct drm_display_info *info,
 	if (formats && num_formats) {
 		fmts = kmemdup(formats, sizeof(*formats) * num_formats,
 			       GFP_KERNEL);
-		if (!formats)
+		if (!fmts)
 			return -ENOMEM;
 	}
 
@@ -1060,61 +1064,6 @@ void drm_connector_unplug_all(struct drm_device *dev)
 
 }
 EXPORT_SYMBOL(drm_connector_unplug_all);
-
-/**
- * drm_bridge_init - initialize a drm transcoder/bridge
- * @dev: drm device
- * @bridge: transcoder/bridge to set up
- * @funcs: bridge function table
- *
- * Initialises a preallocated bridge. Bridges should be
- * subclassed as part of driver connector objects.
- *
- * Returns:
- * Zero on success, error code on failure.
- */
-int drm_bridge_init(struct drm_device *dev, struct drm_bridge *bridge,
-		const struct drm_bridge_funcs *funcs)
-{
-	int ret;
-
-	drm_modeset_lock_all(dev);
-
-	ret = drm_mode_object_get(dev, &bridge->base, DRM_MODE_OBJECT_BRIDGE);
-	if (ret)
-		goto out;
-
-	bridge->dev = dev;
-	bridge->funcs = funcs;
-
-	list_add_tail(&bridge->head, &dev->mode_config.bridge_list);
-	dev->mode_config.num_bridge++;
-
- out:
-	drm_modeset_unlock_all(dev);
-	return ret;
-}
-EXPORT_SYMBOL(drm_bridge_init);
-
-/**
- * drm_bridge_cleanup - cleans up an initialised bridge
- * @bridge: bridge to cleanup
- *
- * Cleans up the bridge but doesn't free the object.
- */
-void drm_bridge_cleanup(struct drm_bridge *bridge)
-{
-	struct drm_device *dev = bridge->dev;
-
-	drm_modeset_lock_all(dev);
-	drm_mode_object_put(dev, &bridge->base);
-	list_del(&bridge->head);
-	dev->mode_config.num_bridge--;
-	drm_modeset_unlock_all(dev);
-
-	memset(bridge, 0, sizeof(*bridge));
-}
-EXPORT_SYMBOL(drm_bridge_cleanup);
 
 /**
  * drm_encoder_init - Init a preallocated encoder
@@ -1481,6 +1430,12 @@ static int drm_mode_create_standard_properties(struct drm_device *dev)
 		return -ENOMEM;
 	dev->mode_config.prop_crtc_id = prop;
 
+	prop = drm_property_create_bool(dev, DRM_MODE_PROP_ATOMIC,
+			"ACTIVE");
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.prop_active = prop;
+
 	return 0;
 }
 
@@ -1705,7 +1660,6 @@ static int drm_mode_group_init(struct drm_device *dev, struct drm_mode_group *gr
 	total_objects += dev->mode_config.num_crtc;
 	total_objects += dev->mode_config.num_connector;
 	total_objects += dev->mode_config.num_encoder;
-	total_objects += dev->mode_config.num_bridge;
 
 	group->id_list = kcalloc(total_objects, sizeof(uint32_t), GFP_KERNEL);
 	if (!group->id_list)
@@ -1714,7 +1668,6 @@ static int drm_mode_group_init(struct drm_device *dev, struct drm_mode_group *gr
 	group->num_crtcs = 0;
 	group->num_connectors = 0;
 	group->num_encoders = 0;
-	group->num_bridges = 0;
 	return 0;
 }
 
@@ -1734,7 +1687,6 @@ int drm_mode_group_init_legacy_group(struct drm_device *dev,
 	struct drm_crtc *crtc;
 	struct drm_encoder *encoder;
 	struct drm_connector *connector;
-	struct drm_bridge *bridge;
 	int ret;
 
 	ret = drm_mode_group_init(dev, group);
@@ -1751,11 +1703,6 @@ int drm_mode_group_init_legacy_group(struct drm_device *dev,
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
 		group->id_list[group->num_crtcs + group->num_encoders +
 			       group->num_connectors++] = connector->base.id;
-
-	list_for_each_entry(bridge, &dev->mode_config.bridge_list, head)
-		group->id_list[group->num_crtcs + group->num_encoders +
-			       group->num_connectors + group->num_bridges++] =
-					bridge->base.id;
 
 	return 0;
 }
@@ -3810,7 +3757,7 @@ static struct drm_property *property_create_range(struct drm_device *dev,
 }
 
 /**
- * drm_property_create_range - create a new ranged property type
+ * drm_property_create_range - create a new unsigned ranged property type
  * @dev: drm device
  * @flags: flags specifying the property type
  * @name: name of the property
@@ -3821,8 +3768,8 @@ static struct drm_property *property_create_range(struct drm_device *dev,
  * object with drm_object_attach_property. The returned property object must be
  * freed with drm_property_destroy.
  *
- * Userspace is allowed to set any integer value in the (min, max) range
- * inclusive.
+ * Userspace is allowed to set any unsigned integer value in the (min, max)
+ * range inclusive.
  *
  * Returns:
  * A pointer to the newly created property on success, NULL on failure.
@@ -3836,6 +3783,24 @@ struct drm_property *drm_property_create_range(struct drm_device *dev, int flags
 }
 EXPORT_SYMBOL(drm_property_create_range);
 
+/**
+ * drm_property_create_signed_range - create a new signed ranged property type
+ * @dev: drm device
+ * @flags: flags specifying the property type
+ * @name: name of the property
+ * @min: minimum value of the property
+ * @max: maximum value of the property
+ *
+ * This creates a new generic drm property which can then be attached to a drm
+ * object with drm_object_attach_property. The returned property object must be
+ * freed with drm_property_destroy.
+ *
+ * Userspace is allowed to set any signed integer value in the (min, max)
+ * range inclusive.
+ *
+ * Returns:
+ * A pointer to the newly created property on success, NULL on failure.
+ */
 struct drm_property *drm_property_create_signed_range(struct drm_device *dev,
 					 int flags, const char *name,
 					 int64_t min, int64_t max)
@@ -3845,12 +3810,32 @@ struct drm_property *drm_property_create_signed_range(struct drm_device *dev,
 }
 EXPORT_SYMBOL(drm_property_create_signed_range);
 
+/**
+ * drm_property_create_object - create a new object property type
+ * @dev: drm device
+ * @flags: flags specifying the property type
+ * @name: name of the property
+ * @type: object type from DRM_MODE_OBJECT_* defines
+ *
+ * This creates a new generic drm property which can then be attached to a drm
+ * object with drm_object_attach_property. The returned property object must be
+ * freed with drm_property_destroy.
+ *
+ * Userspace is only allowed to set this to any property value of the given
+ * @type. Only useful for atomic properties, which is enforced.
+ *
+ * Returns:
+ * A pointer to the newly created property on success, NULL on failure.
+ */
 struct drm_property *drm_property_create_object(struct drm_device *dev,
 					 int flags, const char *name, uint32_t type)
 {
 	struct drm_property *property;
 
 	flags |= DRM_MODE_PROP_OBJECT;
+
+	if (WARN_ON(!(flags & DRM_MODE_PROP_ATOMIC)))
+		return NULL;
 
 	property = drm_property_create(dev, flags, name, 1);
 	if (!property)
@@ -3861,6 +3846,28 @@ struct drm_property *drm_property_create_object(struct drm_device *dev,
 	return property;
 }
 EXPORT_SYMBOL(drm_property_create_object);
+
+/**
+ * drm_property_create_bool - create a new boolean property type
+ * @dev: drm device
+ * @flags: flags specifying the property type
+ * @name: name of the property
+ *
+ * This creates a new generic drm property which can then be attached to a drm
+ * object with drm_object_attach_property. The returned property object must be
+ * freed with drm_property_destroy.
+ *
+ * This is implemented as a ranged property with only {0, 1} as valid values.
+ *
+ * Returns:
+ * A pointer to the newly created property on success, NULL on failure.
+ */
+struct drm_property *drm_property_create_bool(struct drm_device *dev, int flags,
+					 const char *name)
+{
+	return drm_property_create_range(dev, flags, name, 0, 1);
+}
+EXPORT_SYMBOL(drm_property_create_bool);
 
 /**
  * drm_property_add_enum - add a possible value to an enumeration property
@@ -5373,7 +5380,6 @@ void drm_mode_config_init(struct drm_device *dev)
 	INIT_LIST_HEAD(&dev->mode_config.fb_list);
 	INIT_LIST_HEAD(&dev->mode_config.crtc_list);
 	INIT_LIST_HEAD(&dev->mode_config.connector_list);
-	INIT_LIST_HEAD(&dev->mode_config.bridge_list);
 	INIT_LIST_HEAD(&dev->mode_config.encoder_list);
 	INIT_LIST_HEAD(&dev->mode_config.property_list);
 	INIT_LIST_HEAD(&dev->mode_config.property_blob_list);
@@ -5413,7 +5419,6 @@ void drm_mode_config_cleanup(struct drm_device *dev)
 	struct drm_connector *connector, *ot;
 	struct drm_crtc *crtc, *ct;
 	struct drm_encoder *encoder, *enct;
-	struct drm_bridge *bridge, *brt;
 	struct drm_framebuffer *fb, *fbt;
 	struct drm_property *property, *pt;
 	struct drm_property_blob *blob, *bt;
@@ -5422,11 +5427,6 @@ void drm_mode_config_cleanup(struct drm_device *dev)
 	list_for_each_entry_safe(encoder, enct, &dev->mode_config.encoder_list,
 				 head) {
 		encoder->funcs->destroy(encoder);
-	}
-
-	list_for_each_entry_safe(bridge, brt,
-				 &dev->mode_config.bridge_list, head) {
-		bridge->funcs->destroy(bridge);
 	}
 
 	list_for_each_entry_safe(connector, ot,

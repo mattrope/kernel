@@ -435,7 +435,8 @@ int drm_plane_helper_commit(struct drm_plane *plane,
 			goto out;
 	}
 
-	if (plane_funcs->prepare_fb && plane_state->fb) {
+	if (plane_funcs->prepare_fb && plane_state->fb &&
+	    plane_state->fb != old_fb) {
 		ret = plane_funcs->prepare_fb(plane, plane_state->fb);
 		if (ret)
 			goto out;
@@ -449,12 +450,27 @@ int drm_plane_helper_commit(struct drm_plane *plane,
 			crtc_funcs[i]->atomic_begin(crtc[i]);
 	}
 
-	plane_funcs->atomic_update(plane, plane_state);
+	/*
+	 * Drivers may optionally implement the ->atomic_disable callback, so
+	 * special-case that here.
+	 */
+	if (drm_atomic_plane_disabling(plane, plane_state) &&
+	    plane_funcs->atomic_disable)
+		plane_funcs->atomic_disable(plane, plane_state);
+	else
+		plane_funcs->atomic_update(plane, plane_state);
 
 	for (i = 0; i < 2; i++) {
 		if (crtc_funcs[i] && crtc_funcs[i]->atomic_flush)
 			crtc_funcs[i]->atomic_flush(crtc[i]);
 	}
+
+	/*
+	 * If we only moved the plane and didn't change fb's, there's no need to
+	 * wait for vblank.
+	 */
+	if (plane->state->fb == old_fb)
+		goto out;
 
 	for (i = 0; i < 2; i++) {
 		if (!crtc[i])
@@ -484,7 +500,7 @@ out:
 }
 
 /**
- * drm_plane_helper_update() - Helper for primary plane update
+ * drm_plane_helper_update() - Transitional helper for plane update
  * @plane: plane object to update
  * @crtc: owning CRTC of owning plane
  * @fb: framebuffer to flip onto plane
@@ -541,7 +557,7 @@ int drm_plane_helper_update(struct drm_plane *plane, struct drm_crtc *crtc,
 EXPORT_SYMBOL(drm_plane_helper_update);
 
 /**
- * drm_plane_helper_disable() - Helper for primary plane disable
+ * drm_plane_helper_disable() - Transitional helper for plane disable
  * @plane: plane to disable
  *
  * Provides a default plane disable handler using the atomic plane update
