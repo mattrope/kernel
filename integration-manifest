@@ -1,0 +1,18 @@
+origin/drm-intel-next-queued f463cd2d5a197d1dae6d2c0720359a979836d74d
+	drm/i915: Track old framebuffer instead of object
+origin/drm-intel-next-fixes 1293eaa3ebf92f146f366d9b678a07b8b3200ea1
+	drm/i915: Update DRIVER_DATE to 20150130
+origin/drm-intel-fixes 6b96d705f3cf435b0b8835b12c9742513c77fed6
+	drm/i915: BDW Fix Halo PCI IDs marked as ULT.
+drm-upstream/drm-next e4bf44b3b558742fb7c58b4d34e206c8942f07e6
+	drm/modes: Print the mode status in human readable form
+drm-upstream/drm-fixes a78b80f51e57273961c397b5e9e224860228b965
+	Merge tag 'drm-intel-fixes-2015-01-29' of git://anongit.freedesktop.org/drm-intel into drm-fixes
+origin/topic/core-stuff eb2ed66fe56f30c6ea841ac11681a2f51049b221
+	drm/irq: Don't disable vblank interrupts when already disabled
+origin/topic/atomic-core 9469244d869623e8b54d9f3d4d00737e377af273
+	drm/atomic: Fix potential use of state after free
+sound-upstream/for-next 3fe9cf390f6dc84f76b112b0a660967a84f9a81b
+	Merge branch 'topic/snd-device' into for-next
+origin/topic/drm-misc 51ed3411587944817e7054d0bafbb4df9d9c730a
+	drm: remove DRM_FORMAT_NV12MT
