@@ -1772,8 +1772,37 @@ static void gen6_rps_irq_handler(struct drm_i915_private *dev_priv, u32 pm_iir)
 	}
 }
 
+static void process_vblank_jobs(struct drm_device *dev, enum pipe pipe)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_crtc *crtc = dev_priv->pipe_to_crtc_mapping[pipe];
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct i915_vblank_job *job, *tmp;
+	u32 seq;
+
+	seq = drm_vblank_count(dev, pipe);
+	list_for_each_entry_safe(job, tmp, &intel_crtc->vblank_jobs, link) {
+		if (seq - job->seq > (1<<23))
+			continue;
+
+		list_del(&job->link);
+		drm_vblank_put(dev, pipe);
+
+		if (job->wq) {
+			job->fired_seq = seq;
+			queue_work(job->wq, &job->work);
+		} else {
+			job->callback(intel_crtc, job->callback_data,
+				      false, seq);
+			kfree(job);
+		}
+	}
+}
+
 static bool intel_pipe_handle_vblank(struct drm_device *dev, enum pipe pipe)
 {
+	process_vblank_jobs(dev, pipe);
+
 	if (!drm_handle_vblank(dev, pipe))
 		return false;
 
@@ -4531,4 +4560,92 @@ void intel_runtime_pm_enable_interrupts(struct drm_i915_private *dev_priv)
 	dev_priv->pm.irqs_enabled = true;
 	dev_priv->dev->driver->irq_preinstall(dev_priv->dev);
 	dev_priv->dev->driver->irq_postinstall(dev_priv->dev);
+}
+
+static void vblank_job_handler(struct work_struct *work)
+{
+	struct i915_vblank_job *job =
+		container_of(work, struct i915_vblank_job, work);
+
+	job->callback(job->crtc, job->callback_data,
+		      job->seq != job->fired_seq, job->fired_seq);
+	kfree(job);
+}
+
+/**
+ * intel_schedule_vblank_job - schedule work to happen on specified vblank
+ * @crtc: CRTC whose vblank should trigger the work
+ * @callback: Code to run on vblank
+ * @callback_data: Data to pass to callback function
+ * @wq: Workqueue to run job on (or NULL to run from interrupt context)
+ * @seq: vblank count relative to current to schedule for
+ *
+ * Schedule code that should be run after the specified vblank fires.  The code
+ * can either run directly in the interrupt context or on a specified
+ * workqueue.
+ */
+int intel_schedule_vblank_job(struct intel_crtc *crtc,
+			      i915_vblank_callback_t callback,
+			      void *callback_data,
+			      struct workqueue_struct *wq,
+			      u32 seq)
+{
+	struct drm_device *dev = crtc->base.dev;
+	struct i915_vblank_job *job;
+	unsigned long irqflags;
+	int ret;
+
+	job = kzalloc(sizeof(*job), GFP_KERNEL);
+	if (!job)
+		return -ENOMEM;
+
+	job->wq = wq;
+	job->crtc = crtc;
+	job->callback = callback;
+	job->callback_data = callback_data;
+	if (job->wq)
+		INIT_WORK(&job->work, vblank_job_handler);
+
+	ret = drm_crtc_vblank_get(&crtc->base);
+	if (ret) {
+		DRM_DEBUG_KMS("Failed to enable interrupts, ret=%d\n", ret);
+		kfree(job);
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&dev->event_lock, irqflags);
+	job->seq = seq + drm_vblank_count(dev, crtc->pipe);
+	list_add_tail(&job->link, &crtc->vblank_jobs);
+	spin_unlock_irqrestore(&dev->event_lock, irqflags);
+
+	return 0;
+}
+
+/**
+ * intel_trigger_all_vblank_jobs - immediately trigger vblank jobs for a crtc
+ * @crtc: CRTC to trigger all outstanding jobs for
+ *
+ * Immediately triggers all of the jobs awaiting future vblanks on a CRTC.
+ * This will be called when a CRTC is disabled (because there may never be
+ * another vblank event).  The job callbacks will receive 'true' for the
+ * early parameter, as well as the current vblank count.
+ */
+void trigger_all_vblank_jobs(struct intel_crtc *crtc)
+{
+	struct i915_vblank_job *job, *tmp;
+	u32 seq;
+
+	seq = drm_vblank_count(crtc->base.dev, crtc->pipe);
+	list_for_each_entry_safe(job, tmp, &crtc->vblank_jobs, link) {
+		list_del(&job->link);
+		drm_vblank_put(crtc->base.dev, crtc->pipe);
+
+		if (job->wq) {
+			job->fired_seq = seq;
+			queue_work(job->wq, &job->work);
+		} else {
+			job->callback(crtc, job->callback_data, true, seq);
+			kfree(job);
+		}
+	}
 }

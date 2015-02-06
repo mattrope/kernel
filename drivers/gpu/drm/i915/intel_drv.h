@@ -438,6 +438,24 @@ struct intel_crtc_atomic_commit {
 	unsigned update_sprite_watermarks;
 };
 
+typedef void (*i915_vblank_callback_t)(struct intel_crtc *crtc,
+				       void *data,
+				       bool early,
+				       u32 fired_seq);
+
+/* Task to run (or schedule on a workqueue) on a specific vblank */
+struct i915_vblank_job {
+	u32 seq;
+	u32 fired_seq;                     /* early if crtc gets disabled */
+	struct intel_crtc *crtc;
+	struct workqueue_struct *wq;       /* NULL = run from interrupt */
+	i915_vblank_callback_t callback;
+	void *callback_data;
+
+	struct list_head link;
+	struct work_struct work;
+};
+
 struct intel_crtc {
 	struct drm_crtc base;
 	enum pipe pipe;
@@ -493,6 +511,9 @@ struct intel_crtc {
 	struct intel_mmio_flip mmio_flip;
 
 	struct intel_crtc_atomic_commit atomic;
+
+	/* Jobs to run/schedule on vblank */
+	struct list_head vblank_jobs;
 };
 
 struct intel_plane_wm_parameters {
@@ -819,6 +840,12 @@ static inline bool intel_irqs_enabled(struct drm_i915_private *dev_priv)
 
 int intel_get_crtc_scanline(struct intel_crtc *crtc);
 void gen8_irq_power_well_post_enable(struct drm_i915_private *dev_priv);
+int intel_schedule_vblank_job(struct intel_crtc *crtc,
+			      i915_vblank_callback_t callback,
+			      void *callback_data,
+			      struct workqueue_struct *wq,
+			      u32 seq);
+void trigger_all_vblank_jobs(struct intel_crtc *crtc);
 
 /* intel_crt.c */
 void intel_crt_init(struct drm_device *dev);
