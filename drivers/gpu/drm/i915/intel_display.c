@@ -4743,6 +4743,8 @@ static void ironlake_crtc_disable(struct drm_crtc *crtc)
 	if (!intel_crtc->active)
 		return;
 
+	trigger_all_vblank_jobs(intel_crtc);
+
 	intel_crtc_disable_planes(crtc);
 
 	for_each_encoder_on_crtc(dev, crtc, encoder)
@@ -4806,6 +4808,8 @@ static void haswell_crtc_disable(struct drm_crtc *crtc)
 
 	if (!intel_crtc->active)
 		return;
+
+	trigger_all_vblank_jobs(intel_crtc);
 
 	intel_crtc_disable_planes(crtc);
 
@@ -5429,6 +5433,8 @@ static void i9xx_crtc_disable(struct drm_crtc *crtc)
 
 	if (!intel_crtc->active)
 		return;
+
+	trigger_all_vblank_jobs(intel_crtc);
 
 	/*
 	 * Gen2 reports pipe underruns whenever all planes are disabled.
@@ -12917,6 +12923,8 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
 	INIT_WORK(&intel_crtc->mmio_flip.work, intel_mmio_flip_work_func);
 
 	drm_crtc_helper_add(&intel_crtc->base, &intel_helper_funcs);
+
+	INIT_LIST_HEAD(&intel_crtc->vblank_jobs);
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
 	return;
