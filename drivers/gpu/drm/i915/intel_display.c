@@ -12812,7 +12812,7 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc)
 			intel_update_sprite_watermarks(p, crtc, 0, 0, 0,
 						       false, false);
 
-	memset(&intel_crtc->atomic, 0, sizeof(intel_crtc->atomic));
+	intel_clear_atomic_crtc_flags(intel_crtc);
 }
 
 /**

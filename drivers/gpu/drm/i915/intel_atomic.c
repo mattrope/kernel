@@ -35,6 +35,22 @@
 #include <drm/drm_plane_helper.h>
 #include "intel_drv.h"
 
+/**
+ * intel_clear_atomic_crtc_flags
+ * @crtc: CRTC to clear flags for
+ *
+ * Until we have proper atomic handling of CRTC states, we dump some atomic
+ * task flags in intel_crtc->atomic.  Those flags need to be cleared at
+ * the beginning of each transaction so that we don't carry over stale flags
+ * from previous transactions.
+ *
+ * Note that the whole intel_crtc->atomic structure is a temporary hack and
+ * should transition into the CRTC state eventually.
+ */
+void intel_clear_atomic_crtc_flags(struct intel_crtc *crtc)
+{
+	memset(&crtc->atomic, 0, sizeof(crtc->atomic));
+}
 
 /**
  * intel_atomic_check - validate state object
@@ -76,6 +92,8 @@ int intel_atomic_check(struct drm_device *dev,
 	state->allow_modeset = false;
 	for (i = 0; i < ncrtcs; i++) {
 		struct intel_crtc *crtc = to_intel_crtc(state->crtcs[i]);
+		if (crtc)
+			intel_clear_atomic_crtc_flags(crtc);
 		if (crtc && crtc->pipe != nuclear_pipe)
 			not_nuclear = true;
 	}

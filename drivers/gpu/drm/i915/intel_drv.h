@@ -1303,6 +1303,7 @@ void intel_pre_disable_primary(struct drm_crtc *crtc);
 void intel_tv_init(struct drm_device *dev);
 
 /* intel_atomic.c */
+void intel_clear_atomic_crtc_flags(struct intel_crtc *crtc);
 int intel_atomic_check(struct drm_device *dev,
 		       struct drm_atomic_state *state);
 int intel_atomic_commit(struct drm_device *dev,
