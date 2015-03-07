@@ -886,8 +886,6 @@ chv_find_best_dpll(const intel_limit_t *limit, struct intel_crtc *crtc,
 
 bool intel_crtc_active(struct drm_crtc *crtc)
 {
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-
 	/* Be paranoid as we can arrive here with only partial
 	 * state retrieved from the hardware during setup.
 	 *
@@ -897,8 +895,8 @@ bool intel_crtc_active(struct drm_crtc *crtc)
 	 * We can ditch the crtc->primary->fb check as soon as we can
 	 * properly reconstruct framebuffers.
 	 */
-	return crtc->state->active && crtc->primary->fb &&
-		intel_crtc->config->base.adjusted_mode.crtc_clock;
+	return crtc->state->active && crtc->primary->state->fb &&
+		crtc->state->adjusted_mode.crtc_clock;
 }
 
 enum transcoder intel_pipe_to_cpu_transcoder(struct drm_i915_private *dev_priv,
