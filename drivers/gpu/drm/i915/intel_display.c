@@ -11228,6 +11228,7 @@ static int __intel_set_mode(struct drm_crtc *crtc,
 		/* mode_set/enable/disable functions rely on a correct pipe
 		 * config. */
 		intel_crtc_set_state(to_intel_crtc(crtc), pipe_config);
+                pipe_config->base.crtc = &intel_crtc->base;
 
 		/*
 		 * Calculate and store various constants which
