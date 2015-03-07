@@ -822,7 +822,7 @@ static uint8_t vlv_compute_drain_latency(struct drm_crtc *crtc,
 	 * FIXME the plane might have an fb
 	 * but be invisible (eg. due to clipping)
 	 */
-	if (!intel_crtc->base.state->active || !plane->state->fb)
+	if (!crtc->state->active || !plane->state->fb)
 		return 0;
 
 	if (WARN(clock == 0, "Pixel clock is zero!\n"))
@@ -1701,7 +1701,7 @@ hsw_compute_linetime_wm(struct drm_device *dev, struct drm_crtc *crtc)
 	struct drm_display_mode *mode = &intel_crtc->config->base.adjusted_mode;
 	u32 linetime, ips_linetime;
 
-	if (!intel_crtc_active(crtc))
+	if (!crtc->state->active)
 		return 0;
 
 	/* The WM are computed with base on how long it takes to fill a single
@@ -1956,7 +1956,7 @@ static void ilk_compute_wm_parameters(struct drm_crtc *crtc,
 	enum pipe pipe = intel_crtc->pipe;
 	struct drm_plane *plane;
 
-	if (!intel_crtc_active(crtc))
+	if (!crtc->state->active)
 		return;
 
 	p->active = true;
@@ -2468,7 +2468,7 @@ skl_ddb_get_pipe_allocation_limits(struct drm_device *dev,
 
 	nth_active_pipe = 0;
 	for_each_crtc(dev, crtc) {
-		if (!intel_crtc_active(crtc))
+		if (!crtc->state->active)
 			continue;
 
 		if (crtc == for_crtc)
@@ -2708,7 +2708,7 @@ static void skl_compute_wm_global_parameters(struct drm_device *dev,
 	struct drm_plane *plane;
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
-		config->num_pipes_active += intel_crtc_active(crtc);
+		config->num_pipes_active += crtc->state->active;
 
 	/* FIXME: I don't think we need those two global parameters on SKL */
 	list_for_each_entry(plane, &dev->mode_config.plane_list, head) {
@@ -2729,7 +2729,7 @@ static void skl_compute_wm_pipe_parameters(struct drm_crtc *crtc,
 	struct drm_framebuffer *fb;
 	int i = 1; /* Index for sprite planes start */
 
-	p->active = intel_crtc_active(crtc);
+	p->active = crtc->state->active;
 	if (p->active) {
 		p->pipe_htotal = intel_crtc->config->base.adjusted_mode.crtc_htotal;
 		p->pixel_rate = skl_pipe_pixel_rate(intel_crtc->config);
@@ -2860,7 +2860,7 @@ static void skl_compute_wm_level(const struct drm_i915_private *dev_priv,
 static uint32_t
 skl_compute_linetime_wm(struct drm_crtc *crtc, struct skl_pipe_wm_parameters *p)
 {
-	if (!intel_crtc_active(crtc))
+	if (!crtc->state->active)
 		return 0;
 
 	return DIV_ROUND_UP(8 * p->pipe_htotal * 1000, p->pixel_rate);
@@ -3191,7 +3191,7 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 		if (this_crtc->pipe == intel_crtc->pipe)
 			continue;
 
-		if (!intel_crtc->base.state->active)
+		if (!crtc->state->active)
 			continue;
 
 		wm_changed = skl_update_pipe_wm(&intel_crtc->base,
@@ -3407,7 +3407,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 		hw->plane_trans[pipe][i] = I915_READ(PLANE_WM_TRANS(pipe, i));
 	hw->cursor_trans[pipe] = I915_READ(CUR_WM_TRANS(pipe));
 
-	if (!intel_crtc_active(crtc))
+	if (!crtc->state->active)
 		return;
 
 	hw->dirty[pipe] = true;
@@ -3462,7 +3462,7 @@ static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	if (IS_HASWELL(dev) || IS_BROADWELL(dev))
 		hw->wm_linetime[pipe] = I915_READ(PIPE_WM_LINETIME(pipe));
 
-	active->pipe_enabled = intel_crtc_active(crtc);
+	active->pipe_enabled = crtc->state->active;
 
 	if (active->pipe_enabled) {
 		u32 tmp = hw->wm_pipe[pipe];
