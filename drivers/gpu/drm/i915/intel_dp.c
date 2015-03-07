@@ -3974,7 +3974,7 @@ intel_dp_check_link_status(struct intel_dp *intel_dp)
 	if (WARN_ON(!intel_encoder->base.crtc))
 		return;
 
-	if (!to_intel_crtc(intel_encoder->base.crtc)->active)
+	if (!intel_encoder->base.crtc->state->active)
 		return;
 
 	/* Try to read receiver status if the link appears to be up */
@@ -4955,7 +4955,7 @@ static void intel_dp_set_drrs_state(struct drm_device *dev, int refresh_rate)
 		return;
 	}
 
-	if (!intel_crtc->active) {
+	if (!intel_crtc->base.state->active) {
 		DRM_DEBUG_KMS("eDP encoder disabled. CRTC not Active\n");
 		return;
 	}

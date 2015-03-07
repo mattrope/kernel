@@ -541,7 +541,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 	for_each_crtc(dev, crtc) {
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (!intel_crtc->active || !crtc->primary->fb) {
+		if (!intel_crtc->base.state->active || !crtc->primary->fb) {
 			DRM_DEBUG_KMS("pipe %c not active or no fb, skipping\n",
 				      pipe_name(intel_crtc->pipe));
 			continue;
@@ -567,7 +567,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (!intel_crtc->active) {
+		if (!intel_crtc->base.state->active) {
 			DRM_DEBUG_KMS("pipe %c not active, skipping\n",
 				      pipe_name(intel_crtc->pipe));
 			continue;
@@ -632,7 +632,7 @@ static bool intel_fbdev_init_bios(struct drm_device *dev,
 	for_each_crtc(dev, crtc) {
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (!intel_crtc->active)
+		if (!intel_crtc->base.state->active)
 			continue;
 
 		WARN(!crtc->primary->fb,

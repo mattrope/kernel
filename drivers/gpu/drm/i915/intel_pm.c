@@ -822,7 +822,7 @@ static uint8_t vlv_compute_drain_latency(struct drm_crtc *crtc,
 	 * FIXME the plane might have an fb
 	 * but be invisible (eg. due to clipping)
 	 */
-	if (!intel_crtc->active || !plane->state->fb)
+	if (!intel_crtc->base.state->active || !plane->state->fb)
 		return 0;
 
 	if (WARN(clock == 0, "Pixel clock is zero!\n"))
@@ -3080,7 +3080,7 @@ static void skl_flush_wm_values(struct drm_i915_private *dev_priv,
 	 * re-allocate the freed space without this pipe fetching from it.
 	 */
 	for_each_intel_crtc(dev, crtc) {
-		if (!crtc->active)
+		if (!crtc->base.state->active)
 			continue;
 
 		pipe = crtc->pipe;
@@ -3103,7 +3103,7 @@ static void skl_flush_wm_values(struct drm_i915_private *dev_priv,
 	 * space is not used anymore.
 	 */
 	for_each_intel_crtc(dev, crtc) {
-		if (!crtc->active)
+		if (!crtc->base.state->active)
 			continue;
 
 		pipe = crtc->pipe;
@@ -3126,7 +3126,7 @@ static void skl_flush_wm_values(struct drm_i915_private *dev_priv,
 	 * will just get more DDB space with the correct WM values.
 	 */
 	for_each_intel_crtc(dev, crtc) {
-		if (!crtc->active)
+		if (!crtc->base.state->active)
 			continue;
 
 		pipe = crtc->pipe;
@@ -3191,7 +3191,7 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 		if (this_crtc->pipe == intel_crtc->pipe)
 			continue;
 
-		if (!intel_crtc->active)
+		if (!intel_crtc->base.state->active)
 			continue;
 
 		wm_changed = skl_update_pipe_wm(&intel_crtc->base,

@@ -2656,9 +2656,10 @@ static int i915_display_info(struct seq_file *m, void *unused)
 
 		seq_printf(m, "CRTC %d: pipe: %c, active=%s (size=%dx%d)\n",
 			   crtc->base.base.id, pipe_name(crtc->pipe),
-			   yesno(crtc->active), crtc->config->pipe_src_w,
+			   yesno(crtc->base.state->active),
+			   crtc->config->pipe_src_w,
 			   crtc->config->pipe_src_h);
-		if (crtc->active) {
+		if (crtc->base.state->active) {
 			intel_crtc_info(m, crtc);
 
 			active = cursor_position(dev, crtc->pipe, &x, &y);
@@ -2951,7 +2952,7 @@ static int i915_drrs_status(struct seq_file *m, void *unused)
 	for_each_intel_crtc(dev, intel_crtc) {
 		drm_modeset_lock(&intel_crtc->base.mutex, NULL);
 
-		if (intel_crtc->active) {
+		if (intel_crtc->base.state->active) {
 			active_crtc_cnt++;
 			seq_printf(m, "\nCRTC %d:  ", active_crtc_cnt);
 
@@ -3650,7 +3651,7 @@ static int pipe_crc_set_source(struct drm_device *dev, enum pipe pipe,
 				 pipe_name(pipe));
 
 		drm_modeset_lock(&crtc->base.mutex, NULL);
-		if (crtc->active)
+		if (crtc->base.state->active)
 			intel_wait_for_vblank(dev, pipe);
 		drm_modeset_unlock(&crtc->base.mutex);
 

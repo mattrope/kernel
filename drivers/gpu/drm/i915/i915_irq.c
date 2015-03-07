@@ -649,7 +649,7 @@ static int i915_get_crtc_scanoutpos(struct drm_device *dev, int pipe,
 	int ret = 0;
 	unsigned long irqflags;
 
-	if (!intel_crtc->active) {
+	if (!intel_crtc->base.state->active) {
 		DRM_DEBUG_DRIVER("trying to get scanoutpos for disabled "
 				 "pipe %c\n", pipe_name(pipe));
 		return 0;

@@ -1242,9 +1242,9 @@ finish:
 	 */
 	state->hides_primary = fb != NULL && drm_rect_equals(dst, clip) &&
 		!colorkey_enabled(intel_plane);
-	WARN_ON(state->hides_primary && !state->visible && intel_crtc->active);
+	WARN_ON(state->hides_primary && !state->visible && state->base.crtc->state->active);
 
-	if (intel_crtc->active) {
+	if (state->base.crtc->state->active) {
 		if (intel_crtc->primary_enabled == state->hides_primary)
 			intel_crtc->atomic.wait_for_flips = true;
 
@@ -1286,7 +1286,7 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 	plane->fb = state->base.fb;
 	intel_plane->obj = obj;
 
-	if (intel_crtc->active) {
+	if (crtc->state->active) {
 		intel_crtc->primary_enabled = !state->hides_primary;
 
 		if (state->visible) {

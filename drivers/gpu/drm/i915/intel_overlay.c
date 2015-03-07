@@ -852,7 +852,7 @@ int intel_overlay_switch_off(struct intel_overlay *overlay)
 static int check_overlay_possible_on_crtc(struct intel_overlay *overlay,
 					  struct intel_crtc *crtc)
 {
-	if (!crtc->active)
+	if (!crtc->base.state->active)
 		return -EINVAL;
 
 	/* can't use the overlay with double wide pipe */
