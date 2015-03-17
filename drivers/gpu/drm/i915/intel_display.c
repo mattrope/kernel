@@ -5006,16 +5006,16 @@ static void vlv_update_cdclk(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	dev_priv->vlv_cdclk_freq = dev_priv->display.get_display_clock_speed(dev);
+	dev_priv->cdclk_freq = dev_priv->display.get_display_clock_speed(dev);
 	DRM_DEBUG_DRIVER("Current CD clock rate: %d kHz\n",
-			 dev_priv->vlv_cdclk_freq);
+			 dev_priv->cdclk_freq);
 
 	/*
 	 * Program the gmbus_freq based on the cdclk frequency.
 	 * BSpec erroneously claims we should aim for 4MHz, but
 	 * in fact 1MHz is the correct frequency.
 	 */
-	I915_WRITE(GMBUSFREQ_VLV, DIV_ROUND_UP(dev_priv->vlv_cdclk_freq, 1000));
+	I915_WRITE(GMBUSFREQ_VLV, DIV_ROUND_UP(dev_priv->cdclk_freq, 1000));
 }
 
 /* Adjust CDclk dividers to allow high res or save power if possible */
@@ -5024,7 +5024,8 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 val, cmd;
 
-	WARN_ON(dev_priv->display.get_display_clock_speed(dev) != dev_priv->vlv_cdclk_freq);
+	WARN_ON(dev_priv->display.get_display_clock_speed(dev)
+					!= dev_priv->cdclk_freq);
 
 	if (cdclk >= 320000) /* jump to highest voltage for 400MHz too */
 		cmd = 2;
@@ -5088,7 +5089,8 @@ static void cherryview_set_cdclk(struct drm_device *dev, int cdclk)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 val, cmd;
 
-	WARN_ON(dev_priv->display.get_display_clock_speed(dev) != dev_priv->vlv_cdclk_freq);
+	WARN_ON(dev_priv->display.get_display_clock_speed(dev)
+						!= dev_priv->cdclk_freq);
 
 	switch (cdclk) {
 	case 333333:
@@ -5187,7 +5189,7 @@ static int valleyview_modeset_global_pipes(struct drm_atomic_state *state,
 		return max_pixclk;
 
 	if (valleyview_calc_cdclk(dev_priv, max_pixclk) ==
-	    dev_priv->vlv_cdclk_freq)
+	    dev_priv->cdclk_freq)
 		return 0;
 
 	/* disable/enable all currently active pipes while we change cdclk */
@@ -5207,7 +5209,7 @@ static void vlv_program_pfi_credits(struct drm_i915_private *dev_priv)
 	else
 		default_credits = PFI_CREDIT(8);
 
-	if (DIV_ROUND_CLOSEST(dev_priv->vlv_cdclk_freq, 1000) >= dev_priv->rps.cz_freq) {
+	if (DIV_ROUND_CLOSEST(dev_priv->cdclk_freq, 1000) >= dev_priv->rps.cz_freq) {
 		/* CHV suggested value is 31 or 63 */
 		if (IS_CHERRYVIEW(dev_priv))
 			credits = PFI_CREDIT_31;
@@ -5251,7 +5253,7 @@ static void valleyview_modeset_global_resources(struct drm_atomic_state *state)
 
 	req_cdclk = valleyview_calc_cdclk(dev_priv, max_pixclk);
 
-	if (req_cdclk != dev_priv->vlv_cdclk_freq) {
+	if (req_cdclk != dev_priv->cdclk_freq) {
 		/*
 		 * FIXME: We can end up here with all power domains off, yet
 		 * with a CDCLK frequency other than the minimum. To account
