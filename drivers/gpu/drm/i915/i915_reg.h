@@ -6594,6 +6594,7 @@ enum skl_disp_power_wells {
 #define  DDI_BUF_EMP_MASK			(0xf<<24)
 #define  DDI_BUF_PORT_REVERSAL			(1<<16)
 #define  DDI_BUF_IS_IDLE			(1<<7)
+#define  DDI_BUF_IDLE_TIMEOUT			16	  /* 16us */
 #define  DDI_A_4_LANES				(1<<4)
 #define  DDI_PORT_WIDTH(width)			(((width) - 1) << 1)
 #define  DDI_INIT_DISPLAY_DETECTED		(1<<0)
