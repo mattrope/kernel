@@ -874,6 +874,8 @@ void intel_ddi_clock_get(struct intel_encoder *encoder,
 			 struct intel_crtc_state *pipe_config);
 void intel_ddi_set_vc_payload_alloc(struct drm_crtc *crtc, bool state);
 void bxt_select_cdclk_freq(struct drm_device *dev, u32 frequency);
+void bxt_ddi_vswing_sequence(struct drm_device *dev, u32 level,
+				enum port port, int type);
 
 /* intel_frontbuffer.c */
 void intel_fb_obj_invalidate(struct drm_i915_gem_object *obj,
