@@ -4658,7 +4658,7 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 
 	intel_ddi_enable_pipe_clock(intel_crtc);
 
-	if (IS_SKYLAKE(dev))
+	if (INTEL_INFO(dev)->gen == 9)
 		skylake_pfit_enable(intel_crtc);
 	else
 		ironlake_pfit_enable(intel_crtc);
@@ -4821,7 +4821,7 @@ static void haswell_crtc_disable(struct drm_crtc *crtc)
 
 	intel_ddi_disable_transcoder_func(dev_priv, cpu_transcoder);
 
-	if (IS_SKYLAKE(dev))
+	if (INTEL_INFO(dev)->gen == 9)
 		skylake_pfit_disable(intel_crtc);
 	else
 		ironlake_pfit_disable(intel_crtc);
@@ -8792,7 +8792,7 @@ static bool haswell_get_pipe_config(struct intel_crtc *crtc,
 
 	pfit_domain = POWER_DOMAIN_PIPE_PANEL_FITTER(crtc->pipe);
 	if (intel_display_power_is_enabled(dev_priv, pfit_domain)) {
-		if (IS_SKYLAKE(dev))
+		if (INTEL_INFO(dev)->gen == 9)
 			skylake_get_pfit_config(crtc, pipe_config);
 		else
 			ironlake_get_pfit_config(crtc, pipe_config);
