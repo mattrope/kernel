@@ -715,7 +715,7 @@ enum skl_disp_power_wells {
 /**
  * DOC: DPIO
  *
- * VLV and CHV have slightly peculiar display PHYs for driving DP/HDMI
+ * VLV, CHV and BXT have slightly peculiar display PHYs for driving DP/HDMI
  * ports. DPIO is the name given to such a display PHY. These PHYs
  * don't follow the standard programming model using direct MMIO
  * registers, and instead their registers must be accessed trough IOSF
@@ -770,9 +770,13 @@ enum skl_disp_power_wells {
  *
  * Note: digital port B is DDI0, digital port C is DDI1,
  * digital port D is DDI2
+ *
+ * On BXT the above mappings apply for both the dual and single channel PHY,
+ * with the difference that any of the three ports can connect to any of the
+ * three pipes. Also the single channel PHY is used for port A (DDI2/EDP).
  */
 /*
- * Dual channel PHY (VLV/CHV)
+ * Dual channel PHY (VLV/CHV/BXT)
  * ---------------------------------
  * |      CH0      |      CH1      |
  * |  CMN/PLL/REF  |  CMN/PLL/REF  |
@@ -784,7 +788,7 @@ enum skl_disp_power_wells {
  * |     DDI0      |     DDI1      | DP/HDMI ports
  * ---------------------------------
  *
- * Single channel PHY (CHV)
+ * Single channel PHY (CHV/BXT)
  * -----------------
  * |      CH0      |
  * |  CMN/PLL/REF  |
