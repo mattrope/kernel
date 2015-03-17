@@ -1117,6 +1117,110 @@ enum skl_disp_power_wells {
 #define   DPIO_FRC_LATENCY_SHFIT	8
 #define CHV_TX_DW14(ch, lane) _TXLANE(ch, lane, 0xb8)
 #define   DPIO_UPAR_SHIFT		30
+
+/* BXT PHY registers */
+enum bxt_phy {
+	BXT_PHY_A,
+	BXT_PHY_BC
+};
+
+#define BXT_PHY(phy, a, b)		((a) + (phy) * ((b) - (a)))
+
+#define BXT_P_CR_GT_DISP_PWRON_0_2_0_GTTMMADR	0x138090
+#define   _EDP_POWER_ON				(1 << 1)
+#define   _DDI_POWER_ON				(1 << 0)
+#define   GT_DISPLAY_POWER_ON(phy)		BXT_PHY(phy, _EDP_POWER_ON, \
+							_DDI_POWER_ON)
+
+#define _PHY_CTL_FAMILY_EDP		0x64C80
+#define _PHY_CTL_FAMILY_DDI		0x64C90
+#define   COMMON_RESET_DIS		(1 << 31)
+#define BXT_PHY_CTL_FAMILY(phy)		BXT_PHY(phy, _PHY_CTL_FAMILY_EDP, \
+						     _PHY_CTL_FAMILY_DDI)
+
+/* BXT PHY common lane registers */
+#define _PORT_CL1CM_DW0_A		0x162000
+#define _PORT_CL1CM_DW0_BC		0x6C000
+#define   PHY_POWER_GOOD		(1 << 16)
+#define BXT_PORT_CL1CM_DW0(phy)		BXT_PHY(phy, _PORT_CL1CM_DW0_A,	\
+						     _PORT_CL1CM_DW0_BC)
+
+#define _PORT_CL1CM_DW9_A		0x162024
+#define _PORT_CL1CM_DW9_BC		0x6C024
+#define   IREF0RC_OFFSET_SHIFT		8
+#define   IREF0RC_OFFSET_MASK		(0xFF << IREF0RC_OFFSET_SHIFT)
+#define BXT_PORT_CL1CM_DW9(phy)		BXT_PHY(phy, _PORT_CL1CM_DW9_A,	\
+						     _PORT_CL1CM_DW9_BC)
+
+#define _PORT_CL1CM_DW10_A		0x162028
+#define _PORT_CL1CM_DW10_BC		0x6C028
+#define   IREF1RC_OFFSET_SHIFT		8
+#define   IREF1RC_OFFSET_MASK		(0xFF << IREF1RC_OFFSET_SHIFT)
+#define BXT_PORT_CL1CM_DW10(phy)	BXT_PHY(phy, _PORT_CL1CM_DW10_A, \
+						     _PORT_CL1CM_DW10_BC)
+
+#define _PORT_CL1CM_DW28_A		0x162070
+#define _PORT_CL1CM_DW28_BC		0x6C070
+#define   OCL1_POWER_DOWN_EN		(1 << 23)
+#define   DW28_OLDO_DYN_PWR_DOWN_EN	(1 << 22)
+#define   SUS_CLK_CONFIG		0x3
+#define BXT_PORT_CL1CM_DW28(phy)	BXT_PHY(phy, _PORT_CL1CM_DW28_A, \
+						     _PORT_CL1CM_DW28_BC)
+
+#define _PORT_CL1CM_DW30_A		0x162078
+#define _PORT_CL1CM_DW30_BC		0x6C078
+#define   OCL2_LDOFUSE_PWR_DIS		(1 << 6)
+#define BXT_PORT_CL1CM_DW30(phy)	BXT_PHY(phy, _PORT_CL1CM_DW30_A, \
+						     _PORT_CL1CM_DW30_BC)
+
+/* Defined for PHY_BC only */
+#define BXT_PORT_CL2CM_DW6_BC		0x6C358
+#define   DW6_OLDO_DYN_PWR_DOWN_EN	(1 << 28)
+
+/* BXT PHY Ref registers */
+#define _PORT_REF_DW3_A			0x16218C
+#define _PORT_REF_DW3_BC		0x6C18C
+#define   GRC_DONE			(1 << 22)
+#define BXT_PORT_REF_DW3(phy)		BXT_PHY(phy, _PORT_REF_DW3_A,	\
+						     _PORT_REF_DW3_BC)
+
+#define _PORT_REF_DW6_A			0x162198
+#define _PORT_REF_DW6_BC		0x6C198
+/*
+ * FIXME: BSpec disagrees on the following two fields, check them with
+ * HW/documentation people.
+ */
+#define   GRC_CODE_SHIFT		23
+#define   GRC_CODE_MASK			(0x1FF << GRC_CODE_SHIFT)
+#define   GRC_CODE_FAST_SHIFT		16
+#define   GRC_CODE_FAST_MASK		(0x7F << GRC_CODE_FAST_SHIFT)
+#define   GRC_CODE_SLOW_SHIFT		8
+#define   GRC_CODE_SLOW_MASK		(0xFF << GRC_CODE_SLOW_SHIFT)
+#define   GRC_CODE_NOM_MASK		0xFF
+#define BXT_PORT_REF_DW6(phy)		BXT_PHY(phy, _PORT_REF_DW6_A,	\
+						     _PORT_REF_DW6_BC)
+
+#define _PORT_REF_DW8_A			0x1621A0
+#define _PORT_REF_DW8_BC		0x6C1A0
+#define   GRC_DIS			(1 << 15)
+#define   GRC_RDY_OVRD			(1 << 1)
+#define BXT_PORT_REF_DW8(phy)		BXT_PHY(phy, _PORT_REF_DW8_A,	\
+						     _PORT_REF_DW8_BC)
+
+/* BXT PHY TX registers */
+#define BXT_LANE_OFFSET(lane)           (((lane) >> 1) * 0x200 +	\
+					 ((lane) & 1) * 0x80)
+
+#define _PORT_TX_DW14_LN0_A		0x162538
+#define _PORT_TX_DW14_LN0_B		0x6C538
+#define _PORT_TX_DW14_LN0_C		0x6C938
+#define   LATENCY_OPTIM_SHIFT		30
+#define   LATENCY_OPTIM			(1 << LATENCY_OPTIM_SHIFT)
+#define BXT_PORT_TX_DW14_LN(port, lane)	(_PORT3(port, _PORT_TX_DW14_LN0_A,   \
+						      _PORT_TX_DW14_LN0_B,   \
+						      _PORT_TX_DW14_LN0_C) + \
+					 BXT_LANE_OFFSET(lane))
+
 /*
  * Fence registers
  */
@@ -5338,6 +5442,9 @@ enum skl_disp_power_wells {
 #define  DISP_FBC_WM_DIS		(1<<15)
 #define DISP_ARB_CTL2	0x45004
 #define  DISP_DATA_PARTITION_5_6	(1<<6)
+#define DBUF_CTL	0x45008
+#define  DBUF_POWER_REQUEST		(1<<31)
+#define  DBUF_POWER_STATE		(1<<30)
 #define GEN7_MSG_CTL	0x45010
 #define  WAIT_FOR_PCH_RESET_ACK		(1<<1)
 #define  WAIT_FOR_PCH_FLR_ACK		(1<<0)
@@ -6287,6 +6394,7 @@ enum skl_disp_power_wells {
 #define   GEN6_PCODE_WRITE_D_COMP		0x11
 #define   GEN6_ENCODE_RC6_VID(mv)		(((mv) - 245) / 5)
 #define   GEN6_DECODE_RC6_VID(vids)		(((vids) * 5) + 245)
+#define   DISPLAY_PCU_CONTROL			0x17
 #define   DISPLAY_IPS_CONTROL			0x19
 #define	  HSW_PCODE_DYNAMIC_DUTY_CYCLE_CONTROL	0x1A
 #define GEN6_PCODE_DATA				0x138128
@@ -6764,6 +6872,13 @@ enum skl_disp_power_wells {
 #define  CDCLK_FREQ_675_617		(3<<26)
 #define  CDCLK_FREQ_DECIMAL_MASK	(0x7ff)
 
+#define  BXT_CDCLK_CD2X_DIV_SEL_MASK	(3<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_1	(0<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_1_5	(1<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_2	(2<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_4	(3<<22)
+#define  BXT_CDCLK_SSA_PRECHARGE_ENABLE	(1<<16)
+
 /* LCPLL_CTL */
 #define LCPLL1_CTL		0x46010
 #define LCPLL2_CTL		0x46014
@@ -6827,6 +6942,17 @@ enum skl_disp_power_wells {
 
 #define GET_CFG_CR1_REG(id) (DPLL1_CFGCR1 + (id - SKL_DPLL1) * 8)
 #define GET_CFG_CR2_REG(id) (DPLL1_CFGCR2 + (id - SKL_DPLL1) * 8)
+
+/* BXT display engine PLL */
+#define BXT_DE_PLL_CTL			0x6d000
+#define   BXT_DE_PLL_RATIO_1152		0x3c
+#define   BXT_DE_PLL_RATIO_1248		0x41
+#define   BXT_DE_PLL_RATIO_DEFAULT	0x64
+#define   BXT_DE_PLL_RATIO_MASK		0x7f
+
+#define BXT_DE_PLL_ENABLE		0x46070
+#define   BXT_DE_PLL_PLL_ENABLE		(1 << 31)
+#define   BXT_DE_PLL_LOCK		(1 << 30)
 
 /* Please see hsw_read_dcomp() and hsw_write_dcomp() before using this register,
  * since on HSW we can't write to it using I915_WRITE. */

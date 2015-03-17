@@ -8569,6 +8569,78 @@ void hsw_disable_pc8(struct drm_i915_private *dev_priv)
 	intel_prepare_ddi(dev);
 }
 
+static int broxton_calc_cdclk(struct drm_i915_private *dev_priv,
+				int max_pixclk)
+{
+	/*
+	 * CDclks are supported:
+	 *   144MHz
+	 *   288MHz
+	 *   384MHz
+	 *   576MHz
+	 *   624MHz
+	 * Check to see whether we're above 90% of the lower bin and
+	 * adjust if needed.
+	 */
+
+	/* If max_pixclk is greater than the max allowed clock, return 0.
+	 * FIXME:- The max clock allowed needs to be provided by GOP/VBIOS
+	 * via a scratch pad register. Till that is enabled, use 624MHz as max.
+	 */
+	if (max_pixclk > 624000)
+		return 0;
+	else if (max_pixclk > 576000*9/10)
+		return 624000;
+	else if (max_pixclk > 384000*9/10)
+		return 576000;
+	else if (max_pixclk > 288000*9/10)
+		return 384000;
+	else if (max_pixclk > 144000*9/10)
+		return 288000;
+	else
+		return 144000;
+}
+
+static int broxton_modeset_global_pipes(struct drm_atomic_state *state,
+					unsigned *prepare_pipes)
+{
+	struct drm_i915_private *dev_priv = to_i915(state->dev);
+	struct intel_crtc *intel_crtc;
+	int max_pixclk = intel_mode_max_pixclk(state);
+	int req_cdclk = broxton_calc_cdclk(dev_priv, max_pixclk);
+
+	if (!req_cdclk) {
+		DRM_ERROR("CDCLK exceeds maximum allowable value\n");
+		return max_pixclk;
+	}
+
+	if (req_cdclk == dev_priv->cdclk_freq)
+		return 0;
+
+	/* disable/enable all currently active pipes while we change cdclk */
+	for_each_intel_crtc(state->dev, intel_crtc)
+		if (intel_crtc->base.enabled)
+			*prepare_pipes |= (1 << intel_crtc->pipe);
+
+	return 0;
+}
+
+static void broxton_modeset_global_resources(struct drm_atomic_state *state)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	int max_pixclk = intel_mode_max_pixclk(state);
+	int req_cdclk = broxton_calc_cdclk(dev_priv, max_pixclk);
+
+	if (!req_cdclk) {
+		DRM_ERROR("CDCLK exceeds maximum allowable value\n");
+		return;
+	}
+
+	if (req_cdclk != dev_priv->cdclk_freq)
+		bxt_select_cdclk_freq(dev, req_cdclk);
+}
+
 static int haswell_crtc_compute_clock(struct intel_crtc *crtc,
 				      struct intel_crtc_state *crtc_state)
 {
@@ -11677,6 +11749,12 @@ static int __intel_set_mode(struct drm_crtc *crtc,
 
 		/* may have added more to prepare_pipes than we should */
 		prepare_pipes &= ~disable_pipes;
+	} else if (IS_BROXTON(dev)) {
+		ret = broxton_modeset_global_pipes(state, &prepare_pipes);
+		if (ret)
+			goto done;
+
+		prepare_pipes &= ~disable_pipes;
 	}
 
 	ret = __intel_set_mode_setup_plls(state, modeset_pipes, disable_pipes);
@@ -13684,6 +13762,9 @@ static void intel_init_display(struct drm_device *dev)
 	} else if (IS_VALLEYVIEW(dev)) {
 		dev_priv->display.modeset_global_resources =
 			valleyview_modeset_global_resources;
+	} else if (IS_BROXTON(dev)) {
+		dev_priv->display.modeset_global_resources =
+			broxton_modeset_global_resources;
 	}
 
 	switch (INTEL_INFO(dev)->gen) {

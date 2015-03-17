@@ -1864,6 +1864,294 @@ static void skl_shared_dplls_init(struct drm_i915_private *dev_priv)
 	}
 }
 
+static void bxt_init_phy(struct drm_i915_private *dev_priv, enum bxt_phy phy)
+{
+	enum port port;
+	uint32_t val;
+
+	val = I915_READ(BXT_P_CR_GT_DISP_PWRON_0_2_0_GTTMMADR);
+	val |= GT_DISPLAY_POWER_ON(phy);
+	I915_WRITE(BXT_P_CR_GT_DISP_PWRON_0_2_0_GTTMMADR, val);
+
+	/* Considering 10ms timeout until BSpec is updated */
+	if (wait_for(I915_READ(BXT_PORT_CL1CM_DW0(phy)) & PHY_POWER_GOOD, 10))
+		DRM_ERROR("timeout during PHY#%d power on\n", phy);
+
+	/* Program latency optim setting */
+	for (port =  (phy == BXT_PHY_A ? PORT_A : PORT_B);
+	     port <= (phy == BXT_PHY_A ? PORT_A : PORT_C); port++) {
+		int lane;
+
+		for (lane = 0; lane < 4; lane++) {
+			val = I915_READ(BXT_PORT_TX_DW14_LN(port, lane));
+			val &= ~LATENCY_OPTIM;
+			if (lane == 1)
+				val |= LATENCY_OPTIM;
+
+			I915_WRITE(BXT_PORT_TX_DW14_LN(port, lane), val);
+		}
+	}
+
+	/* Program PLL Rcomp code offset */
+	val = I915_READ(BXT_PORT_CL1CM_DW9(phy));
+	val &= ~IREF0RC_OFFSET_MASK;
+	val |= 0xE4 << IREF0RC_OFFSET_SHIFT;
+	I915_WRITE(BXT_PORT_CL1CM_DW9(phy), val);
+
+	val = I915_READ(BXT_PORT_CL1CM_DW10(phy));
+	val &= ~IREF1RC_OFFSET_MASK;
+	val |= 0xE4 << IREF1RC_OFFSET_SHIFT;
+	I915_WRITE(BXT_PORT_CL1CM_DW10(phy), val);
+
+	/* Program power gating */
+	val = I915_READ(BXT_PORT_CL1CM_DW28(phy));
+	val |= OCL1_POWER_DOWN_EN | DW28_OLDO_DYN_PWR_DOWN_EN |
+		SUS_CLK_CONFIG;
+	I915_WRITE(BXT_PORT_CL1CM_DW28(phy), val);
+
+	if (phy == BXT_PHY_BC) {
+		val = I915_READ(BXT_PORT_CL2CM_DW6_BC);
+		val |= DW6_OLDO_DYN_PWR_DOWN_EN;
+		I915_WRITE(BXT_PORT_CL2CM_DW6_BC, val);
+	}
+
+	val = I915_READ(BXT_PORT_CL1CM_DW30(phy));
+	val &= ~OCL2_LDOFUSE_PWR_DIS;
+	/*
+	 * On PHY_A disable power on the second channel, since no port is
+	 * connected there. On PHY_BC both channels have a port, so leave it
+	 * enabled.
+	 * Note that port C is only connected on BXT-P, so on BXT0/1 we should
+	 * power down the second channel on PHY_BC as well.
+	 */
+	if (phy == BXT_PHY_A)
+		val |= OCL2_LDOFUSE_PWR_DIS;
+	I915_WRITE(BXT_PORT_CL1CM_DW30(phy), val);
+
+	if (phy == BXT_PHY_BC) {
+		uint32_t grc_code;
+		/*
+		 * PHY_BC isn't connected to an RCOMP resistor so copy over
+		 * the corresponding calibrated value from PHY_A, and disable
+		 * the automatic calibration on PHY_BC.
+		 */
+		if (wait_for(I915_READ(BXT_PORT_REF_DW3(BXT_PHY_A)) & GRC_DONE,
+			     10))
+			DRM_ERROR("timeout waiting for PHY#0 GRC\n");
+
+		val = I915_READ(BXT_PORT_REF_DW6(BXT_PHY_A));
+		val = (val & GRC_CODE_MASK) >> GRC_CODE_SHIFT;
+		grc_code = val << GRC_CODE_FAST_SHIFT |
+			   val << GRC_CODE_SLOW_SHIFT |
+			   val;
+		I915_WRITE(BXT_PORT_REF_DW6(BXT_PHY_BC), grc_code);
+
+		val = I915_READ(BXT_PORT_REF_DW8(BXT_PHY_BC));
+		val |= GRC_DIS | GRC_RDY_OVRD;
+		I915_WRITE(BXT_PORT_REF_DW8(BXT_PHY_BC), val);
+	}
+
+	/* Release common_reset */
+	val = I915_READ(BXT_PHY_CTL_FAMILY(phy));
+	val |= COMMON_RESET_DIS;
+	I915_WRITE(BXT_PHY_CTL_FAMILY(phy), val);
+}
+
+void bxt_ddi_phy_init(struct drm_device *dev)
+{
+	/* Enable PHY_A first since it provides Rcomp for PHY_BC */
+	bxt_init_phy(dev->dev_private, BXT_PHY_A);
+	bxt_init_phy(dev->dev_private, BXT_PHY_BC);
+}
+
+static void bxt_ddi_phy_uninit(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	uint32_t temp;
+
+	temp = I915_READ(BXT_PHY_CTL_FAMILY(BXT_PHY_A));
+	I915_WRITE(BXT_PHY_CTL_FAMILY(BXT_PHY_A), temp & ~COMMON_RESET_DIS);
+
+	temp = I915_READ(BXT_PHY_CTL_FAMILY(BXT_PHY_BC));
+	I915_WRITE(BXT_PHY_CTL_FAMILY(BXT_PHY_BC), temp & ~COMMON_RESET_DIS);
+
+	I915_WRITE(BXT_P_CR_GT_DISP_PWRON_0_2_0_GTTMMADR, 0);
+}
+
+/*
+ * It is the responsibility of the caller to ensure that
+ * criteria for changing the CD clk frequency is met.
+ *
+ * This function only changes CD clock frequency.
+ * TODO:- 1. Add functions to change only the divider and
+ *	  2. call impacted functions like backlight, WiDi, watermark.
+*/
+void bxt_select_cdclk_freq(struct drm_device *dev, u32 frequency)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	uint32_t cdclk_ctl, decimal, ratio;
+	uint32_t divider, freq, current_freq;
+	int ret;
+
+	freq = (frequency / 1000 - 1) * 2;
+	decimal = DIV_ROUND_UP(frequency, 25000);
+
+	switch (frequency) {
+	case 144000:
+		divider = BXT_CDCLK_CD2X_DIV_SEL_4;
+		ratio = BXT_DE_PLL_RATIO_1152;
+		break;
+	case 288000:
+		divider = BXT_CDCLK_CD2X_DIV_SEL_2;
+		ratio = BXT_DE_PLL_RATIO_1152;
+		break;
+	case 384000:
+		divider = BXT_CDCLK_CD2X_DIV_SEL_1_5;
+		ratio = BXT_DE_PLL_RATIO_1152;
+		break;
+	case 576000:
+		divider = BXT_CDCLK_CD2X_DIV_SEL_1;
+		ratio = BXT_DE_PLL_RATIO_1152;
+		break;
+	case 624000:
+		divider = BXT_CDCLK_CD2X_DIV_SEL_1;
+		ratio = BXT_DE_PLL_RATIO_1248;
+		break;
+	case 0:
+		/* Incase incoming frequency is 0, only DE PLL has to be
+		 * disabled, divider/ratio need not be programmed.
+		 * Hence, initializing to 0.
+		 */
+		divider = ratio = 0;
+		break;
+	default:
+		DRM_ERROR("Unsupported cd frequency %d enable request",
+								frequency);
+		return;
+	}
+
+	current_freq = I915_READ(CDCLK_CTL) & CDCLK_FREQ_DECIMAL_MASK;
+	current_freq = ((current_freq / 2) + 1) * 1000;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+	/* Inform power controller of upcoming frequency change */
+	ret = sandybridge_pcode_write(dev_priv, DISPLAY_PCU_CONTROL,
+				      0x80000000);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	if (ret) {
+		DRM_DEBUG_KMS("pcode write failed, leaving CDCLK unchanged (%d)\n",
+			      ret);
+		return;
+	}
+
+	/* DE PLL has to be disabled when input frequency is 0 or
+	 * frequency is to be changed to 624MHz or changed from 624 MHz
+	 */
+	if (!frequency || current_freq == 624000 || frequency == 624000) {
+		I915_WRITE(BXT_DE_PLL_ENABLE, ~BXT_DE_PLL_PLL_ENABLE);
+		WARN(wait_for(
+			!(I915_READ(BXT_DE_PLL_ENABLE) & BXT_DE_PLL_LOCK),
+			1), "DE PLL locked\n");
+	}
+
+	if (frequency) {
+		I915_WRITE(BXT_DE_PLL_CTL, ratio);
+		I915_WRITE(BXT_DE_PLL_ENABLE, BXT_DE_PLL_PLL_ENABLE);
+		WARN(wait_for(
+			I915_READ(BXT_DE_PLL_ENABLE) & BXT_DE_PLL_LOCK, 1),
+			"DE PLL not locked\n");
+
+		cdclk_ctl = I915_READ(CDCLK_CTL);
+		cdclk_ctl &= ~BXT_CDCLK_CD2X_DIV_SEL_MASK;
+		cdclk_ctl |= divider;
+
+		/* Disable SSA Precharge when CD clock frequency < 500 MHz,
+		 * enable otherwise.
+		 */
+		cdclk_ctl &= ~BXT_CDCLK_SSA_PRECHARGE_ENABLE;
+		if (frequency >= 500000)
+			cdclk_ctl |= BXT_CDCLK_SSA_PRECHARGE_ENABLE;
+
+		cdclk_ctl &= ~CDCLK_FREQ_DECIMAL_MASK;
+		cdclk_ctl |= freq;
+		I915_WRITE(CDCLK_CTL, cdclk_ctl);
+
+		mutex_lock(&dev_priv->rps.hw_lock);
+		ret = sandybridge_pcode_write(dev_priv, DISPLAY_PCU_CONTROL,
+					      decimal);
+		mutex_unlock(&dev_priv->rps.hw_lock);
+
+		if (ret) {
+			DRM_DEBUG_KMS("pcode write failed. err = %d decimal = %d\n",
+				      ret, decimal);
+			return;
+		}
+
+		dev_priv->cdclk_freq = frequency;
+	} else {
+		mutex_lock(&dev_priv->rps.hw_lock);
+		ret = sandybridge_pcode_write(dev_priv, DISPLAY_PCU_CONTROL, 1);
+		mutex_unlock(&dev_priv->rps.hw_lock);
+
+		if (ret)
+			DRM_DEBUG_KMS("pcode write failed. err = %d decimal = 1\n",
+				      ret);
+	}
+}
+
+void bxt_init_cdclk(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	/* NDE_RSTWRN_OPT RST PCH Handshake En must always be 0b on BXT
+	 * or else the reset will hang because there is no PCH to respond.
+	 * Move the handshake programming to initialization sequence.
+	 * Previously was left up to BIOS.
+	 */
+	u32 temp = I915_READ(HSW_NDE_RSTWRN_OPT);
+
+	temp &= ~RESET_PCH_HANDSHAKE_ENABLE;
+	I915_WRITE(HSW_NDE_RSTWRN_OPT, temp);
+
+	/* Enable PG1 for cdclk */
+	intel_display_power_get(dev_priv, POWER_DOMAIN_PLLS);
+
+	/* check if cd clock is enabled */
+	if (I915_READ(BXT_DE_PLL_ENABLE) & BXT_DE_PLL_PLL_ENABLE) {
+		DRM_DEBUG_KMS("Display already initialized\n");
+		return;
+	}
+
+	/* FIXME:- The initial CDCLK needs to be read from VBT.
+	 * Need to make this change after VBT has changes for BXT.
+	 */
+	bxt_select_cdclk_freq(dev, 624000);
+
+	I915_WRITE(DBUF_CTL, I915_READ(DBUF_CTL) | DBUF_POWER_REQUEST);
+	udelay(10);
+
+	if (!(I915_READ(DBUF_CTL) & DBUF_POWER_STATE))
+		DRM_ERROR("DBuf power enable timeout!\n");
+}
+
+void bxt_uninit_cdclk(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	bxt_ddi_phy_uninit(dev);
+
+	I915_WRITE(DBUF_CTL, I915_READ(DBUF_CTL) & ~DBUF_POWER_REQUEST);
+	udelay(10);
+
+	if (I915_READ(DBUF_CTL) & DBUF_POWER_STATE)
+		DRM_ERROR("DBuf power disable timeout!\n");
+
+	bxt_select_cdclk_freq(dev, 0);
+
+	intel_display_power_put(dev_priv, POWER_DOMAIN_PLLS);
+}
+
 void intel_ddi_pll_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -1880,6 +2168,9 @@ void intel_ddi_pll_init(struct drm_device *dev)
 	if (IS_SKYLAKE(dev)) {
 		if (!(I915_READ(LCPLL1_CTL) & LCPLL_PLL_ENABLE))
 			DRM_ERROR("LCPLL1 is disabled\n");
+	} else if (IS_BROXTON(dev)) {
+		bxt_init_cdclk(dev);
+		bxt_ddi_phy_init(dev);
 	} else {
 		/*
 		 * The LCPLL register should be turned on by the BIOS. For now
