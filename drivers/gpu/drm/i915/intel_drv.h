@@ -1049,6 +1049,28 @@ int intel_dotclock_calculate(int link_freq, const struct intel_link_m_n *m_n);
 void
 ironlake_check_encoder_dotclock(const struct intel_crtc_state *pipe_config,
 				int dotclock);
+
+typedef struct {
+	int	min, max;
+} intel_range_t;
+
+typedef struct {
+	int	dot_limit;
+	int	p2_slow, p2_fast;
+} intel_p2_t;
+
+typedef struct intel_limit intel_limit_t;
+struct intel_limit {
+	intel_range_t   dot, vco, n, m, m1, m2, p, p1;
+	intel_p2_t	    p2;
+};
+
+bool bxt_find_best_dpll(const intel_limit_t *limit,
+			struct intel_crtc_state *crtc_state,
+			int target_clock,
+			int refclk,
+			intel_clock_t *match_clock,
+			intel_clock_t *best_clock);
 bool intel_crtc_active(struct drm_crtc *crtc);
 void hsw_enable_ips(struct intel_crtc *crtc);
 void hsw_disable_ips(struct intel_crtc *crtc);
