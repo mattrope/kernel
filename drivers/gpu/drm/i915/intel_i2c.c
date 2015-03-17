@@ -49,6 +49,16 @@ static const struct gmbus_pin gmbus_pins[] = {
 	[GMBUS_PIN_DPD] = { "dpd", GPIOF },
 };
 
+/* gmbus pin pair configuration for bxt */
+static const struct gmbus_pin gmbus_pins_bxt[] = {
+	{ "None", 0 },
+	{ "None", 0 },
+	{ "None", 0 },
+	{ "dpc", PCH_GPIOC },
+	{ "dpb", PCH_GPIOB },
+	{ "misc", PCH_GPIOD },
+};
+
 bool intel_gmbus_is_valid_pin(struct drm_i915_private *dev_priv,
 			      unsigned int pin)
 {
@@ -192,11 +202,17 @@ static void
 intel_gpio_setup(struct intel_gmbus *bus, unsigned int pin)
 {
 	struct drm_i915_private *dev_priv = bus->dev_priv;
+	struct drm_device *dev = dev_priv->dev;
 	struct i2c_algo_bit_data *algo;
 
 	algo = &bus->bit_algo;
 
-	bus->gpio_reg = dev_priv->gpio_mmio_base + gmbus_pins[pin].reg;
+	/* -1 to map pin pair to gmbus index */
+	if (IS_BROXTON(dev))
+		bus->gpio_reg = gmbus_pins_bxt[pin].reg;
+	else
+		bus->gpio_reg = dev_priv->gpio_mmio_base
+				+ gmbus_pins[pin].reg;
 
 	bus->adapter.algo_data = algo;
 	algo->setsda = set_data;
@@ -516,6 +532,27 @@ static const struct i2c_algorithm gmbus_algorithm = {
 	.functionality	= gmbus_func
 };
 
+/* returns mapped pin for a port in BXT */
+static u32 port_to_pin_bxt(u32 port)
+{
+	u32 pin;
+
+	switch (port) {
+	case GMBUS_PIN_DPB:
+		pin = 1;
+		break;
+	case GMBUS_PIN_DPC:
+		pin = 2;
+		break;
+	case GMBUS_PIN_DPD:
+		pin = 3;
+		break;
+	default:
+		pin = 0;
+	}
+	return pin;
+}
+
 /**
  * intel_gmbus_setup - instantiate all Intel i2c GMBuses
  * @dev: DRM device
@@ -540,6 +577,8 @@ int intel_setup_gmbus(struct drm_device *dev)
 	init_waitqueue_head(&dev_priv->gmbus_wait_queue);
 
 	for (pin = 0; pin < ARRAY_SIZE(dev_priv->gmbus); pin++) {
+		const char *name;
+
 		if (!intel_gmbus_is_valid_pin(dev_priv, pin))
 			continue;
 
@@ -547,10 +586,14 @@ int intel_setup_gmbus(struct drm_device *dev)
 
 		bus->adapter.owner = THIS_MODULE;
 		bus->adapter.class = I2C_CLASS_DDC;
+		if (IS_BROXTON(dev))
+			name = gmbus_pins_bxt[pin].name;
+		else
+			name = gmbus_pins[pin].name;
+
 		snprintf(bus->adapter.name,
 			 sizeof(bus->adapter.name),
-			 "i915 gmbus %s",
-			 gmbus_pins[pin].name);
+			 "i915 gmbus %s", name);
 
 		bus->adapter.dev.parent = &dev->pdev->dev;
 		bus->dev_priv = dev_priv;
@@ -558,7 +601,10 @@ int intel_setup_gmbus(struct drm_device *dev)
 		bus->adapter.algo = &gmbus_algorithm;
 
 		/* By default use a conservative clock rate */
-		bus->reg0 = pin | GMBUS_RATE_100KHZ;
+		if (IS_BROXTON(dev))
+			bus->reg0 = port_to_pin_bxt(pin) | GMBUS_RATE_100KHZ;
+		else
+			bus->reg0 = pin | GMBUS_RATE_100KHZ;
 
 		/* gmbus seems to be broken on i830 */
 		if (IS_I830(dev))
