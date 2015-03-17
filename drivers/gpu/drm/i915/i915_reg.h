@@ -5267,6 +5267,9 @@ enum skl_disp_power_wells {
 #define  GEN8_PORT_DP_A_HOTPLUG		(1 << 3)
 #define  GEN8_AUX_CHANNEL_A		(1 << 0)
 
+/* BXT GMBUS */
+#define BXT_DE_PORT_GMBUS	(1 << 1)
+
 #define GEN8_DE_MISC_ISR 0x44460
 #define GEN8_DE_MISC_IMR 0x44464
 #define GEN8_DE_MISC_IIR 0x44468
