@@ -1576,6 +1576,11 @@ struct drm_i915_private {
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PINS];
 
+#define for_each_digital_port(dev, digital_port)		\
+	list_for_each_entry(digital_port,			\
+			    &dev->mode_config.encoder_list,	\
+			    base.base.head)
+
 	/** gmbus_mutex protects against concurrent usage of the single hw gmbus
 	 * controller on different i2c buses. */
 	struct mutex gmbus_mutex;
