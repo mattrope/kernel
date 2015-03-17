@@ -1002,9 +1002,35 @@ static int i915_pm_resume(struct device *dev)
 	return i915_drm_resume(drm_dev);
 }
 
+static int bxt_suspend_complete(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = dev_priv->dev;
+
+	/* TODO: when DC5 support is added disable DC5 here. */
+
+	bxt_uninit_cdclk(dev);
+	bxt_enable_dc9(dev_priv);
+
+	return 0;
+}
+
 static int hsw_suspend_complete(struct drm_i915_private *dev_priv)
 {
 	hsw_enable_pc8(dev_priv);
+
+	return 0;
+}
+
+static int bxt_resume_prepare(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = dev_priv->dev;
+
+	/* TODO: When CSR FW support is added make sure the FW is loaded. */
+
+	bxt_disable_dc9(dev_priv);
+	bxt_init_cdclk(dev);
+	bxt_ddi_phy_init(dev);
+	intel_prepare_ddi(dev);
 
 	return 0;
 }
@@ -1467,6 +1493,8 @@ static int intel_runtime_resume(struct device *device)
 
 	if (IS_GEN6(dev_priv))
 		intel_init_pch_refclk(dev);
+	else if (IS_BROXTON(dev))
+		ret = bxt_resume_prepare(dev_priv);
 	else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
 		hsw_disable_pc8(dev_priv);
 	else if (IS_VALLEYVIEW(dev_priv))
@@ -1499,6 +1527,8 @@ static int intel_suspend_complete(struct drm_i915_private *dev_priv)
 	struct drm_device *dev = dev_priv->dev;
 	int ret;
 
+	if (IS_BROXTON(dev))
+		ret = bxt_suspend_complete(dev_priv);
 	if (IS_HASWELL(dev) || IS_BROADWELL(dev))
 		ret = hsw_suspend_complete(dev_priv);
 	else if (IS_VALLEYVIEW(dev))
