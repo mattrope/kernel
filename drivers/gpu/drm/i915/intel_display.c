@@ -12562,6 +12562,53 @@ intel_cleanup_plane_fb(struct drm_plane *plane,
 	}
 }
 
+/**
+ * intel_crtc_state_for_plane - Obtain CRTC state for a plane
+ * @pstate: plane state to lookup corresponding crtc state for
+ *
+ * When working with a top-level atomic transaction (drm_atomic_state),
+ * a CRTC state should be present that corresponds to the provided
+ * plane state; this function provides a quick way to fetch that
+ * CRTC state.  In cases where we have a plane state unassociated with any
+ * top-level atomic transaction (e.g., while using the transitional atomic
+ * helpers), the current CRTC state from crtc->state will be returned
+ * instead.
+ */
+struct intel_crtc_state *
+intel_crtc_state_for_plane(struct intel_plane_state *pstate)
+{
+	struct drm_atomic_state *state = pstate->base.state;
+	struct intel_plane *plane = to_intel_plane(pstate->base.plane);
+	struct drm_crtc *crtc = intel_get_crtc_for_pipe(pstate->base.plane->dev,
+							plane->pipe);
+	int i;
+
+	/*
+	 * While using transitional plane helpers, we may not have a top-level
+	 * atomic transaction.  Of course that also means that we're not
+	 * actually touching CRTC state, so just return the currently
+	 * committed state.
+	 */
+	if (!state)
+		return to_intel_crtc_state(crtc->state);
+
+	for (i = 0; i < state->dev->mode_config.num_crtc; i++) {
+		if (!state->crtcs[i])
+			continue;
+
+		if (to_intel_crtc(state->crtcs[i])->pipe == plane->pipe)
+			return to_intel_crtc_state(state->crtc_states[i]);
+	}
+
+	/*
+	 * We may have a plane state without a corresponding CRTC state if
+	 * we're updating a property of a disabled plane.  Again, just using
+	 * the already-committed state for this plane's CRTC should be fine
+	 * since we're not actually touching the CRTC here.
+	 */
+	return to_intel_crtc_state(crtc->state);
+}
+
 static int
 intel_check_primary_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
@@ -12570,14 +12617,19 @@ intel_check_primary_plane(struct drm_plane *plane,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_crtc *crtc = state->base.crtc;
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	struct drm_framebuffer *fb = state->base.fb;
 	struct drm_rect *dest = &state->dst;
 	struct drm_rect *src = &state->src;
 	const struct drm_rect *clip = &state->clip;
+	bool active;
 	int ret;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
 
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
 					    src, dest, clip,
@@ -12587,7 +12639,7 @@ intel_check_primary_plane(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
-	if (intel_crtc->active) {
+	if (active) {
 		intel_crtc->atomic.wait_for_flips = true;
 
 		/*
@@ -12638,10 +12690,15 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	struct drm_device *dev = plane->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	struct drm_rect *src = &state->src;
+	bool active;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
 
 	plane->fb = fb;
 	crtc->x = src->x1 >> 16;
@@ -12854,11 +12911,16 @@ intel_check_cursor_plane(struct drm_plane *plane,
 	const struct drm_rect *clip = &state->clip;
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	unsigned stride;
+	bool active;
 	int ret;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
 
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
 					    src, dest, clip,
@@ -12892,7 +12954,7 @@ intel_check_cursor_plane(struct drm_plane *plane,
 	}
 
 finish:
-	if (intel_crtc->active) {
+	if (active) {
 		if (plane->state->crtc_w != state->base.crtc_w)
 			intel_crtc->atomic.update_wm = true;
 
@@ -12910,11 +12972,16 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	struct drm_crtc *crtc = state->base.crtc;
 	struct drm_device *dev = plane->dev;
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	struct drm_i915_gem_object *obj = intel_fb_obj(state->base.fb);
 	uint32_t addr;
+	bool active;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
 
 	plane->fb = state->base.fb;
 	crtc->cursor_x = state->base.crtc_x;
@@ -12934,7 +13001,7 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	intel_crtc->cursor_bo = obj;
 update:
 
-	if (intel_crtc->active)
+	if (active)
 		intel_crtc_update_cursor(crtc, state->visible);
 }
 

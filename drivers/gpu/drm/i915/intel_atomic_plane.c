@@ -111,11 +111,16 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 {
 	struct drm_crtc *crtc = state->crtc;
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct intel_plane_state *intel_state = to_intel_plane_state(state);
+	bool active;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(intel_state);
+	active = intel_crtc_state->base.enable;
 
 	/*
 	 * Both crtc and plane->crtc could be NULL if we're updating a
@@ -143,10 +148,8 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	/* Clip all planes to CRTC size, or 0x0 if CRTC is disabled */
 	intel_state->clip.x1 = 0;
 	intel_state->clip.y1 = 0;
-	intel_state->clip.x2 =
-		intel_crtc->active ? intel_crtc->config->pipe_src_w : 0;
-	intel_state->clip.y2 =
-		intel_crtc->active ? intel_crtc->config->pipe_src_h : 0;
+	intel_state->clip.x2 = active ? intel_crtc_state->pipe_src_w : 0;
+	intel_state->clip.y2 = active ? intel_crtc_state->pipe_src_h : 0;
 
 	/*
 	 * Disabling a plane is always okay; we just need to update

@@ -864,6 +864,7 @@ intel_check_sprite_plane(struct drm_plane *plane,
 			 struct intel_plane_state *state)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(state->base.crtc);
+	struct intel_crtc_state *intel_crtc_state;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_framebuffer *fb = state->base.fb;
 	int crtc_x, crtc_y;
@@ -875,8 +876,12 @@ intel_check_sprite_plane(struct drm_plane *plane,
 	int hscale, vscale;
 	int max_scale, min_scale;
 	int pixel_size;
+	bool active;
 
 	intel_crtc = intel_crtc ? intel_crtc : to_intel_crtc(plane->crtc);
+
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
 
 	if (!fb) {
 		state->visible = false;
@@ -1024,9 +1029,9 @@ finish:
 	 */
 	state->hides_primary = fb != NULL && drm_rect_equals(dst, clip) &&
 		!colorkey_enabled(intel_plane);
-	WARN_ON(state->hides_primary && !state->visible && intel_crtc->active);
+	WARN_ON(state->hides_primary && !state->visible && active);
 
-	if (intel_crtc->active) {
+	if (active) {
 		if (intel_crtc->primary_enabled == state->hides_primary)
 			intel_crtc->atomic.wait_for_flips = true;
 
@@ -1062,18 +1067,23 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 {
 	struct drm_crtc *crtc = state->base.crtc;
 	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *intel_crtc_state;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_framebuffer *fb = state->base.fb;
 	int crtc_x, crtc_y;
 	unsigned int crtc_w, crtc_h;
 	uint32_t src_x, src_y, src_w, src_h;
+	bool active;
 
 	crtc = crtc ? crtc : plane->crtc;
 	intel_crtc = to_intel_crtc(crtc);
 
+	intel_crtc_state = intel_crtc_state_for_plane(state);
+	active = intel_crtc_state->base.enable;
+
 	plane->fb = fb;
 
-	if (intel_crtc->active) {
+	if (active) {
 		intel_crtc->primary_enabled = !state->hides_primary;
 
 		if (state->visible) {

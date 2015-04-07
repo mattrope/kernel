@@ -998,6 +998,9 @@ intel_rotation_90_or_270(unsigned int rotation)
 
 bool intel_wm_need_update(struct drm_plane *plane,
 			  struct drm_plane_state *state);
+struct intel_crtc_state *
+intel_crtc_state_for_plane(struct intel_plane_state *pstate);
+
 
 /* shared dpll functions */
 struct intel_shared_dpll *intel_crtc_to_shared_dpll(struct intel_crtc *crtc);
