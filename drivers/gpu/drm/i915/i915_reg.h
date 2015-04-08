@@ -715,7 +715,7 @@ enum skl_disp_power_wells {
 /**
  * DOC: DPIO
  *
- * VLV and CHV have slightly peculiar display PHYs for driving DP/HDMI
+ * VLV, CHV and BXT have slightly peculiar display PHYs for driving DP/HDMI
  * ports. DPIO is the name given to such a display PHY. These PHYs
  * don't follow the standard programming model using direct MMIO
  * registers, and instead their registers must be accessed trough IOSF
@@ -770,9 +770,13 @@ enum skl_disp_power_wells {
  *
  * Note: digital port B is DDI0, digital port C is DDI1,
  * digital port D is DDI2
+ *
+ * On BXT the above mappings apply for both the dual and single channel PHY,
+ * with the difference that any of the three ports can connect to any of the
+ * three pipes. Also the single channel PHY is used for port A (DDI2/EDP).
  */
 /*
- * Dual channel PHY (VLV/CHV)
+ * Dual channel PHY (VLV/CHV/BXT)
  * ---------------------------------
  * |      CH0      |      CH1      |
  * |  CMN/PLL/REF  |  CMN/PLL/REF  |
@@ -784,7 +788,7 @@ enum skl_disp_power_wells {
  * |     DDI0      |     DDI1      | DP/HDMI ports
  * ---------------------------------
  *
- * Single channel PHY (CHV)
+ * Single channel PHY (CHV/BXT)
  * -----------------
  * |      CH0      |
  * |  CMN/PLL/REF  |
@@ -1117,6 +1121,247 @@ enum skl_disp_power_wells {
 #define   DPIO_FRC_LATENCY_SHFIT	8
 #define CHV_TX_DW14(ch, lane) _TXLANE(ch, lane, 0xb8)
 #define   DPIO_UPAR_SHIFT		30
+
+/* BXT PHY registers */
+enum bxt_phy {
+	BXT_PHY_A,
+	BXT_PHY_BC
+};
+
+#define BXT_PHY(phy, a, b)		((a) + (phy) * ((b) - (a)))
+
+#define BXT_P_CR_GT_DISP_PWRON_0_2_0_GTTMMADR	0x138090
+#define   _EDP_POWER_ON				(1 << 1)
+#define   _DDI_POWER_ON				(1 << 0)
+#define   GT_DISPLAY_POWER_ON(phy)		BXT_PHY(phy, _EDP_POWER_ON, \
+							_DDI_POWER_ON)
+
+#define _PHY_CTL_FAMILY_EDP		0x64C80
+#define _PHY_CTL_FAMILY_DDI		0x64C90
+#define   COMMON_RESET_DIS		(1 << 31)
+#define BXT_PHY_CTL_FAMILY(phy)		BXT_PHY(phy, _PHY_CTL_FAMILY_EDP, \
+						     _PHY_CTL_FAMILY_DDI)
+
+/* BXT PHY PLL registers */
+#define _PORT_PLL_A			0x46074
+#define _PORT_PLL_B			0x46078
+#define _PORT_PLL_C			0x4607c
+#define   PORT_PLL_ENABLE		(1 << 31)
+#define   PORT_PLL_LOCK			(1 << 30)
+#define   PORT_PLL_REF_SEL		(1 << 27)
+#define BXT_PORT_PLL_ENABLE(port)	_PORT(port, _PORT_PLL_A, _PORT_PLL_B)
+
+#define _PORT_PLL_EBB_0_A		0x162034
+#define _PORT_PLL_EBB_0_B		0x6C034
+#define _PORT_PLL_EBB_0_C		0x6C340
+#define   PORT_PLL_P1_MASK		(0x07 << 13)
+#define   PORT_PLL_P1(x)		((x)  << 13)
+#define   PORT_PLL_P2_MASK		(0x1f << 8)
+#define   PORT_PLL_P2(x)		((x)  << 8)
+#define BXT_PORT_PLL_EBB_0(port)	_PORT3(port, _PORT_PLL_EBB_0_A, \
+						_PORT_PLL_EBB_0_B,	\
+						_PORT_PLL_EBB_0_C)
+
+#define _PORT_PLL_EBB_4_A		0x162038
+#define _PORT_PLL_EBB_4_B		0x6C038
+#define _PORT_PLL_EBB_4_C		0x6C344
+#define   PORT_PLL_10BIT_CLK_ENABLE	(1 << 13)
+#define   PORT_PLL_RECALIBRATE		(1 << 14)
+#define BXT_PORT_PLL_EBB_4(port)	_PORT3(port, _PORT_PLL_EBB_4_A, \
+						_PORT_PLL_EBB_4_B,	\
+						_PORT_PLL_EBB_4_C)
+
+#define _PORT_PLL_0_A			0x162100
+#define _PORT_PLL_0_B			0x6C100
+#define _PORT_PLL_0_C			0x6C380
+/* PORT_PLL_0_A */
+#define   PORT_PLL_M2_MASK		0xFF
+/* PORT_PLL_1_A */
+#define   PORT_PLL_N_MASK		(0x0F << 8)
+#define   PORT_PLL_N(x)			((x) << 8)
+/* PORT_PLL_2_A */
+#define   PORT_PLL_M2_FRAC_MASK		0x3FFFFF
+/* PORT_PLL_3_A */
+#define   PORT_PLL_M2_FRAC_ENABLE	(1 << 16)
+/* PORT_PLL_6_A */
+#define   PORT_PLL_PROP_COEFF_MASK	0xF
+#define   PORT_PLL_INT_COEFF_MASK	(0x1F << 8)
+#define   PORT_PLL_INT_COEFF(x)		((x)  << 8)
+#define   PORT_PLL_GAIN_CTL_MASK	(0x07 << 16)
+#define   PORT_PLL_GAIN_CTL(x)		((x)  << 16)
+/* PORT_PLL_8_A */
+#define   PORT_PLL_TARGET_CNT_MASK	0x3FF
+#define _PORT_PLL_BASE(port)		_PORT3(port, _PORT_PLL_0_A,	\
+						_PORT_PLL_0_B,		\
+						_PORT_PLL_0_C)
+#define BXT_PORT_PLL(port, idx)		(_PORT_PLL_BASE(port) + (idx) * 4)
+
+/* BXT PHY common lane registers */
+#define _PORT_CL1CM_DW0_A		0x162000
+#define _PORT_CL1CM_DW0_BC		0x6C000
+#define   PHY_POWER_GOOD		(1 << 16)
+#define BXT_PORT_CL1CM_DW0(phy)		BXT_PHY(phy, _PORT_CL1CM_DW0_A,	\
+						     _PORT_CL1CM_DW0_BC)
+
+#define _PORT_CL1CM_DW9_A		0x162024
+#define _PORT_CL1CM_DW9_BC		0x6C024
+#define   IREF0RC_OFFSET_SHIFT		8
+#define   IREF0RC_OFFSET_MASK		(0xFF << IREF0RC_OFFSET_SHIFT)
+#define BXT_PORT_CL1CM_DW9(phy)		BXT_PHY(phy, _PORT_CL1CM_DW9_A,	\
+						     _PORT_CL1CM_DW9_BC)
+
+#define _PORT_CL1CM_DW10_A		0x162028
+#define _PORT_CL1CM_DW10_BC		0x6C028
+#define   IREF1RC_OFFSET_SHIFT		8
+#define   IREF1RC_OFFSET_MASK		(0xFF << IREF1RC_OFFSET_SHIFT)
+#define BXT_PORT_CL1CM_DW10(phy)	BXT_PHY(phy, _PORT_CL1CM_DW10_A, \
+						     _PORT_CL1CM_DW10_BC)
+
+#define _PORT_CL1CM_DW28_A		0x162070
+#define _PORT_CL1CM_DW28_BC		0x6C070
+#define   OCL1_POWER_DOWN_EN		(1 << 23)
+#define   DW28_OLDO_DYN_PWR_DOWN_EN	(1 << 22)
+#define   SUS_CLK_CONFIG		0x3
+#define BXT_PORT_CL1CM_DW28(phy)	BXT_PHY(phy, _PORT_CL1CM_DW28_A, \
+						     _PORT_CL1CM_DW28_BC)
+
+#define _PORT_CL1CM_DW30_A		0x162078
+#define _PORT_CL1CM_DW30_BC		0x6C078
+#define   OCL2_LDOFUSE_PWR_DIS		(1 << 6)
+#define BXT_PORT_CL1CM_DW30(phy)	BXT_PHY(phy, _PORT_CL1CM_DW30_A, \
+						     _PORT_CL1CM_DW30_BC)
+
+/* Defined for PHY_BC only */
+#define BXT_PORT_CL2CM_DW6_BC		0x6C358
+#define   DW6_OLDO_DYN_PWR_DOWN_EN	(1 << 28)
+
+/* BXT PHY Ref registers */
+#define _PORT_REF_DW3_A			0x16218C
+#define _PORT_REF_DW3_BC		0x6C18C
+#define   GRC_DONE			(1 << 22)
+#define BXT_PORT_REF_DW3(phy)		BXT_PHY(phy, _PORT_REF_DW3_A,	\
+						     _PORT_REF_DW3_BC)
+
+#define _PORT_REF_DW6_A			0x162198
+#define _PORT_REF_DW6_BC		0x6C198
+/*
+ * FIXME: BSpec disagrees on the following two fields, check them with
+ * HW/documentation people.
+ */
+#define   GRC_CODE_SHIFT		23
+#define   GRC_CODE_MASK			(0x1FF << GRC_CODE_SHIFT)
+#define   GRC_CODE_FAST_SHIFT		16
+#define   GRC_CODE_FAST_MASK		(0x7F << GRC_CODE_FAST_SHIFT)
+#define   GRC_CODE_SLOW_SHIFT		8
+#define   GRC_CODE_SLOW_MASK		(0xFF << GRC_CODE_SLOW_SHIFT)
+#define   GRC_CODE_NOM_MASK		0xFF
+#define BXT_PORT_REF_DW6(phy)		BXT_PHY(phy, _PORT_REF_DW6_A,	\
+						     _PORT_REF_DW6_BC)
+
+#define _PORT_REF_DW8_A			0x1621A0
+#define _PORT_REF_DW8_BC		0x6C1A0
+#define   GRC_DIS			(1 << 15)
+#define   GRC_RDY_OVRD			(1 << 1)
+#define BXT_PORT_REF_DW8(phy)		BXT_PHY(phy, _PORT_REF_DW8_A,	\
+						     _PORT_REF_DW8_BC)
+
+/* BXT PHY PCS registers */
+#define _PORT_PCS_DW10_LN01_A		0x162428
+#define _PORT_PCS_DW10_LN01_B		0x6C428
+#define _PORT_PCS_DW10_LN01_C		0x6C828
+#define _PORT_PCS_DW10_GRP_A		0x162C28
+#define _PORT_PCS_DW10_GRP_B		0x6CC28
+#define _PORT_PCS_DW10_GRP_C		0x6CE28
+#define BXT_PORT_PCS_DW10_LN01(port)	_PORT3(port, _PORT_PCS_DW10_LN01_A, \
+						     _PORT_PCS_DW10_LN01_B, \
+						     _PORT_PCS_DW10_LN01_C)
+#define BXT_PORT_PCS_DW10_GRP(port)	_PORT3(port, _PORT_PCS_DW10_GRP_A,  \
+						     _PORT_PCS_DW10_GRP_B,  \
+						     _PORT_PCS_DW10_GRP_C)
+#define   TX2_SWING_CALC_INIT		(1 << 31)
+#define   TX1_SWING_CALC_INIT		(1 << 30)
+
+#define _PORT_PCS_DW12_LN01_A		0x162430
+#define _PORT_PCS_DW12_LN01_B		0x6C430
+#define _PORT_PCS_DW12_LN01_C		0x6C830
+#define _PORT_PCS_DW12_LN23_A		0x162630
+#define _PORT_PCS_DW12_LN23_B		0x6C630
+#define _PORT_PCS_DW12_LN23_C		0x6CA30
+#define _PORT_PCS_DW12_GRP_A		0x162c30
+#define _PORT_PCS_DW12_GRP_B		0x6CC30
+#define _PORT_PCS_DW12_GRP_C		0x6CE30
+#define   LANESTAGGER_STRAP_OVRD	(1 << 6)
+#define   LANE_STAGGER_MASK		0x1F
+#define BXT_PORT_PCS_DW12_LN01(port)	_PORT3(port, _PORT_PCS_DW12_LN01_A, \
+						     _PORT_PCS_DW12_LN01_B, \
+						     _PORT_PCS_DW12_LN01_C)
+#define BXT_PORT_PCS_DW12_LN23(port)	_PORT3(port, _PORT_PCS_DW12_LN23_A, \
+						     _PORT_PCS_DW12_LN23_B, \
+						     _PORT_PCS_DW12_LN23_C)
+#define BXT_PORT_PCS_DW12_GRP(port)	_PORT3(port, _PORT_PCS_DW12_GRP_A, \
+						     _PORT_PCS_DW12_GRP_B, \
+						     _PORT_PCS_DW12_GRP_C)
+
+/* BXT PHY TX registers */
+#define BXT_LANE_OFFSET(lane)           (((lane) >> 1) * 0x200 +	\
+					 ((lane) & 1) * 0x80)
+
+#define _PORT_TX_DW2_LN0_A		0x162508
+#define _PORT_TX_DW2_LN0_B		0x6C508
+#define _PORT_TX_DW2_LN0_C		0x6C908
+#define _PORT_TX_DW2_GRP_A		0x162D08
+#define _PORT_TX_DW2_GRP_B		0x6CD08
+#define _PORT_TX_DW2_GRP_C		0x6CF08
+#define BXT_PORT_TX_DW2_GRP(port)	_PORT3(port, _PORT_TX_DW2_GRP_A,  \
+						     _PORT_TX_DW2_GRP_B,  \
+						     _PORT_TX_DW2_GRP_C)
+#define BXT_PORT_TX_DW2_LN0(port)	_PORT3(port, _PORT_TX_DW2_LN0_A,  \
+						     _PORT_TX_DW2_LN0_B,  \
+						     _PORT_TX_DW2_LN0_C)
+#define   MARGIN_000_SHIFT		16
+#define   MARGIN_000			(0xFF << MARGIN_000_SHIFT)
+#define   UNIQ_TRANS_SCALE_SHIFT	8
+#define   UNIQ_TRANS_SCALE		(0xFF << UNIQ_TRANS_SCALE_SHIFT)
+
+#define _PORT_TX_DW3_LN0_A		0x16250C
+#define _PORT_TX_DW3_LN0_B		0x6C50C
+#define _PORT_TX_DW3_LN0_C		0x6C90C
+#define _PORT_TX_DW3_GRP_A		0x162D0C
+#define _PORT_TX_DW3_GRP_B		0x6CD0C
+#define _PORT_TX_DW3_GRP_C		0x6CF0C
+#define BXT_PORT_TX_DW3_GRP(port)	_PORT3(port, _PORT_TX_DW3_GRP_A,  \
+						     _PORT_TX_DW3_GRP_B,  \
+						     _PORT_TX_DW3_GRP_C)
+#define BXT_PORT_TX_DW3_LN0(port)	_PORT3(port, _PORT_TX_DW3_LN0_A,  \
+						     _PORT_TX_DW3_LN0_B,  \
+						     _PORT_TX_DW3_LN0_C)
+#define   UNIQE_TRANGE_EN_METHOD	(1 << 27)
+
+#define _PORT_TX_DW4_LN0_A		0x162510
+#define _PORT_TX_DW4_LN0_B		0x6C510
+#define _PORT_TX_DW4_LN0_C		0x6C910
+#define _PORT_TX_DW4_GRP_A		0x162D10
+#define _PORT_TX_DW4_GRP_B		0x6CD10
+#define _PORT_TX_DW4_GRP_C		0x6CF10
+#define BXT_PORT_TX_DW4_LN0(port)	_PORT3(port, _PORT_TX_DW4_LN0_A,  \
+						     _PORT_TX_DW4_LN0_B,  \
+						     _PORT_TX_DW4_LN0_C)
+#define BXT_PORT_TX_DW4_GRP(port)	_PORT3(port, _PORT_TX_DW4_GRP_A,  \
+						     _PORT_TX_DW4_GRP_B,  \
+						     _PORT_TX_DW4_GRP_C)
+#define   DEEMPH_SHIFT			24
+#define   DE_EMPHASIS			(0xFF << DEEMPH_SHIFT)
+
+#define _PORT_TX_DW14_LN0_A		0x162538
+#define _PORT_TX_DW14_LN0_B		0x6C538
+#define _PORT_TX_DW14_LN0_C		0x6C938
+#define   LATENCY_OPTIM_SHIFT		30
+#define   LATENCY_OPTIM			(1 << LATENCY_OPTIM_SHIFT)
+#define BXT_PORT_TX_DW14_LN(port, lane)	(_PORT3(port, _PORT_TX_DW14_LN0_A,   \
+						      _PORT_TX_DW14_LN0_B,   \
+						      _PORT_TX_DW14_LN0_C) + \
+					 BXT_LANE_OFFSET(lane))
+
 /*
  * Fence registers
  */
@@ -1148,6 +1393,7 @@ enum skl_disp_power_wells {
 /* control register for cpu gtt access */
 #define TILECTL				0x101000
 #define   TILECTL_SWZCTL			(1 << 0)
+#define   TILECTL_TLBPF			(1 << 1)
 #define   TILECTL_TLB_PREFETCH_DIS	(1 << 2)
 #define   TILECTL_BACKSNOOP_DIS		(1 << 3)
 
@@ -5254,11 +5500,20 @@ enum skl_disp_power_wells {
 #define GEN8_DE_PORT_IMR 0x44444
 #define GEN8_DE_PORT_IIR 0x44448
 #define GEN8_DE_PORT_IER 0x4444c
-#define  GEN8_PORT_DP_A_HOTPLUG		(1 << 3)
 #define  GEN9_AUX_CHANNEL_D		(1 << 27)
 #define  GEN9_AUX_CHANNEL_C		(1 << 26)
 #define  GEN9_AUX_CHANNEL_B		(1 << 25)
+#define  BXT_DE_PORT_HP_DDIC		(1 << 5)
+#define  BXT_DE_PORT_HP_DDIB		(1 << 4)
+#define  BXT_DE_PORT_HP_DDIA		(1 << 3)
+#define  BXT_DE_PORT_HOTPLUG_MASK	(BXT_DE_PORT_HP_DDIA | \
+					 BXT_DE_PORT_HP_DDIB | \
+					 BXT_DE_PORT_HP_DDIC)
+#define  GEN8_PORT_DP_A_HOTPLUG		(1 << 3)
 #define  GEN8_AUX_CHANNEL_A		(1 << 0)
+
+/* BXT GMBUS */
+#define BXT_DE_PORT_GMBUS	(1 << 1)
 
 #define GEN8_DE_MISC_ISR 0x44460
 #define GEN8_DE_MISC_IMR 0x44464
@@ -5270,6 +5525,23 @@ enum skl_disp_power_wells {
 #define GEN8_PCU_IMR 0x444e4
 #define GEN8_PCU_IIR 0x444e8
 #define GEN8_PCU_IER 0x444ec
+
+/* BXT hotplug control */
+#define BXT_HOTPLUG_CTL			0xC4030
+#define BXT_DDIA_HPD_ENABLE		(1 << 28)
+#define BXT_DDIC_HPD_ENABLE		(1 << 12)
+#define BXT_DDIB_HPD_ENABLE		(1 << 4)
+#define BXT_HOTPLUG_CTL_MASK		(BXT_DDIA_HPD_ENABLE | \
+					 BXT_DDIB_HPD_ENABLE | \
+					 BXT_DDIC_HPD_ENABLE)
+
+/* Hot plug status */
+#define BXT_DDIA_HPD_STATUS		(3 << 24)
+#define BXT_DDIC_HPD_STATUS		(3 << 8)
+#define BXT_DDIB_HPD_STATUS		(3 << 0)
+#define BXT_HPD_STATUS_MASK		(BXT_DDIA_HPD_STATUS | \
+					 BXT_DDIB_HPD_STATUS | \
+					 BXT_DDIC_HPD_STATUS)
 
 #define ILK_DISPLAY_CHICKEN2	0x42004
 /* Required on all Ironlake and Sandybridge according to the B-Spec. */
@@ -5311,6 +5583,9 @@ enum skl_disp_power_wells {
 #define  DISP_FBC_WM_DIS		(1<<15)
 #define DISP_ARB_CTL2	0x45004
 #define  DISP_DATA_PARTITION_5_6	(1<<6)
+#define DBUF_CTL	0x45008
+#define  DBUF_POWER_REQUEST		(1<<31)
+#define  DBUF_POWER_STATE		(1<<30)
 #define GEN7_MSG_CTL	0x45010
 #define  WAIT_FOR_PCH_RESET_ACK		(1<<1)
 #define  WAIT_FOR_PCH_FLR_ACK		(1<<0)
@@ -5362,6 +5637,10 @@ enum skl_disp_power_wells {
 #define  HDC_FORCE_CONTEXT_SAVE_RESTORE_NON_COHERENT	(1<<5)
 #define  HDC_FORCE_NON_COHERENT			(1<<4)
 #define  HDC_BARRIER_PERFORMANCE_DISABLE	(1<<10)
+
+/* GEN9 chicken */
+#define SLICE_ECO_CHICKEN0			0x7308
+#define   PIXEL_MASK_CAMMING_DISABLE		(1 << 14)
 
 /* WaCatErrorRejectionIssue */
 #define GEN7_SQ_CHICKEN_MBCUNIT_CONFIG		0x9030
@@ -6122,6 +6401,7 @@ enum skl_disp_power_wells {
 #define GEN8_UCGCTL6				0x9430
 #define   GEN8_GAPSUNIT_CLOCK_GATE_DISABLE	(1<<24)
 #define   GEN8_SDEUNIT_CLOCK_GATE_DISABLE	(1<<14)
+#define   GEN8_HDCUNIT_CLOCK_GATE_DISABLE_HDCREQ (1<<28)
 
 #define GEN6_GFXPAUSE				0xA000
 #define GEN6_RPNSWREQ				0xA008
@@ -6255,6 +6535,7 @@ enum skl_disp_power_wells {
 #define   GEN6_PCODE_WRITE_D_COMP		0x11
 #define   GEN6_ENCODE_RC6_VID(mv)		(((mv) - 245) / 5)
 #define   GEN6_DECODE_RC6_VID(vids)		(((vids) * 5) + 245)
+#define   DISPLAY_PCU_CONTROL			0x17
 #define   DISPLAY_IPS_CONTROL			0x19
 #define	  HSW_PCODE_DYNAMIC_DUTY_CYCLE_CONTROL	0x1A
 #define GEN6_PCODE_DATA				0x138128
@@ -6588,6 +6869,7 @@ enum skl_disp_power_wells {
 #define  DDI_BUF_EMP_MASK			(0xf<<24)
 #define  DDI_BUF_PORT_REVERSAL			(1<<16)
 #define  DDI_BUF_IS_IDLE			(1<<7)
+#define  DDI_BUF_IDLE_TIMEOUT			16	  /* 16us */
 #define  DDI_A_4_LANES				(1<<4)
 #define  DDI_PORT_WIDTH(width)			(((width) - 1) << 1)
 #define  DDI_INIT_DISPLAY_DETECTED		(1<<0)
@@ -6731,6 +7013,13 @@ enum skl_disp_power_wells {
 #define  CDCLK_FREQ_675_617		(3<<26)
 #define  CDCLK_FREQ_DECIMAL_MASK	(0x7ff)
 
+#define  BXT_CDCLK_CD2X_DIV_SEL_MASK	(3<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_1	(0<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_1_5	(1<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_2	(2<<22)
+#define  BXT_CDCLK_CD2X_DIV_SEL_4	(3<<22)
+#define  BXT_CDCLK_SSA_PRECHARGE_ENABLE	(1<<16)
+
 /* LCPLL_CTL */
 #define LCPLL1_CTL		0x46010
 #define LCPLL2_CTL		0x46014
@@ -6794,6 +7083,22 @@ enum skl_disp_power_wells {
 
 #define GET_CFG_CR1_REG(id) (DPLL1_CFGCR1 + (id - SKL_DPLL1) * 8)
 #define GET_CFG_CR2_REG(id) (DPLL1_CFGCR2 + (id - SKL_DPLL1) * 8)
+
+/* BXT display engine PLL */
+#define BXT_DE_PLL_CTL			0x6d000
+#define   BXT_DE_PLL_RATIO_1152		0x3c
+#define   BXT_DE_PLL_RATIO_1248		0x41
+#define   BXT_DE_PLL_RATIO_DEFAULT	0x64
+#define   BXT_DE_PLL_RATIO_MASK		0x7f
+
+#define BXT_DE_PLL_ENABLE		0x46070
+#define   BXT_DE_PLL_PLL_ENABLE		(1 << 31)
+#define   BXT_DE_PLL_LOCK		(1 << 30)
+
+/* GEN9 DC */
+#define DC_STATE_EN			0x45504
+#define  DC_STATE_EN_UPTO_DC5		(1<<0)
+#define  DC_STATE_EN_DC9		(1<<3)
 
 /* Please see hsw_read_dcomp() and hsw_write_dcomp() before using this register,
  * since on HSW we can't write to it using I915_WRITE. */

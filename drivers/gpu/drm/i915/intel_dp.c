@@ -1463,6 +1463,8 @@ found:
 
 	if (IS_SKYLAKE(dev) && is_edp(intel_dp))
 		skl_edp_set_pll_config(pipe_config, common_rates[clock]);
+	else if (IS_BROXTON(dev))
+		/* handled in ddi */;
 	else if (IS_HASWELL(dev) || IS_BROADWELL(dev))
 		hsw_dp_set_ddi_pll_sel(pipe_config, intel_dp->link_bw);
 	else
@@ -2877,7 +2879,9 @@ intel_dp_voltage_max(struct intel_dp *intel_dp)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	enum port port = dp_to_dig_port(intel_dp)->port;
 
-	if (INTEL_INFO(dev)->gen >= 9) {
+	if (IS_BROXTON(dev))
+		return DP_TRAIN_VOLTAGE_SWING_LEVEL_3;
+	else if (INTEL_INFO(dev)->gen >= 9) {
 		if (dev_priv->vbt.edp_low_vswing && port == PORT_A)
 			return DP_TRAIN_VOLTAGE_SWING_LEVEL_3;
 		return DP_TRAIN_VOLTAGE_SWING_LEVEL_2;
@@ -3399,6 +3403,55 @@ intel_hsw_signal_levels(uint8_t train_set)
 	}
 }
 
+static void intel_bxt_signal_levels(struct intel_dp *intel_dp)
+{
+	struct intel_digital_port *dport = dp_to_dig_port(intel_dp);
+	enum port port = dport->port;
+	struct drm_device *dev = dport->base.base.dev;
+	struct intel_encoder *encoder = &dport->base;
+	uint8_t train_set = intel_dp->train_set[0];
+	uint32_t level = 0;
+
+	int signal_levels = train_set & (DP_TRAIN_VOLTAGE_SWING_MASK |
+					 DP_TRAIN_PRE_EMPHASIS_MASK);
+	switch (signal_levels) {
+	default:
+		DRM_DEBUG_KMS("Unsupported voltage swing/pre-emph level\n");
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_0 | DP_TRAIN_PRE_EMPH_LEVEL_0:
+		level = 0;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_0 | DP_TRAIN_PRE_EMPH_LEVEL_1:
+		level = 1;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_0 | DP_TRAIN_PRE_EMPH_LEVEL_2:
+		level = 2;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_0 | DP_TRAIN_PRE_EMPH_LEVEL_3:
+		level = 3;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_1 | DP_TRAIN_PRE_EMPH_LEVEL_0:
+		level = 4;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_1 | DP_TRAIN_PRE_EMPH_LEVEL_1:
+		level = 5;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_1 | DP_TRAIN_PRE_EMPH_LEVEL_2:
+		level = 6;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_2 | DP_TRAIN_PRE_EMPH_LEVEL_0:
+		level = 7;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_2 | DP_TRAIN_PRE_EMPH_LEVEL_1:
+		level = 8;
+		break;
+	case DP_TRAIN_VOLTAGE_SWING_LEVEL_3 | DP_TRAIN_PRE_EMPH_LEVEL_0:
+		level = 9;
+		break;
+	}
+
+	bxt_ddi_vswing_sequence(dev, level, port, encoder->type);
+}
+
 /* Properly updates "DP" with the correct signal levels. */
 static void
 intel_dp_set_signal_levels(struct intel_dp *intel_dp, uint32_t *DP)
@@ -3409,7 +3462,11 @@ intel_dp_set_signal_levels(struct intel_dp *intel_dp, uint32_t *DP)
 	uint32_t signal_levels, mask;
 	uint8_t train_set = intel_dp->train_set[0];
 
-	if (IS_HASWELL(dev) || IS_BROADWELL(dev) || INTEL_INFO(dev)->gen >= 9) {
+	if (IS_BROXTON(dev)) {
+		signal_levels = 0;
+		intel_bxt_signal_levels(intel_dp);
+		mask = 0;
+	} else if (HAS_DDI(dev)) {
 		signal_levels = intel_hsw_signal_levels(train_set);
 		mask = DDI_BUF_EMP_MASK;
 	} else if (IS_CHERRYVIEW(dev)) {
@@ -3429,7 +3486,14 @@ intel_dp_set_signal_levels(struct intel_dp *intel_dp, uint32_t *DP)
 		mask = DP_VOLTAGE_MASK | DP_PRE_EMPHASIS_MASK;
 	}
 
-	DRM_DEBUG_KMS("Using signal levels %08x\n", signal_levels);
+	if (mask)
+		DRM_DEBUG_KMS("Using signal levels %08x\n", signal_levels);
+
+	DRM_DEBUG_KMS("Using vswing level %d\n",
+		train_set & DP_TRAIN_VOLTAGE_SWING_MASK);
+	DRM_DEBUG_KMS("Using pre-emphasis level %d\n",
+		(train_set & DP_TRAIN_PRE_EMPHASIS_MASK) >>
+			DP_TRAIN_PRE_EMPHASIS_SHIFT);
 
 	*DP = (*DP & ~mask) | signal_levels;
 }

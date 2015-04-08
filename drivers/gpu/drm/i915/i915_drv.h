@@ -303,6 +303,9 @@ struct intel_dpll_hw_state {
 	uint32_t ctrl1;
 	/* HDMI only, 0 when used for DP */
 	uint32_t cfgcr1, cfgcr2;
+
+	/* bxt */
+	uint32_t ebb0, pll0, pll1, pll2, pll3, pll6, pll8, pcsdw12;
 };
 
 struct intel_shared_dpll_config {
@@ -1573,6 +1576,11 @@ struct drm_i915_private {
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PINS];
 
+#define for_each_digital_port(dev, digital_port)		\
+	list_for_each_entry(digital_port,			\
+			    &dev->mode_config.encoder_list,	\
+			    base.base.head)
+
 	/** gmbus_mutex protects against concurrent usage of the single hw gmbus
 	 * controller on different i2c buses. */
 	struct mutex gmbus_mutex;
@@ -1656,7 +1664,7 @@ struct drm_i915_private {
 	int num_fence_regs; /* 8 on pre-965, 16 otherwise */
 
 	unsigned int fsb_freq, mem_freq, is_ddr3;
-	unsigned int vlv_cdclk_freq;
+	unsigned int cdclk_freq;
 	unsigned int hpll_freq;
 
 	/**

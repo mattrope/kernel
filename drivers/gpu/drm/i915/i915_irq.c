@@ -88,6 +88,12 @@ static const u32 hpd_status_i915[HPD_NUM_PINS] = { /* i915 and valleyview are th
 	[HPD_PORT_D] = PORTD_HOTPLUG_INT_STATUS
 };
 
+/* BXT hpd list */
+static const u32 hpd_bxt[] = {
+	[HPD_PORT_B] = BXT_DE_PORT_HP_DDIB,
+	[HPD_PORT_C] = BXT_DE_PORT_HP_DDIC
+};
+
 /* IIR can theoretically queue up two events. Be paranoid. */
 #define GEN8_IRQ_RESET_NDX(type, which) do { \
 	I915_WRITE(GEN8_##type##_IMR(which), 0xffffffff); \
@@ -1437,7 +1443,7 @@ static inline void intel_hpd_irq_handler(struct drm_device *dev,
 		if (port && dev_priv->hpd_irq_port[port]) {
 			bool long_hpd;
 
-			if (HAS_PCH_SPLIT(dev)) {
+			if (!HAS_GMCH_DISPLAY(dev_priv)) {
 				dig_shift = pch_port_to_hotplug_shift(port);
 				long_hpd = (dig_hotplug_reg >> dig_shift) & PORTB_HOTPLUG_LONG_DETECT;
 			} else {
@@ -2161,6 +2167,38 @@ static irqreturn_t ironlake_irq_handler(int irq, void *arg)
 	return ret;
 }
 
+static void bxt_hpd_handler(struct drm_device *dev, uint32_t iir_status)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	uint32_t hp_control;
+	uint32_t hp_trigger;
+
+	/* Get the status */
+	hp_trigger = iir_status & BXT_DE_PORT_HOTPLUG_MASK;
+	hp_control = I915_READ(BXT_HOTPLUG_CTL);
+
+	/* Hotplug not enabled ? */
+	if (unlikely(!(hp_control & BXT_HOTPLUG_CTL_MASK))) {
+		DRM_ERROR("Interrupt when HPD disabled\n");
+		return;
+	}
+
+	DRM_DEBUG_DRIVER("hotplug event received, stat 0x%08x\n",
+		hp_control & BXT_HOTPLUG_CTL_MASK);
+
+	/* Check for HPD storm and schedule bottom half */
+	intel_hpd_irq_handler(dev, hp_trigger, hp_control, hpd_bxt);
+
+	/*
+	 * Todo: Save the hot plug status for bottom half before
+	 * clearing the sticky status bits, else the status will be
+	 * lost.
+	 */
+
+	/* Clear sticky bits in hpd status */
+	I915_WRITE(BXT_HOTPLUG_CTL, hp_control);
+}
+
 static irqreturn_t gen8_irq_handler(int irq, void *arg)
 {
 	struct drm_device *dev = arg;
@@ -2170,6 +2208,7 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 	uint32_t tmp = 0;
 	enum pipe pipe;
 	u32 aux_mask = GEN8_AUX_CHANNEL_A;
+	bool found = false;
 
 	if (!intel_irqs_enabled(dev_priv))
 		return IRQ_NONE;
@@ -2210,9 +2249,22 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 			I915_WRITE(GEN8_DE_PORT_IIR, tmp);
 			ret = IRQ_HANDLED;
 
-			if (tmp & aux_mask)
+			if (tmp & aux_mask) {
 				dp_aux_irq_handler(dev);
-			else
+				found = true;
+			}
+
+			if (tmp & BXT_DE_PORT_HOTPLUG_MASK) {
+				bxt_hpd_handler(dev, tmp);
+				found = true;
+			}
+
+			if (IS_BROXTON(dev) && (tmp & BXT_DE_PORT_GMBUS)) {
+				gmbus_irq_handler(dev);
+				found = true;
+			}
+
+			if (!found)
 				DRM_ERROR("Unexpected DE Port interrupt\n");
 		}
 		else
@@ -2265,7 +2317,13 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 			DRM_ERROR("The master control interrupt lied (DE PIPE)!\n");
 	}
 
-	if (!HAS_PCH_NOP(dev) && master_ctl & GEN8_DE_PCH_IRQ) {
+	/*
+	 * Todo: BXT doesnt have a PCH, so GEN8_DE_PCH_IRQ shouldn't
+	 * be set. But until this part is confirmed, going paranoid, and adding
+	 * a IS_BROXTON check here.
+	 */
+	if (!IS_BROXTON(dev) && !HAS_PCH_NOP(dev) &&
+			master_ctl & GEN8_DE_PCH_IRQ) {
 		/*
 		 * FIXME(BDW): Assume for now that the new interrupt handling
 		 * scheme also closed the SDE interrupt handling race we've seen
@@ -2989,7 +3047,7 @@ static void ibx_irq_reset(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	if (HAS_PCH_NOP(dev))
+	if (HAS_PCH_NOP(dev) || !HAS_PCH_SPLIT(dev))
 		return;
 
 	GEN5_IRQ_RESET(SDE);
@@ -3010,7 +3068,7 @@ static void ibx_irq_pre_postinstall(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	if (HAS_PCH_NOP(dev))
+	if (HAS_PCH_NOP(dev) || !HAS_PCH_SPLIT(dev))
 		return;
 
 	WARN_ON(I915_READ(SDEIER) != 0);
@@ -3175,12 +3233,50 @@ static void ibx_hpd_irq_setup(struct drm_device *dev)
 	I915_WRITE(PCH_PORT_HOTPLUG, hotplug);
 }
 
+static void bxt_hpd_irq_setup(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_mode_config *mode_config = &dev->mode_config;
+	struct intel_encoder *intel_encoder;
+	u32 hotplug_port = 0;
+	u32 hotplug_ctrl;
+
+	/* Now, enable HPD */
+	list_for_each_entry(intel_encoder, &mode_config->encoder_list,
+		base.head) {
+		if (dev_priv->hpd_stats[intel_encoder->hpd_pin].hpd_mark
+				== HPD_ENABLED)
+			hotplug_port |= hpd_bxt[intel_encoder->hpd_pin];
+	}
+
+	/* Mask all HPD control bits */
+	hotplug_ctrl = I915_READ(BXT_HOTPLUG_CTL) & ~BXT_HOTPLUG_CTL_MASK;
+
+	/* Enable requested port in hotplug control */
+	/* TODO: implement (short) HPD support on port A */
+	WARN_ON_ONCE(hotplug_port & BXT_DE_PORT_HP_DDIA);
+	if (hotplug_port & BXT_DE_PORT_HP_DDIB)
+		hotplug_ctrl |= BXT_DDIB_HPD_ENABLE;
+	if (hotplug_port & BXT_DE_PORT_HP_DDIC)
+		hotplug_ctrl |= BXT_DDIC_HPD_ENABLE;
+	I915_WRITE(BXT_HOTPLUG_CTL, hotplug_ctrl);
+
+	/* Unmask DDI hotplug in IMR */
+	hotplug_ctrl = I915_READ(GEN8_DE_PORT_IMR) & ~hotplug_port;
+	I915_WRITE(GEN8_DE_PORT_IMR, hotplug_ctrl);
+
+	/* Enable DDI hotplug in IER */
+	hotplug_ctrl = I915_READ(GEN8_DE_PORT_IER) | hotplug_port;
+	I915_WRITE(GEN8_DE_PORT_IER, hotplug_ctrl);
+	POSTING_READ(GEN8_DE_PORT_IER);
+}
+
 static void ibx_irq_postinstall(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 mask;
 
-	if (HAS_PCH_NOP(dev))
+	if (HAS_PCH_NOP(dev) || !HAS_PCH_SPLIT(dev))
 		return;
 
 	if (HAS_PCH_IBX(dev))
@@ -3445,13 +3541,16 @@ static void gen8_de_irq_postinstall(struct drm_i915_private *dev_priv)
 	uint32_t de_pipe_masked = GEN8_PIPE_CDCLK_CRC_DONE;
 	uint32_t de_pipe_enables;
 	int pipe;
-	u32 aux_en = GEN8_AUX_CHANNEL_A;
+	u32 de_port_en = GEN8_AUX_CHANNEL_A;
 
 	if (IS_GEN9(dev_priv)) {
 		de_pipe_masked |= GEN9_PIPE_PLANE1_FLIP_DONE |
 				  GEN9_DE_PIPE_IRQ_FAULT_ERRORS;
-		aux_en |= GEN9_AUX_CHANNEL_B | GEN9_AUX_CHANNEL_C |
+		de_port_en |= GEN9_AUX_CHANNEL_B | GEN9_AUX_CHANNEL_C |
 			GEN9_AUX_CHANNEL_D;
+
+		if (IS_BROXTON(dev_priv))
+			de_port_en |= BXT_DE_PORT_GMBUS;
 	} else
 		de_pipe_masked |= GEN8_PIPE_PRIMARY_FLIP_DONE |
 				  GEN8_DE_PIPE_IRQ_FAULT_ERRORS;
@@ -3470,7 +3569,7 @@ static void gen8_de_irq_postinstall(struct drm_i915_private *dev_priv)
 					  dev_priv->de_irq_mask[pipe],
 					  de_pipe_enables);
 
-	GEN5_IRQ_INIT(GEN8_DE_PORT_, ~aux_en, aux_en);
+	GEN5_IRQ_INIT(GEN8_DE_PORT_, ~de_port_en, de_port_en);
 }
 
 static int gen8_irq_postinstall(struct drm_device *dev)
@@ -4295,7 +4394,10 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 		dev->driver->irq_uninstall = gen8_irq_uninstall;
 		dev->driver->enable_vblank = gen8_enable_vblank;
 		dev->driver->disable_vblank = gen8_disable_vblank;
-		dev_priv->display.hpd_irq_setup = ibx_hpd_irq_setup;
+		if (HAS_PCH_SPLIT(dev))
+			dev_priv->display.hpd_irq_setup = ibx_hpd_irq_setup;
+		else
+			dev_priv->display.hpd_irq_setup = bxt_hpd_irq_setup;
 	} else if (HAS_PCH_SPLIT(dev)) {
 		dev->driver->irq_handler = ironlake_irq_handler;
 		dev->driver->irq_preinstall = ironlake_irq_reset;

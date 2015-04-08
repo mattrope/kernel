@@ -873,6 +873,9 @@ void intel_ddi_init_dp_buf_reg(struct intel_encoder *encoder);
 void intel_ddi_clock_get(struct intel_encoder *encoder,
 			 struct intel_crtc_state *pipe_config);
 void intel_ddi_set_vc_payload_alloc(struct drm_crtc *crtc, bool state);
+void bxt_select_cdclk_freq(struct drm_device *dev, u32 frequency);
+void bxt_ddi_vswing_sequence(struct drm_device *dev, u32 level,
+				enum port port, int type);
 
 /* intel_frontbuffer.c */
 void intel_fb_obj_invalidate(struct drm_i915_gem_object *obj,
@@ -1006,6 +1009,7 @@ void assert_shared_dpll(struct drm_i915_private *dev_priv,
 			bool state);
 #define assert_shared_dpll_enabled(d, p) assert_shared_dpll(d, p, true)
 #define assert_shared_dpll_disabled(d, p) assert_shared_dpll(d, p, false)
+struct intel_encoder *intel_ddi_get_crtc_new_encoder(struct intel_crtc_state *crtc_state);
 struct intel_shared_dpll *intel_get_shared_dpll(struct intel_crtc *crtc,
 						struct intel_crtc_state *state);
 void intel_put_shared_dpll(struct intel_crtc *crtc);
@@ -1036,6 +1040,11 @@ void intel_prepare_reset(struct drm_device *dev);
 void intel_finish_reset(struct drm_device *dev);
 void hsw_enable_pc8(struct drm_i915_private *dev_priv);
 void hsw_disable_pc8(struct drm_i915_private *dev_priv);
+void bxt_init_cdclk(struct drm_device *dev);
+void bxt_uninit_cdclk(struct drm_device *dev);
+void bxt_ddi_phy_init(struct drm_device *dev);
+void bxt_enable_dc9(struct drm_i915_private *dev_priv);
+void bxt_disable_dc9(struct drm_i915_private *dev_priv);
 void intel_dp_get_m_n(struct intel_crtc *crtc,
 		      struct intel_crtc_state *pipe_config);
 void intel_dp_set_m_n(struct intel_crtc *crtc, enum link_m_n_set m_n);
@@ -1043,6 +1052,28 @@ int intel_dotclock_calculate(int link_freq, const struct intel_link_m_n *m_n);
 void
 ironlake_check_encoder_dotclock(const struct intel_crtc_state *pipe_config,
 				int dotclock);
+
+typedef struct {
+	int	min, max;
+} intel_range_t;
+
+typedef struct {
+	int	dot_limit;
+	int	p2_slow, p2_fast;
+} intel_p2_t;
+
+typedef struct intel_limit intel_limit_t;
+struct intel_limit {
+	intel_range_t   dot, vco, n, m, m1, m2, p, p1;
+	intel_p2_t	    p2;
+};
+
+bool bxt_find_best_dpll(const intel_limit_t *limit,
+			struct intel_crtc_state *crtc_state,
+			int target_clock,
+			int refclk,
+			intel_clock_t *match_clock,
+			intel_clock_t *best_clock);
 bool intel_crtc_active(struct drm_crtc *crtc);
 void hsw_enable_ips(struct intel_crtc *crtc);
 void hsw_disable_ips(struct intel_crtc *crtc);

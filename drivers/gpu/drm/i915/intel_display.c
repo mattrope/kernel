@@ -103,6 +103,8 @@ static void chv_prepare_pll(struct intel_crtc *crtc,
 			    const struct intel_crtc_state *pipe_config);
 static void intel_begin_crtc_commit(struct drm_crtc *crtc);
 static void intel_finish_crtc_commit(struct drm_crtc *crtc);
+static int i9xx_get_refclk(const struct intel_crtc_state *crtc_state,
+			   int num_connectors);
 
 static struct intel_encoder *intel_find_encoder(struct intel_connector *connector, int pipe)
 {
@@ -111,21 +113,6 @@ static struct intel_encoder *intel_find_encoder(struct intel_connector *connecto
 	else
 		return &connector->mst_port->mst_encoders[pipe]->base;
 }
-
-typedef struct {
-	int	min, max;
-} intel_range_t;
-
-typedef struct {
-	int	dot_limit;
-	int	p2_slow, p2_fast;
-} intel_p2_t;
-
-typedef struct intel_limit intel_limit_t;
-struct intel_limit {
-	intel_range_t   dot, vco, n, m, m1, m2, p, p1;
-	intel_p2_t	    p2;
-};
 
 int
 intel_pch_rawclk(struct drm_device *dev)
@@ -400,6 +387,18 @@ static const intel_limit_t intel_limits_chv = {
 	.p2 = {	.p2_slow = 1, .p2_fast = 14 },
 };
 
+static const intel_limit_t intel_limits_bxt = {
+	/* FIXME: find real dot limits */
+	.dot = { .min = 0, .max = INT_MAX },
+	.vco = { .min = 4800000, .max = 6480000 },
+	.n = { .min = 1, .max = 1 },
+	.m1 = { .min = 2, .max = 2 },
+	/* FIXME: find real m2 limits */
+	.m2 = { .min = 2 << 22, .max = 255 << 22 },
+	.p1 = { .min = 2, .max = 4 },
+	.p2 = { .p2_slow = 1, .p2_fast = 20 },
+};
+
 static void vlv_clock(int refclk, intel_clock_t *clock)
 {
 	clock->m = clock->m1 * clock->m2;
@@ -511,7 +510,9 @@ intel_limit(struct intel_crtc_state *crtc_state, int refclk)
 	struct drm_device *dev = crtc_state->base.crtc->dev;
 	const intel_limit_t *limit;
 
-	if (HAS_PCH_SPLIT(dev))
+	if (IS_BROXTON(dev))
+		limit = &intel_limits_bxt;
+	else if (HAS_PCH_SPLIT(dev))
 		limit = intel_ironlake_limit(crtc_state, refclk);
 	else if (IS_G4X(dev)) {
 		limit = intel_g4x_limit(crtc_state);
@@ -596,11 +597,11 @@ static bool intel_PLL_is_valid(struct drm_device *dev,
 	if (clock->m1  < limit->m1.min  || limit->m1.max  < clock->m1)
 		INTELPllInvalid("m1 out of range\n");
 
-	if (!IS_PINEVIEW(dev) && !IS_VALLEYVIEW(dev))
+	if (!IS_PINEVIEW(dev) && !IS_VALLEYVIEW(dev) && !IS_BROXTON(dev))
 		if (clock->m1 <= clock->m2)
 			INTELPllInvalid("m1 <= m2\n");
 
-	if (!IS_VALLEYVIEW(dev)) {
+	if (!IS_VALLEYVIEW(dev) && !IS_BROXTON(dev)) {
 		if (clock->p < limit->p.min || limit->p.max < clock->p)
 			INTELPllInvalid("p out of range\n");
 		if (clock->m < limit->m.min || limit->m.max < clock->m)
@@ -951,6 +952,17 @@ chv_find_best_dpll(const intel_limit_t *limit,
 	}
 
 	return found;
+}
+
+bool bxt_find_best_dpll(const intel_limit_t *limit,
+			struct intel_crtc_state *crtc_state,
+			int target_clock,
+			int refclk,
+			intel_clock_t *match_clock,
+			intel_clock_t *best_clock)
+{
+	return chv_find_best_dpll(limit, crtc_state, target_clock, refclk,
+				  match_clock, best_clock);
 }
 
 bool intel_crtc_active(struct drm_crtc *crtc)
@@ -2104,7 +2116,7 @@ static void intel_enable_pipe(struct intel_crtc *crtc)
 	 * a plane.  On ILK+ the pipe PLLs are integrated, so we don't
 	 * need the check.
 	 */
-	if (!HAS_PCH_SPLIT(dev_priv->dev))
+	if (HAS_GMCH_DISPLAY(dev_priv->dev))
 		if (intel_pipe_has_type(crtc, INTEL_OUTPUT_DSI))
 			assert_dsi_pll_enabled(dev_priv);
 		else
@@ -4126,6 +4138,26 @@ struct intel_shared_dpll *intel_get_shared_dpll(struct intel_crtc *crtc,
 		goto found;
 	}
 
+	if (IS_BROXTON(dev_priv->dev)) {
+		/* PLL is attached to port in bxt */
+		struct intel_encoder *encoder;
+		struct intel_digital_port *intel_dig_port;
+
+		encoder = intel_ddi_get_crtc_new_encoder(crtc_state);
+		if (WARN_ON(!encoder))
+			return NULL;
+
+		intel_dig_port = enc_to_dig_port(&encoder->base);
+		/* 1:1 mapping between ports and PLLs */
+		i = (enum intel_dpll_id)intel_dig_port->port;
+		pll = &dev_priv->shared_dplls[i];
+		DRM_DEBUG_KMS("CRTC:%d using pre-allocated %s\n",
+			crtc->base.base.id, pll->name);
+		WARN_ON(pll->new_config->crtc_mask);
+
+		goto found;
+	}
+
 	for (i = 0; i < dev_priv->num_shared_dpll; i++) {
 		pll = &dev_priv->shared_dplls[i];
 
@@ -4404,7 +4436,7 @@ static void intel_crtc_load_lut(struct drm_crtc *crtc)
 	if (!crtc->state->enable || !intel_crtc->active)
 		return;
 
-	if (!HAS_PCH_SPLIT(dev_priv->dev)) {
+	if (HAS_GMCH_DISPLAY(dev_priv->dev)) {
 		if (intel_pipe_has_type(intel_crtc, INTEL_OUTPUT_DSI))
 			assert_dsi_pll_enabled(dev_priv);
 		else
@@ -4664,7 +4696,7 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 
 	intel_ddi_enable_pipe_clock(intel_crtc);
 
-	if (IS_SKYLAKE(dev))
+	if (INTEL_INFO(dev)->gen == 9)
 		skylake_pfit_enable(intel_crtc);
 	else
 		ironlake_pfit_enable(intel_crtc);
@@ -4827,7 +4859,7 @@ static void haswell_crtc_disable(struct drm_crtc *crtc)
 
 	intel_ddi_disable_transcoder_func(dev_priv, cpu_transcoder);
 
-	if (IS_SKYLAKE(dev))
+	if (INTEL_INFO(dev)->gen == 9)
 		skylake_pfit_disable(intel_crtc);
 	else
 		ironlake_pfit_disable(intel_crtc);
@@ -5012,16 +5044,16 @@ static void vlv_update_cdclk(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	dev_priv->vlv_cdclk_freq = dev_priv->display.get_display_clock_speed(dev);
+	dev_priv->cdclk_freq = dev_priv->display.get_display_clock_speed(dev);
 	DRM_DEBUG_DRIVER("Current CD clock rate: %d kHz\n",
-			 dev_priv->vlv_cdclk_freq);
+			 dev_priv->cdclk_freq);
 
 	/*
 	 * Program the gmbus_freq based on the cdclk frequency.
 	 * BSpec erroneously claims we should aim for 4MHz, but
 	 * in fact 1MHz is the correct frequency.
 	 */
-	I915_WRITE(GMBUSFREQ_VLV, DIV_ROUND_UP(dev_priv->vlv_cdclk_freq, 1000));
+	I915_WRITE(GMBUSFREQ_VLV, DIV_ROUND_UP(dev_priv->cdclk_freq, 1000));
 }
 
 /* Adjust CDclk dividers to allow high res or save power if possible */
@@ -5030,7 +5062,8 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 val, cmd;
 
-	WARN_ON(dev_priv->display.get_display_clock_speed(dev) != dev_priv->vlv_cdclk_freq);
+	WARN_ON(dev_priv->display.get_display_clock_speed(dev)
+					!= dev_priv->cdclk_freq);
 
 	if (cdclk >= 320000) /* jump to highest voltage for 400MHz too */
 		cmd = 2;
@@ -5094,7 +5127,8 @@ static void cherryview_set_cdclk(struct drm_device *dev, int cdclk)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 val, cmd;
 
-	WARN_ON(dev_priv->display.get_display_clock_speed(dev) != dev_priv->vlv_cdclk_freq);
+	WARN_ON(dev_priv->display.get_display_clock_speed(dev)
+						!= dev_priv->cdclk_freq);
 
 	switch (cdclk) {
 	case 333333:
@@ -5193,7 +5227,7 @@ static int valleyview_modeset_global_pipes(struct drm_atomic_state *state,
 		return max_pixclk;
 
 	if (valleyview_calc_cdclk(dev_priv, max_pixclk) ==
-	    dev_priv->vlv_cdclk_freq)
+	    dev_priv->cdclk_freq)
 		return 0;
 
 	/* disable/enable all currently active pipes while we change cdclk */
@@ -5213,7 +5247,7 @@ static void vlv_program_pfi_credits(struct drm_i915_private *dev_priv)
 	else
 		default_credits = PFI_CREDIT(8);
 
-	if (DIV_ROUND_CLOSEST(dev_priv->vlv_cdclk_freq, 1000) >= dev_priv->rps.cz_freq) {
+	if (DIV_ROUND_CLOSEST(dev_priv->cdclk_freq, 1000) >= dev_priv->rps.cz_freq) {
 		/* CHV suggested value is 31 or 63 */
 		if (IS_CHERRYVIEW(dev_priv))
 			credits = PFI_CREDIT_31;
@@ -5257,7 +5291,17 @@ static void valleyview_modeset_global_resources(struct drm_atomic_state *state)
 
 	req_cdclk = valleyview_calc_cdclk(dev_priv, max_pixclk);
 
-	if (req_cdclk != dev_priv->vlv_cdclk_freq) {
+	/* The only reason this can fail is if we fail to add the crtc_state
+	 * to the atomic state. But that can't happen since the call to
+	 * intel_mode_max_pixclk() in valleyview_modeset_global_pipes() (which
+	 * can't have failed otherwise the mode set would be aborted) added all
+	 * the states already. */
+	if (WARN_ON(max_pixclk < 0))
+		return;
+
+	req_cdclk = valleyview_calc_cdclk(dev_priv, max_pixclk);
+
+	if (req_cdclk != dev_priv->cdclk_freq) {
 		/*
 		 * FIXME: We can end up here with all power domains off, yet
 		 * with a CDCLK frequency other than the minimum. To account
@@ -6138,7 +6182,7 @@ static int i9xx_get_refclk(const struct intel_crtc_state *crtc_state,
 
 	WARN_ON(!crtc_state->base.state);
 
-	if (IS_VALLEYVIEW(dev)) {
+	if (IS_VALLEYVIEW(dev) || IS_BROXTON(dev)) {
 		refclk = 100000;
 	} else if (intel_pipe_will_have_type(crtc_state, INTEL_OUTPUT_LVDS) &&
 	    intel_panel_use_ssc(dev_priv) && num_connectors < 2) {
@@ -8573,6 +8617,78 @@ void hsw_disable_pc8(struct drm_i915_private *dev_priv)
 	intel_prepare_ddi(dev);
 }
 
+static int broxton_calc_cdclk(struct drm_i915_private *dev_priv,
+				int max_pixclk)
+{
+	/*
+	 * CDclks are supported:
+	 *   144MHz
+	 *   288MHz
+	 *   384MHz
+	 *   576MHz
+	 *   624MHz
+	 * Check to see whether we're above 90% of the lower bin and
+	 * adjust if needed.
+	 */
+
+	/* If max_pixclk is greater than the max allowed clock, return 0.
+	 * FIXME:- The max clock allowed needs to be provided by GOP/VBIOS
+	 * via a scratch pad register. Till that is enabled, use 624MHz as max.
+	 */
+	if (max_pixclk > 624000)
+		return 0;
+	else if (max_pixclk > 576000*9/10)
+		return 624000;
+	else if (max_pixclk > 384000*9/10)
+		return 576000;
+	else if (max_pixclk > 288000*9/10)
+		return 384000;
+	else if (max_pixclk > 144000*9/10)
+		return 288000;
+	else
+		return 144000;
+}
+
+static int broxton_modeset_global_pipes(struct drm_atomic_state *state,
+					unsigned *prepare_pipes)
+{
+	struct drm_i915_private *dev_priv = to_i915(state->dev);
+	struct intel_crtc *intel_crtc;
+	int max_pixclk = intel_mode_max_pixclk(state);
+	int req_cdclk = broxton_calc_cdclk(dev_priv, max_pixclk);
+
+	if (!req_cdclk) {
+		DRM_ERROR("CDCLK exceeds maximum allowable value\n");
+		return max_pixclk;
+	}
+
+	if (req_cdclk == dev_priv->cdclk_freq)
+		return 0;
+
+	/* disable/enable all currently active pipes while we change cdclk */
+	for_each_intel_crtc(state->dev, intel_crtc)
+		if (intel_crtc->base.enabled)
+			*prepare_pipes |= (1 << intel_crtc->pipe);
+
+	return 0;
+}
+
+static void broxton_modeset_global_resources(struct drm_atomic_state *state)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	int max_pixclk = intel_mode_max_pixclk(state);
+	int req_cdclk = broxton_calc_cdclk(dev_priv, max_pixclk);
+
+	if (!req_cdclk) {
+		DRM_ERROR("CDCLK exceeds maximum allowable value\n");
+		return;
+	}
+
+	if (req_cdclk != dev_priv->cdclk_freq)
+		bxt_select_cdclk_freq(dev, req_cdclk);
+}
+
 static int haswell_crtc_compute_clock(struct intel_crtc *crtc,
 				      struct intel_crtc_state *crtc_state)
 {
@@ -8582,6 +8698,28 @@ static int haswell_crtc_compute_clock(struct intel_crtc *crtc,
 	crtc->lowfreq_avail = false;
 
 	return 0;
+}
+
+static void bxt_get_ddi_pll(struct drm_i915_private *dev_priv,
+				enum port port,
+				struct intel_crtc_state *pipe_config)
+{
+	switch (port) {
+	case PORT_A:
+		pipe_config->ddi_pll_sel = SKL_DPLL0;
+		pipe_config->shared_dpll = DPLL_ID_SKL_DPLL1;
+		break;
+	case PORT_B:
+		pipe_config->ddi_pll_sel = SKL_DPLL1;
+		pipe_config->shared_dpll = DPLL_ID_SKL_DPLL2;
+		break;
+	case PORT_C:
+		pipe_config->ddi_pll_sel = SKL_DPLL2;
+		pipe_config->shared_dpll = DPLL_ID_SKL_DPLL3;
+		break;
+	default:
+		DRM_ERROR("Incorrect port type\n");
+	}
 }
 
 static void skylake_get_ddi_pll(struct drm_i915_private *dev_priv,
@@ -8646,6 +8784,8 @@ static void haswell_get_ddi_port_state(struct intel_crtc *crtc,
 
 	if (IS_SKYLAKE(dev))
 		skylake_get_ddi_pll(dev_priv, port, pipe_config);
+	else if (IS_BROXTON(dev))
+		bxt_get_ddi_pll(dev_priv, port, pipe_config);
 	else
 		haswell_get_ddi_pll(dev_priv, port, pipe_config);
 
@@ -8724,7 +8864,7 @@ static bool haswell_get_pipe_config(struct intel_crtc *crtc,
 
 	pfit_domain = POWER_DOMAIN_PIPE_PANEL_FITTER(crtc->pipe);
 	if (intel_display_power_is_enabled(dev_priv, pfit_domain)) {
-		if (IS_SKYLAKE(dev))
+		if (INTEL_INFO(dev)->gen == 9)
 			skylake_get_pfit_config(crtc, pipe_config);
 		else
 			ironlake_get_pfit_config(crtc, pipe_config);
@@ -11681,6 +11821,12 @@ static int __intel_set_mode(struct drm_crtc *crtc,
 
 		/* may have added more to prepare_pipes than we should */
 		prepare_pipes &= ~disable_pipes;
+	} else if (IS_BROXTON(dev)) {
+		ret = broxton_modeset_global_pipes(state, &prepare_pipes);
+		if (ret)
+			goto done;
+
+		prepare_pipes &= ~disable_pipes;
 	}
 
 	ret = __intel_set_mode_setup_plls(state, modeset_pipes, disable_pipes);
@@ -13157,7 +13303,16 @@ static void intel_setup_outputs(struct drm_device *dev)
 	if (intel_crt_present(dev))
 		intel_crt_init(dev);
 
-	if (HAS_DDI(dev)) {
+	if (IS_BROXTON(dev)) {
+		/*
+		 * FIXME: Broxton doesn't support port detection via the
+		 * DDI_BUF_CTL_A or SFUSE_STRAP registers, find another way to
+		 * detect the ports.
+		 */
+		intel_ddi_init(dev, PORT_A);
+		intel_ddi_init(dev, PORT_B);
+		intel_ddi_init(dev, PORT_C);
+	} else if (HAS_DDI(dev)) {
 		int found;
 
 		/*
@@ -13679,6 +13834,9 @@ static void intel_init_display(struct drm_device *dev)
 	} else if (IS_VALLEYVIEW(dev)) {
 		dev_priv->display.modeset_global_resources =
 			valleyview_modeset_global_resources;
+	} else if (IS_BROXTON(dev)) {
+		dev_priv->display.modeset_global_resources =
+			broxton_modeset_global_resources;
 	}
 
 	switch (INTEL_INFO(dev)->gen) {
