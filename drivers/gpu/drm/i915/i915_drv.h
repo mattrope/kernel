@@ -2171,6 +2171,7 @@ struct drm_i915_gem_request {
 	 * context.
 	 */
 	struct intel_context *ctx;
+	struct intel_ringbuffer *ringbuf;
 
 	/** Batch buffer related to this request if any */
 	struct drm_i915_gem_object *batch_obj;
