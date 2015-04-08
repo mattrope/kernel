@@ -1642,6 +1642,10 @@ struct i915_workarounds {
 	u32 count;
 };
 
+struct i915_virtual_gpu {
+	bool active;
+};
+
 struct drm_i915_private {
 	struct drm_device *dev;
 	struct kmem_cache *slab;
@@ -1653,6 +1657,8 @@ struct drm_i915_private {
 	void __iomem *regs;
 
 	struct intel_uncore uncore;
+
+	struct i915_virtual_gpu vgpu;
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PORTS];
 
@@ -2598,6 +2604,10 @@ void intel_uncore_forcewake_get(struct drm_i915_private *dev_priv,
 void intel_uncore_forcewake_put(struct drm_i915_private *dev_priv,
 				enum forcewake_domains domains);
 void assert_forcewakes_inactive(struct drm_i915_private *dev_priv);
+static inline bool intel_vgpu_active(struct drm_device *dev)
+{
+	return to_i915(dev)->vgpu.active;
+}
 
 void
 i915_enable_pipestat(struct drm_i915_private *dev_priv, enum pipe pipe,
