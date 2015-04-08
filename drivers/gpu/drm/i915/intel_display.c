@@ -6674,6 +6674,7 @@ i9xx_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
+	update_state_fb(crtc->base.primary);
 }
 
 static void chv_crtc_clock_get(struct intel_crtc *crtc,
@@ -7714,6 +7715,7 @@ skylake_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
+	update_state_fb(crtc->base.primary);
 	return;
 
 error:
@@ -7807,6 +7809,7 @@ ironlake_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
+	update_state_fb(crtc->base.primary);
 }
 
 static bool ironlake_get_pipe_config(struct intel_crtc *crtc,
@@ -9846,13 +9849,6 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 
 	crtc->primary->fb = fb;
 	update_state_fb(crtc->primary);
-
-	/* Keep state structure in sync */
-	if (crtc->primary->state->fb)
-		drm_framebuffer_unreference(crtc->primary->state->fb);
-	crtc->primary->state->fb = fb;
-	if (crtc->primary->state->fb)
-		drm_framebuffer_reference(crtc->primary->state->fb);
 
 	work->pending_flip_obj = obj;
 
