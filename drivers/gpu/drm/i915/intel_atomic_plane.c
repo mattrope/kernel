@@ -116,19 +116,19 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	struct intel_plane_state *intel_state = to_intel_plane_state(state);
 	bool active;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	intel_crtc_state = intel_crtc_state_for_plane(intel_state);
 	active = intel_crtc_state->base.enable;
 
 	/*
-	 * Both crtc and plane->crtc could be NULL if we're updating a
-	 * property while the plane is disabled.  We don't actually have
-	 * anything driver-specific we need to test in that case, so
-	 * just return success.
+	 * Both state->crtc and plane->state->crtc could be NULL if we're
+	 * updating a property while the plane is disabled.  We don't actually
+	 * have anything driver-specific we need to test in that case, so just
+	 * return success.
 	 */
-	if (!crtc)
+	if (!state->crtc && !plane->state->crtc)
 		return 0;
 
 	/*

@@ -12625,7 +12625,7 @@ intel_check_primary_plane(struct drm_plane *plane,
 	bool active;
 	int ret;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	intel_crtc_state = intel_crtc_state_for_plane(state);
@@ -12694,7 +12694,7 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	struct drm_rect *src = &state->src;
 	bool active;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	intel_crtc_state = intel_crtc_state_for_plane(state);
@@ -12916,7 +12916,7 @@ intel_check_cursor_plane(struct drm_plane *plane,
 	bool active;
 	int ret;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	intel_crtc_state = intel_crtc_state_for_plane(state);
@@ -12977,7 +12977,7 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	uint32_t addr;
 	bool active;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	intel_crtc_state = intel_crtc_state_for_plane(state);
