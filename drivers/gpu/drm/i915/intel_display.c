@@ -12183,13 +12183,10 @@ intel_check_cursor_plane(struct drm_plane *plane,
 		return -ENOMEM;
 	}
 
-	/* we only need to pin inside GTT if cursor is non-phy */
-	mutex_lock(&dev->struct_mutex);
-	if (!INTEL_INFO(dev)->cursor_needs_physical && obj->tiling_mode) {
+	if (fb->modifier[0] != DRM_FORMAT_MOD_NONE) {
 		DRM_DEBUG_KMS("cursor cannot be tiled\n");
 		ret = -EINVAL;
 	}
-	mutex_unlock(&dev->struct_mutex);
 
 finish:
 	if (intel_crtc->active) {
