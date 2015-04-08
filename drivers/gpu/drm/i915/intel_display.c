@@ -12576,7 +12576,7 @@ intel_check_primary_plane(struct drm_plane *plane,
 	const struct drm_rect *clip = &state->clip;
 	int ret;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
@@ -12640,7 +12640,7 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	struct intel_crtc *intel_crtc;
 	struct drm_rect *src = &state->src;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	plane->fb = fb;
@@ -12857,7 +12857,7 @@ intel_check_cursor_plane(struct drm_plane *plane,
 	unsigned stride;
 	int ret;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	ret = drm_plane_helper_check_update(plane, crtc, fb,
@@ -12913,7 +12913,7 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	struct drm_i915_gem_object *obj = intel_fb_obj(state->base.fb);
 	uint32_t addr;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	plane->fb = state->base.fb;

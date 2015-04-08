@@ -876,7 +876,7 @@ intel_check_sprite_plane(struct drm_plane *plane,
 	int max_scale, min_scale;
 	int pixel_size;
 
-	intel_crtc = intel_crtc ? intel_crtc : to_intel_crtc(plane->crtc);
+	intel_crtc = to_intel_crtc(intel_get_crtc_for_drm_plane(plane));
 
 	if (!fb) {
 		state->visible = false;
@@ -1068,7 +1068,7 @@ intel_commit_sprite_plane(struct drm_plane *plane,
 	unsigned int crtc_w, crtc_h;
 	uint32_t src_x, src_y, src_w, src_h;
 
-	crtc = crtc ? crtc : plane->crtc;
+	crtc = intel_get_crtc_for_drm_plane(plane);
 	intel_crtc = to_intel_crtc(crtc);
 
 	plane->fb = fb;
