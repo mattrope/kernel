@@ -4334,7 +4334,7 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 		intel_prepare_shared_dpll(intel_crtc);
 
 	if (intel_crtc->config->has_dp_encoder)
-		intel_dp_set_m_n(intel_crtc);
+		intel_dp_set_m_n(intel_crtc, M1_N1);
 
 	intel_set_pipe_timings(intel_crtc);
 
@@ -4442,7 +4442,7 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 		intel_enable_shared_dpll(intel_crtc);
 
 	if (intel_crtc->config->has_dp_encoder)
-		intel_dp_set_m_n(intel_crtc);
+		intel_dp_set_m_n(intel_crtc, M1_N1);
 
 	intel_set_pipe_timings(intel_crtc);
 
@@ -5056,7 +5056,7 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 	}
 
 	if (intel_crtc->config->has_dp_encoder)
-		intel_dp_set_m_n(intel_crtc);
+		intel_dp_set_m_n(intel_crtc, M1_N1);
 
 	intel_set_pipe_timings(intel_crtc);
 
@@ -5132,7 +5132,7 @@ static void i9xx_crtc_enable(struct drm_crtc *crtc)
 	i9xx_set_pll_dividers(intel_crtc);
 
 	if (intel_crtc->config->has_dp_encoder)
-		intel_dp_set_m_n(intel_crtc);
+		intel_dp_set_m_n(intel_crtc, M1_N1);
 
 	intel_set_pipe_timings(intel_crtc);
 
@@ -5907,13 +5907,29 @@ static void intel_cpu_transcoder_set_m_n(struct intel_crtc *crtc,
 	}
 }
 
-void intel_dp_set_m_n(struct intel_crtc *crtc)
+void intel_dp_set_m_n(struct intel_crtc *crtc, enum link_m_n_set m_n)
 {
+	struct intel_link_m_n *dp_m_n, *dp_m2_n2 = NULL;
+
+	if (m_n == M1_N1) {
+		dp_m_n = &crtc->config->dp_m_n;
+		dp_m2_n2 = &crtc->config->dp_m2_n2;
+	} else if (m_n == M2_N2) {
+
+		/*
+		 * M2_N2 registers are not supported. Hence m2_n2 divider value
+		 * needs to be programmed into M1_N1.
+		 */
+		dp_m_n = &crtc->config->dp_m2_n2;
+	} else {
+		DRM_ERROR("Unsupported divider value\n");
+		return;
+	}
+
 	if (crtc->config->has_pch_encoder)
 		intel_pch_transcoder_set_m_n(crtc, &crtc->config->dp_m_n);
 	else
-		intel_cpu_transcoder_set_m_n(crtc, &crtc->config->dp_m_n,
-						   &crtc->config->dp_m2_n2);
+		intel_cpu_transcoder_set_m_n(crtc, dp_m_n, dp_m2_n2);
 }
 
 static void vlv_update_pll(struct intel_crtc *crtc,
