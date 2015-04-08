@@ -2478,12 +2478,12 @@ intel_find_plane_obj(struct intel_crtc *intel_crtc,
 			primary->fb = c->primary->fb;
 			primary->state->crtc = &intel_crtc->base;
 			primary->crtc = &intel_crtc->base;
+			update_state_fb(intel_crtc->base.primary);
 			obj->frontbuffer_bits |= INTEL_FRONTBUFFER_PRIMARY(intel_crtc->pipe);
 			break;
 		}
 	}
 
-	update_state_fb(intel_crtc->base.primary);
 }
 
 static void i9xx_update_primary_plane(struct drm_crtc *crtc,
