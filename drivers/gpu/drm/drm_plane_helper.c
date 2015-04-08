@@ -417,6 +417,20 @@ int drm_plane_helper_commit(struct drm_plane *plane,
 	for (i = 0; i < 2; i++)
 		crtc_funcs[i] = crtc[i] ? crtc[i]->helper_private : NULL;
 
+	/*
+	 * Give drivers some help against integer overflows (and match the
+	 * behavior of the full atomic helpers).
+	 */
+	if (plane_state->crtc_w > INT_MAX ||
+	    plane_state->crtc_x > INT_MAX - (int32_t) plane_state->crtc_w ||
+	    plane_state->crtc_h > INT_MAX ||
+	    plane_state->crtc_y > INT_MAX - (int32_t) plane_state->crtc_h) {
+		DRM_DEBUG_ATOMIC("Invalid CRTC coordinates %ux%u+%d+%d\n",
+				 plane_state->crtc_w, plane_state->crtc_h,
+				 plane_state->crtc_x, plane_state->crtc_y);
+		return -ERANGE;
+	}
+
 	if (plane_funcs->atomic_check) {
 		ret = plane_funcs->atomic_check(plane, plane_state);
 		if (ret)
