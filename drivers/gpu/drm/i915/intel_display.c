@@ -6675,7 +6675,6 @@ i9xx_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
-	update_state_fb(crtc->base.primary);
 }
 
 static void chv_crtc_clock_get(struct intel_crtc *crtc,
@@ -7716,7 +7715,6 @@ skylake_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
-	update_state_fb(crtc->base.primary);
 	return;
 
 error:
@@ -7810,7 +7808,6 @@ ironlake_get_initial_plane_config(struct intel_crtc *crtc,
 		      plane_config->size);
 
 	crtc->base.primary->fb = fb;
-	update_state_fb(crtc->base.primary);
 }
 
 static bool ironlake_get_pipe_config(struct intel_crtc *crtc,
