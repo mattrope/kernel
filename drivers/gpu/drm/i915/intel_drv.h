@@ -328,6 +328,21 @@ struct intel_crtc_scaler_state {
 	int scaler_id;
 };
 
+struct intel_pipe_wm {
+	struct intel_wm_level wm[5];
+	uint32_t linetime;
+	bool fbc_wm_enabled;
+	bool pipe_enabled;
+	bool sprites_enabled;
+	bool sprites_scaled;
+};
+
+struct skl_pipe_wm {
+	struct skl_wm_level wm[8];
+	struct skl_wm_level trans_wm;
+	uint32_t linetime;
+};
+
 struct intel_crtc_state {
 	struct drm_crtc_state base;
 
@@ -463,6 +478,20 @@ struct intel_crtc_state {
 
 	/* IVB sprite scaling w/a (WaCxSRDisabledForSpriteScaling:ivb) */
 	bool disable_lp_wm;
+
+	struct {
+		/*
+		 * final watermarks, programmed post-vblank when this state
+		 * is committed
+		 */
+		union {
+			struct intel_pipe_wm ilk;
+			struct skl_pipe_wm skl;
+		} active;
+
+		/* allow CxSR on this pipe */
+		bool cxsr_allowed;
+	} wm;
 };
 
 struct vlv_wm_state {
@@ -474,26 +503,11 @@ struct vlv_wm_state {
 	bool cxsr;
 };
 
-struct intel_pipe_wm {
-	struct intel_wm_level wm[5];
-	uint32_t linetime;
-	bool fbc_wm_enabled;
-	bool pipe_enabled;
-	bool sprites_enabled;
-	bool sprites_scaled;
-};
-
 struct intel_mmio_flip {
 	struct work_struct work;
 	struct drm_i915_private *i915;
 	struct drm_i915_gem_request *req;
 	struct intel_crtc *crtc;
-};
-
-struct skl_pipe_wm {
-	struct skl_wm_level wm[8];
-	struct skl_wm_level trans_wm;
-	uint32_t linetime;
 };
 
 /*
@@ -563,16 +577,6 @@ struct intel_crtc {
 	/* Access to these should be protected by dev_priv->irq_lock. */
 	bool cpu_fifo_underrun_disabled;
 	bool pch_fifo_underrun_disabled;
-
-	/* per-pipe watermark state */
-	struct {
-		/* watermarks currently being used  */
-		struct intel_pipe_wm active;
-		/* SKL wm values currently in use */
-		struct skl_pipe_wm skl_active;
-		/* allow CxSR on this pipe */
-		bool cxsr_allowed;
-	} wm;
 
 	int scanline_offset;
 

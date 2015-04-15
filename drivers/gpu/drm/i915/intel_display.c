@@ -4733,6 +4733,7 @@ intel_pre_disable_primary(struct drm_crtc *crtc)
 static void intel_post_plane_update(struct intel_crtc *crtc)
 {
 	struct intel_crtc_atomic_commit *atomic = &crtc->atomic;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->base.state);
 	struct drm_device *dev = crtc->base.dev;
 	struct drm_plane *plane;
 
@@ -4742,7 +4743,7 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 	intel_frontbuffer_flip(dev, atomic->fb_bits);
 
 	if (atomic->disable_cxsr)
-		crtc->wm.cxsr_allowed = true;
+		cstate->wm.cxsr_allowed = true;
 
 	if (crtc->atomic.update_wm_post)
 		intel_update_watermarks(&crtc->base);
@@ -4766,6 +4767,7 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 static void intel_pre_plane_update(struct intel_crtc *crtc)
 {
 	struct drm_device *dev = crtc->base.dev;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->base.state);
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc_atomic_commit *atomic = &crtc->atomic;
 	struct drm_plane *p;
@@ -4798,7 +4800,7 @@ static void intel_pre_plane_update(struct intel_crtc *crtc)
 		intel_pre_disable_primary(&crtc->base);
 
 	if (atomic->disable_cxsr) {
-		crtc->wm.cxsr_allowed = false;
+		cstate->wm.cxsr_allowed = false;
 		intel_set_memory_cxsr(dev_priv, false);
 	}
 }
@@ -14127,7 +14129,7 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
 	intel_crtc->cursor_cntl = ~0;
 	intel_crtc->cursor_size = ~0;
 
-	intel_crtc->wm.cxsr_allowed = true;
+	crtc_state->wm.cxsr_allowed = true;
 
 	BUG_ON(pipe >= ARRAY_SIZE(dev_priv->plane_to_crtc_mapping) ||
 	       dev_priv->plane_to_crtc_mapping[intel_crtc->plane] != NULL);
