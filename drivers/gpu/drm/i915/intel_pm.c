@@ -2345,7 +2345,9 @@ static void ilk_compute_wm_config(struct drm_device *dev,
 
 	/* Compute the currently _active_ config */
 	for_each_intel_crtc(dev, intel_crtc) {
-		const struct intel_pipe_wm *wm = &intel_crtc->wm.active;
+		const struct intel_crtc_state *cstate =
+			to_intel_crtc_state(intel_crtc->base.state);
+		const struct intel_pipe_wm *wm = &cstate->wm.active.ilk;
 
 		if (!wm->pipe_enabled)
 			continue;
@@ -2442,7 +2444,9 @@ static void ilk_merge_wm_level(struct drm_device *dev,
 	ret_wm->enable = true;
 
 	for_each_intel_crtc(dev, intel_crtc) {
-		const struct intel_pipe_wm *active = &intel_crtc->wm.active;
+		const struct intel_crtc_state *cstate =
+			to_intel_crtc_state(intel_crtc->base.state);
+		const struct intel_pipe_wm *active = &cstate->wm.active.ilk;
 		const struct intel_wm_level *wm = &active->wm[level];
 
 		if (!active->pipe_enabled)
@@ -2590,14 +2594,15 @@ static void ilk_compute_wm_results(struct drm_device *dev,
 
 	/* LP0 register values */
 	for_each_intel_crtc(dev, intel_crtc) {
+		const struct intel_crtc_state *cstate =
+			to_intel_crtc_state(intel_crtc->base.state);
 		enum pipe pipe = intel_crtc->pipe;
-		const struct intel_wm_level *r =
-			&intel_crtc->wm.active.wm[0];
+		const struct intel_wm_level *r = &cstate->wm.active.ilk.wm[0];
 
 		if (WARN_ON(!r->enable))
 			continue;
 
-		results->wm_linetime[pipe] = intel_crtc->wm.active.linetime;
+		results->wm_linetime[pipe] = cstate->wm.active.ilk.linetime;
 
 		results->wm_pipe[pipe] =
 			(r->pri_val << WM0_PIPE_PLANE_SHIFT) |
@@ -3564,16 +3569,15 @@ static bool skl_update_pipe_wm(struct drm_crtc *crtc,
 			       struct skl_ddb_allocation *ddb, /* out */
 			       struct skl_pipe_wm *pipe_wm /* out */)
 {
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
 
 	skl_allocate_pipe_ddb(crtc, config, cstate, ddb);
 	skl_compute_pipe_wm(crtc, ddb, cstate, pipe_wm);
 
-	if (!memcmp(&intel_crtc->wm.skl_active, pipe_wm, sizeof(*pipe_wm)))
+	if (!memcmp(&cstate->wm.active.skl, pipe_wm, sizeof(*pipe_wm)))
 		return false;
 
-	intel_crtc->wm.skl_active = *pipe_wm;
+	cstate->wm.active.skl = *pipe_wm;
 
 	return true;
 }
@@ -3706,10 +3710,10 @@ static void ilk_update_wm(struct drm_crtc *crtc)
 
 	intel_compute_pipe_wm(cstate, &pipe_wm);
 
-	if (!memcmp(&intel_crtc->wm.active, &pipe_wm, sizeof(pipe_wm)))
+	if (!memcmp(&cstate->wm.active.ilk, &pipe_wm, sizeof(pipe_wm)))
 		return;
 
-	intel_crtc->wm.active = pipe_wm;
+	cstate->wm.active.ilk = pipe_wm;
 
 	ilk_program_watermarks(dev_priv);
 }
@@ -3764,7 +3768,8 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct skl_wm_values *hw = &dev_priv->wm.skl_hw;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct skl_pipe_wm *active = &intel_crtc->wm.skl_active;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct skl_pipe_wm *active = &cstate->wm.active.skl;
 	enum pipe pipe = intel_crtc->pipe;
 	int level, i, max_level;
 	uint32_t temp;
@@ -3827,7 +3832,8 @@ static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct ilk_wm_values *hw = &dev_priv->wm.hw;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct intel_pipe_wm *active = &intel_crtc->wm.active;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct intel_pipe_wm *active = &cstate->wm.active.ilk;
 	enum pipe pipe = intel_crtc->pipe;
 	static const unsigned int wm0_pipe_reg[] = {
 		[PIPE_A] = WM0_PIPEA_ILK,
