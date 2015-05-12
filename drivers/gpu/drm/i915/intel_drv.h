@@ -343,6 +343,11 @@ struct skl_pipe_wm {
 	uint32_t linetime;
 };
 
+union pipe_wm {
+	struct intel_pipe_wm ilk;
+	struct skl_pipe_wm skl;
+};
+
 struct intel_crtc_state {
 	struct drm_crtc_state base;
 
@@ -481,16 +486,21 @@ struct intel_crtc_state {
 
 	struct {
 		/*
-		 * final watermarks, programmed post-vblank when this state
-		 * is committed
+		 * final, target watermarks for state; on pre-gen9 platforms,
+		 * this might not have been programmed yet if a vblank hasn't
+		 * happened since this state was committed
 		 */
-		union {
-			struct intel_pipe_wm ilk;
-			struct skl_pipe_wm skl;
-		} active;
+		union pipe_wm target;
 
-		/* allow CxSR on this pipe */
-		bool cxsr_allowed;
+		/*
+		 * currently programmed watermark; on pre-gen9, this will be
+		 * the intermediate values before vblank then switch to match
+		 * 'target' after vblank fires)
+		 */
+		union pipe_wm active;
+
+               /* allow CxSR on this pipe */
+               bool cxsr_allowed;
 	} wm;
 };
 

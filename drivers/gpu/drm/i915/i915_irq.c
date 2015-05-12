@@ -1455,8 +1455,15 @@ static bool intel_pipe_handle_vblank(struct drm_device *dev, enum pipe pipe)
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct drm_crtc *crtc = dev_priv->pipe_to_crtc_mapping[pipe];
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
 
 	if (intel_crtc->need_vblank_wm_update) {
+		WARN_ON(HAS_DBLBUF_WM(dev_priv));
+
+		/* Latch final watermarks now that vblank is past */
+		cstate->wm.active = cstate->wm.target;
+
+		/* Queue work to actually program them asynchronously */
 		queue_work(dev_priv->wq, &intel_crtc->wm_work);
 		intel_crtc->need_vblank_wm_update = false;
 	}

@@ -623,6 +623,9 @@ struct drm_i915_display_funcs {
 			  struct dpll *best_clock);
 	int (*compute_pipe_wm)(struct drm_crtc *crtc,
 			       struct drm_atomic_state *state);
+	void (*compute_intermediate_wm)(struct drm_device *dev,
+					struct intel_crtc_state *newstate,
+					const struct intel_crtc_state *oldstate);
 	void (*update_wm)(struct drm_crtc *crtc);
 	void (*update_sprite_wm)(struct drm_plane *plane,
 				 struct drm_crtc *crtc,
@@ -2573,6 +2576,12 @@ struct drm_i915_cmd_table {
  * updates yet.
  */
 #define HAS_ATOMIC_WM(dev_priv) (dev_priv->display.program_watermarks != NULL)
+
+/*
+ * Newer platforms have doublebuffered watermark registers and do not need
+ * the two-step watermark programming used by older platforms.
+ */
+#define HAS_DBLBUF_WM(dev_priv) (INTEL_INFO(dev_priv)->gen >= 9)
 
 #define GT_FREQUENCY_MULTIPLIER 50
 #define GEN9_FREQ_SCALER 3

@@ -4737,7 +4737,7 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 	struct drm_device *dev = crtc->base.dev;
 	struct drm_plane *plane;
 
-	if (HAS_ATOMIC_WM(to_i915(dev)))
+	if (HAS_ATOMIC_WM(to_i915(dev)) && !HAS_DBLBUF_WM(to_i915(dev)))
 		/* vblank handler will kick off workqueue task to update wm's */
 		crtc->need_vblank_wm_update = true;
 
@@ -11833,6 +11833,8 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *pipe_config =
 		to_intel_crtc_state(crtc_state);
+	struct intel_crtc_state *old_pipe_config =
+		to_intel_crtc_state(crtc->state);
 	struct drm_atomic_state *state = crtc_state->state;
 	int ret, idx = crtc->base.id;
 	bool mode_changed = needs_modeset(crtc_state);
@@ -11863,9 +11865,20 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	}
 
 	if (dev_priv->display.compute_pipe_wm) {
+		if (WARN_ON(!dev_priv->display.compute_intermediate_wm))
+			return 0;
+
 		ret = dev_priv->display.compute_pipe_wm(crtc, state);
 		if (ret)
 			return ret;
+
+		/*
+		 * Calculate 'intermediate' watermarks that satisfy both the old state
+		 * and the new state.  We can program these immediately.
+		 */
+		dev_priv->display.compute_intermediate_wm(crtc->dev,
+							  pipe_config,
+							  old_pipe_config);
 	}
 
 	return intel_atomic_setup_scalers(dev, intel_crtc, pipe_config);
@@ -13789,8 +13802,25 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc)
 	if (!needs_modeset(crtc->state))
 		intel_pre_plane_update(intel_crtc);
 
-	if (intel_crtc->atomic.update_wm_pre)
+	/*
+	 * For platforms that support atomic watermarks, program the 'pending'
+	 * watermarks immediately.  On pre-gen9 platforms, these will be the
+	 * intermediate values that are safe for both pre- and post- vblank;
+	 * when vblank happens, the 'pending' values will be set to the final
+	 * 'target' values and we'll do this again to get the optimal
+	 * watermarks.  For gen9+ platforms, the values we program here will be
+	 * the final target values which will get automatically latched at
+	 * vblank time; no further programming will be necessary.
+	 *
+	 * If a platform hasn't been transitioned to atomic watermarks yet,
+	 * we'll continue to update watermarks the old way, if flags tell
+	 * us to.
+	 */
+	if (HAS_ATOMIC_WM(dev_priv)) {
+		dev_priv->display.program_watermarks(dev_priv);
+	} else if (intel_crtc->atomic.update_wm_pre) {
 		intel_update_watermarks(crtc);
+	}
 
 	intel_runtime_pm_get(dev_priv);
 
