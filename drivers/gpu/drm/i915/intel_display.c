@@ -11857,6 +11857,12 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 			return ret;
 	}
 
+	if (dev_priv->display.compute_pipe_wm) {
+		ret = dev_priv->display.compute_pipe_wm(crtc, state);
+		if (ret)
+			return ret;
+	}
+
 	return intel_atomic_setup_scalers(dev, intel_crtc, pipe_config);
 }
 

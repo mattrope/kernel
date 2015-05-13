@@ -1445,6 +1445,8 @@ intel_atomic_get_crtc_state(struct drm_atomic_state *state,
 int intel_atomic_setup_scalers(struct drm_device *dev,
 	struct intel_crtc *intel_crtc,
 	struct intel_crtc_state *crtc_state);
+int intel_check_crtc(struct drm_crtc *crtc,
+		     struct drm_crtc_state *state);
 
 /* intel_atomic_plane.c */
 struct intel_plane_state *intel_create_plane_state(struct drm_plane *plane);
