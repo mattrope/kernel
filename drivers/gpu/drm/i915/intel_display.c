@@ -11825,6 +11825,26 @@ static void intel_crtc_check_initial_planes(struct drm_crtc *crtc,
 	pipe_config->quirks &= ~PIPE_CONFIG_QUIRK_INITIAL_PLANES;
 }
 
+static void print_wm(struct intel_pipe_wm *wm)
+{
+	int i;
+	printk("[=== WM %p ===]\n", wm);
+	for (i = 0; i < 5; i++)
+		printk("  L%d = %d:%u,%u,%u,%u\n", i,
+		       wm->wm[i].enable,
+		       (unsigned)wm->wm[i].pri_val,
+		       (unsigned)wm->wm[i].spr_val,
+		       (unsigned)wm->wm[i].cur_val,
+		       (unsigned)wm->wm[i].fbc_val);
+
+	printk("  Linetime = %u\n", (unsigned)wm->linetime);
+	printk("  fbc      = %d\n", wm->fbc_wm_enabled);
+	printk("  pipe en  = %d\n", wm->pipe_enabled);
+	printk("  spr en   = %d\n", wm->sprites_enabled);
+	printk("  spr scl  = %d\n", wm->sprites_scaled);
+	printk("[=============]\n");
+}
+
 static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 				   struct drm_crtc_state *crtc_state)
 {
@@ -11879,6 +11899,14 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 		dev_priv->display.compute_intermediate_wm(crtc->dev,
 							  pipe_config,
 							  old_pipe_config);
+
+		if (memcmp(&pipe_config->wm.target.ilk, &pipe_config->wm.active.ilk, sizeof(pipe_config->wm.target.ilk)) != 0) {
+			printk("MDR :: New Optimal WM\n");
+			print_wm(&pipe_config->wm.target.ilk);
+
+			printk("MDR :: Intermediate WM\n");
+			print_wm(&pipe_config->wm.active.ilk);
+		}
 	}
 
 	return intel_atomic_setup_scalers(dev, intel_crtc, pipe_config);
