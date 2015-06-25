@@ -628,6 +628,7 @@ struct drm_i915_display_funcs {
 				 struct drm_crtc *crtc,
 				 uint32_t sprite_width, uint32_t sprite_height,
 				 int pixel_size, bool enable, bool scaled);
+	void (*program_watermarks)(struct drm_i915_private *dev_priv);
 	int (*modeset_calc_cdclk)(struct drm_atomic_state *state);
 	void (*modeset_commit_cdclk)(struct drm_atomic_state *state);
 	/* Returns the active state of the crtc, and if the crtc is active,
@@ -2566,6 +2567,12 @@ struct drm_i915_cmd_table {
 /* DPF == dynamic parity feature */
 #define HAS_L3_DPF(dev) (IS_IVYBRIDGE(dev) || IS_HASWELL(dev))
 #define NUM_L3_SLICES(dev) (IS_HSW_GT3(dev) ? 2 : HAS_L3_DPF(dev))
+
+/*
+ * FIXME:  Not all platforms have been transitioned to atomic watermark
+ * updates yet.
+ */
+#define HAS_ATOMIC_WM(dev_priv) (dev_priv->display.program_watermarks != NULL)
 
 #define GT_FREQUENCY_MULTIPLIER 50
 #define GEN9_FREQ_SCALER 3

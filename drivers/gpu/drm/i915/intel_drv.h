@@ -586,6 +586,10 @@ struct intel_crtc {
 	int num_scalers;
 
 	struct vlv_wm_state wm_state;
+
+	/* Do we need to program watermark values after the next vblank? */
+	bool need_vblank_wm_update;
+	struct work_struct wm_work;
 };
 
 struct intel_plane_wm_parameters {

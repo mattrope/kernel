@@ -4737,6 +4737,10 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 	struct drm_device *dev = crtc->base.dev;
 	struct drm_plane *plane;
 
+	if (HAS_ATOMIC_WM(to_i915(dev)))
+		/* vblank handler will kick off workqueue task to update wm's */
+		crtc->need_vblank_wm_update = true;
+
 	if (atomic->wait_vblank)
 		intel_wait_for_vblank(dev, crtc->pipe);
 
@@ -4745,7 +4749,7 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 	if (atomic->disable_cxsr)
 		cstate->wm.cxsr_allowed = true;
 
-	if (crtc->atomic.update_wm_post)
+	if (!HAS_ATOMIC_WM(to_i915(dev)) && crtc->atomic.update_wm_post)
 		intel_update_watermarks(&crtc->base);
 
 	if (atomic->update_fbc) {
@@ -4757,9 +4761,10 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 	if (atomic->post_enable_primary)
 		intel_post_enable_primary(&crtc->base);
 
-	drm_for_each_plane_mask(plane, dev, atomic->update_sprite_watermarks)
-		intel_update_sprite_watermarks(plane, &crtc->base,
-					       0, 0, 0, false, false);
+	if (!HAS_ATOMIC_WM(to_i915(dev)))
+		drm_for_each_plane_mask(plane, dev, atomic->update_sprite_watermarks)
+			intel_update_sprite_watermarks(plane, &crtc->base,
+						       0, 0, 0, false, false);
 
 	memset(atomic, 0, sizeof(*atomic));
 }
@@ -14070,6 +14075,21 @@ static void skl_init_scalers(struct drm_device *dev, struct intel_crtc *intel_cr
 	scaler_state->scaler_id = -1;
 }
 
+/* FIXME: This may expand to cover other tasks like unpinning in the future... */
+static void wm_work_func(struct work_struct *work)
+{
+	struct intel_crtc *intel_crtc =
+		container_of(work, struct intel_crtc, wm_work);
+	struct drm_i915_private *dev_priv = to_i915(intel_crtc->base.dev);
+
+	if (WARN_ON(!HAS_ATOMIC_WM(dev_priv)))
+		return;
+	if (WARN_ON(!intel_crtc->base.state->active))
+		return;
+
+	dev_priv->display.program_watermarks(dev_priv);
+}
+
 static void intel_crtc_init(struct drm_device *dev, int pipe)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -14141,6 +14161,8 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
 	       dev_priv->plane_to_crtc_mapping[intel_crtc->plane] != NULL);
 	dev_priv->plane_to_crtc_mapping[intel_crtc->plane] = &intel_crtc->base;
 	dev_priv->pipe_to_crtc_mapping[intel_crtc->pipe] = &intel_crtc->base;
+
+	INIT_WORK(&intel_crtc->wm_work, wm_work_func);
 
 	drm_crtc_helper_add(&intel_crtc->base, &intel_helper_funcs);
 

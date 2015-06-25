@@ -1452,6 +1452,15 @@ static void gen6_rps_irq_handler(struct drm_i915_private *dev_priv, u32 pm_iir)
 
 static bool intel_pipe_handle_vblank(struct drm_device *dev, enum pipe pipe)
 {
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	struct drm_crtc *crtc = dev_priv->pipe_to_crtc_mapping[pipe];
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+
+	if (intel_crtc->need_vblank_wm_update) {
+		queue_work(dev_priv->wq, &intel_crtc->wm_work);
+		intel_crtc->need_vblank_wm_update = false;
+	}
+
 	if (!drm_handle_vblank(dev, pipe))
 		return false;
 
