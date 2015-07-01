@@ -4741,9 +4741,6 @@ static void intel_post_plane_update(struct intel_crtc *crtc)
 
 	intel_frontbuffer_flip(dev, atomic->fb_bits);
 
-	if (atomic->disable_cxsr)
-		crtc->wm.cxsr_allowed = true;
-
 	if (crtc->atomic.update_wm_post)
 		intel_update_watermarks(&crtc->base);
 
@@ -4796,11 +4793,6 @@ static void intel_pre_plane_update(struct intel_crtc *crtc)
 
 	if (atomic->pre_disable_primary)
 		intel_pre_disable_primary(&crtc->base);
-
-	if (atomic->disable_cxsr) {
-		crtc->wm.cxsr_allowed = false;
-		intel_set_memory_cxsr(dev_priv, false);
-	}
 }
 
 static void intel_crtc_disable_planes(struct drm_crtc *crtc, unsigned plane_mask)
@@ -11630,26 +11622,12 @@ int intel_plane_atomic_calc_changes(struct drm_crtc_state *crtc_state,
 			 plane->base.id, was_visible, visible,
 			 turn_off, turn_on, mode_changed);
 
-	if (turn_on) {
+	if (turn_on)
 		intel_crtc->atomic.update_wm_pre = true;
-		/* must disable cxsr around plane enable/disable */
-		if (plane->type != DRM_PLANE_TYPE_CURSOR) {
-			intel_crtc->atomic.disable_cxsr = true;
-			/* to potentially re-enable cxsr */
-			intel_crtc->atomic.wait_vblank = true;
-			intel_crtc->atomic.update_wm_post = true;
-		}
-	} else if (turn_off) {
+	else if (turn_off)
 		intel_crtc->atomic.update_wm_post = true;
-		/* must disable cxsr around plane enable/disable */
-		if (plane->type != DRM_PLANE_TYPE_CURSOR) {
-			if (is_crtc_enabled)
-				intel_crtc->atomic.wait_vblank = true;
-			intel_crtc->atomic.disable_cxsr = true;
-		}
-	} else if (intel_wm_need_update(plane, plane_state)) {
+	else if (intel_wm_need_update(plane, plane_state))
 		intel_crtc->atomic.update_wm_pre = true;
-	}
 
 	if (visible)
 		intel_crtc->atomic.fb_bits |=
@@ -11817,8 +11795,8 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	if (pipe_config->quirks & PIPE_CONFIG_QUIRK_INITIAL_PLANES)
 		intel_crtc_check_initial_planes(crtc, crtc_state);
 
-	if (mode_changed && !crtc_state->active)
-		intel_crtc->atomic.update_wm_post = true;
+	if (mode_changed)
+		intel_crtc->atomic.update_wm_post = !crtc_state->active;
 
 	if (mode_changed && crtc_state->enable &&
 	    dev_priv->display.crtc_compute_clock &&
@@ -13141,8 +13119,6 @@ static int __intel_set_mode(struct drm_atomic_state *state)
 		if (!needs_modeset(crtc->state))
 			continue;
 
-		intel_pre_plane_update(intel_crtc);
-
 		any_ms = true;
 		intel_pre_plane_update(intel_crtc);
 
@@ -14102,8 +14078,6 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
 	intel_crtc->cursor_base = ~0;
 	intel_crtc->cursor_cntl = ~0;
 	intel_crtc->cursor_size = ~0;
-
-	intel_crtc->wm.cxsr_allowed = true;
 
 	BUG_ON(pipe >= ARRAY_SIZE(dev_priv->plane_to_crtc_mapping) ||
 	       dev_priv->plane_to_crtc_mapping[intel_crtc->plane] != NULL);
