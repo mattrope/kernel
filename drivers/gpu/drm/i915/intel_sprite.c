@@ -529,10 +529,6 @@ ivb_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	if (IS_HASWELL(dev) || IS_BROADWELL(dev))
 		sprctl |= SPRITE_PIPE_CSC_ENABLE;
 
-	intel_update_sprite_watermarks(plane, crtc, src_w, src_h, pixel_size,
-				       true,
-				       src_w != crtc_w || src_h != crtc_h);
-
 	/* Sizes are 0 based */
 	src_w--;
 	src_h--;
@@ -665,10 +661,6 @@ ilk_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	if (IS_GEN6(dev))
 		dvscntr |= DVS_TRICKLE_FEED_DISABLE; /* must disable */
-
-	intel_update_sprite_watermarks(plane, crtc, src_w, src_h,
-				       pixel_size, true,
-				       src_w != crtc_w || src_h != crtc_h);
 
 	/* Sizes are 0 based */
 	src_w--;
