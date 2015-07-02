@@ -11634,6 +11634,11 @@ int intel_plane_atomic_calc_changes(struct drm_crtc_state *crtc_state,
 		}
 	} else if (intel_wm_need_update(plane, plane_state)) {
 		intel_crtc->atomic.update_wm_pre = true;
+
+		/* Pre-gen9 platforms need two-step watermark updates */
+		if (INTEL_INFO(dev)->gen < 9 &&
+		    dev_priv->display.program_watermarks)
+			cstate->wm.need_postvbl_update = true;
 	}
 
 	if (visible)
@@ -11769,6 +11774,8 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *pipe_config =
 		to_intel_crtc_state(crtc_state);
+	struct intel_crtc_state *old_pipe_config =
+		to_intel_crtc_state(crtc->state);
 	struct drm_atomic_state *state = crtc_state->state;
 	int ret;
 	bool mode_changed = needs_modeset(crtc_state);
@@ -11793,8 +11800,28 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	ret = 0;
 	if (dev_priv->display.compute_pipe_wm) {
 		ret = dev_priv->display.compute_pipe_wm(crtc, state);
-		if (ret)
+		if (ret) {
+			DRM_DEBUG_KMS("Target pipe watermarks are invalid\n");
 			return ret;
+		}
+	}
+
+	if (dev_priv->display.compute_intermediate_wm) {
+		if (WARN_ON(!dev_priv->display.compute_pipe_wm))
+			return 0;
+
+		/*
+		 * Calculate 'intermediate' watermarks that satisfy both the
+		 * old state and the new state.  We can program these
+		 * immediately.
+		 */
+		ret = dev_priv->display.compute_intermediate_wm(crtc->dev,
+								pipe_config,
+								old_pipe_config);
+		if (ret) {
+			DRM_DEBUG_KMS("No valid intermediate pipe watermarks are possible\n");
+			return ret;
+		}
 	}
 
 	if (INTEL_INFO(dev)->gen >= 9) {
@@ -13149,6 +13176,7 @@ static int intel_atomic_commit(struct drm_device *dev,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *crtc_state;
+	struct intel_crtc_state *intel_cstate;
 	int ret = 0;
 	int i;
 	bool any_ms = false;
@@ -13213,6 +13241,21 @@ static int intel_atomic_commit(struct drm_device *dev,
 	/* FIXME: add subpixel order */
 
 	drm_atomic_helper_wait_for_vblanks(dev, state);
+
+	/*
+	 * Now that the vblank has passed, we can go ahead and program the
+	 * optimal watermarks on platforms that need two-step watermark
+	 * programming.
+	 *
+	 * TODO: Move this (and other cleanup) to an async worker eventually.
+	 */
+	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+		intel_cstate = to_intel_crtc_state(crtc->state);
+
+		if (intel_cstate->wm.need_postvbl_update)
+			dev_priv->display.optimize_watermarks(intel_cstate);
+	}
+
 	drm_atomic_helper_cleanup_planes(dev, state);
 
 	if (any_ms)
@@ -13544,10 +13587,28 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 				    struct drm_crtc_state *old_crtc_state)
 {
 	struct drm_device *dev = crtc->dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 
-	if (intel_crtc->atomic.update_wm_pre)
+	/*
+	 * For platforms that support atomic watermarks, program the 'active'
+	 * watermarks immediately.  On pre-gen9 platforms, these will be the
+	 * intermediate values that are safe for both pre- and post- vblank;
+	 * when vblank happens, the 'active' values will be set to the final
+	 * 'target' values and we'll do this again to get the optimal
+	 * watermarks.  For gen9+ platforms, the values we program here will be
+	 * the final target values which will get automatically latched at
+	 * vblank time; no further programming will be necessary.
+	 *
+	 * If a platform hasn't been transitioned to atomic watermarks yet,
+	 * we'll continue to update watermarks the old way, if flags tell
+	 * us to.
+	 */
+	if (dev_priv->display.program_watermarks != NULL) {
+		dev_priv->display.program_watermarks(dev_priv);
+	} else if (intel_crtc->atomic.update_wm_pre) {
 		intel_update_watermarks(crtc);
+	}
 
 	/* Perform vblank evasion around commit operation */
 	if (crtc->state->active)

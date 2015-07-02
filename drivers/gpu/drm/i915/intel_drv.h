@@ -476,14 +476,34 @@ struct intel_crtc_state {
 	bool disable_lp_wm;
 
 	struct {
-		/*
-		 * final watermarks, programmed post-vblank when this state
-		 * is committed
-		 */
 		union {
-			struct intel_pipe_wm ilk;
+			struct {
+				/*
+				 * Final, target watermarks for state; this
+				 * might not have been programmed yet if a
+				 * vblank hasn't happened since this state
+				 * was committed.
+				 */
+				struct intel_pipe_wm target;
+
+				/*
+				 * currently programmed watermark; this will be
+				 * the intermediate values before vblank then
+				 * switch to match 'target' after vblank fires
+				 */
+				struct intel_pipe_wm active;
+			} ilk;
+
 			struct skl_pipe_wm skl;
-		} active;
+		};
+
+		/*
+		 * Platforms with two-step watermark programming will need to
+		 * update watermark programming post-vblank to switch from the
+		 * safe intermediate watermarks to the optimal final
+		 * watermarks.
+		 */
+		bool need_postvbl_update;
 	} wm;
 };
 
