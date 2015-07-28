@@ -3148,7 +3148,7 @@ static int i915_ddb_info(struct seq_file *m, void *unused)
 				   skl_ddb_entry_size(entry));
 		}
 
-		entry = &ddb->cursor[pipe];
+		entry = &ddb->plane[pipe][I915_MAX_PLANES];
 		seq_printf(m, "  %-13s%8u%8u%8u\n", "Cursor", entry->start,
 			   entry->end, skl_ddb_entry_size(entry));
 	}
