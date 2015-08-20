@@ -3601,29 +3601,31 @@ static void skl_flush_wm_values(struct drm_i915_private *dev_priv,
 	}
 }
 
-static bool skl_update_pipe_wm(struct drm_crtc *crtc,
+static bool skl_update_pipe_wm(struct drm_crtc_state *cstate,
 			       struct skl_ddb_allocation *ddb, /* out */
 			       struct skl_pipe_wm *pipe_wm /* out */)
 {
-	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct intel_crtc_state *intel_cstate = to_intel_crtc_state(cstate);
+	struct drm_crtc *crtc = cstate->crtc;
 
-	skl_allocate_pipe_ddb(crtc, cstate, ddb);
-	skl_compute_pipe_wm(crtc, ddb, cstate, pipe_wm);
+	skl_allocate_pipe_ddb(crtc, intel_cstate, ddb);
+	skl_compute_pipe_wm(crtc, ddb, intel_cstate, pipe_wm);
 
-	if (!memcmp(&cstate->wm.skl, pipe_wm, sizeof(*pipe_wm)))
+	if (!memcmp(&intel_cstate->wm.skl, pipe_wm, sizeof(*pipe_wm)))
 		return false;
 
-	cstate->wm.skl = *pipe_wm;
+	intel_cstate->wm.skl = *pipe_wm;
 
 	return true;
 }
 
-static void skl_update_other_pipe_wm(struct drm_device *dev,
+static void skl_update_other_pipe_wm(struct drm_atomic_state *state,
 				     struct drm_crtc *crtc,
 				     struct skl_wm_values *r)
 {
 	struct intel_crtc *intel_crtc;
 	struct intel_crtc *this_crtc = to_intel_crtc(crtc);
+	struct drm_crtc_state *cstate;
 
 	/*
 	 * If the WM update hasn't changed the allocation for this_crtc (the
@@ -3638,7 +3640,7 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 	 * Otherwise, because of this_crtc being freshly enabled/disabled, the
 	 * other active pipes need new DDB allocation and WM values.
 	 */
-	list_for_each_entry(intel_crtc, &dev->mode_config.crtc_list,
+	list_for_each_entry(intel_crtc, &state->dev->mode_config.crtc_list,
 				base.head) {
 		struct skl_pipe_wm pipe_wm = {};
 		bool wm_changed;
@@ -3646,11 +3648,13 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 		if (this_crtc->pipe == intel_crtc->pipe)
 			continue;
 
-		if (!intel_crtc->active)
+		cstate = drm_atomic_get_existing_crtc_state(state, &intel_crtc->base) ?:
+			intel_crtc->base.state;
+
+		if (!cstate->active)
 			continue;
 
-		wm_changed = skl_update_pipe_wm(&intel_crtc->base,
-						&r->ddb, &pipe_wm);
+		wm_changed = skl_update_pipe_wm(cstate, &r->ddb, &pipe_wm);
 
 		/*
 		 * If we end up re-computing the other pipe WM values, it's
@@ -3659,34 +3663,45 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 		 */
 		WARN_ON(!wm_changed);
 
-		skl_compute_wm_results(dev, &pipe_wm, r, intel_crtc);
+		skl_compute_wm_results(state->dev, &pipe_wm, r, intel_crtc);
 		r->dirty[intel_crtc->pipe] = true;
 	}
 }
 
-static void skl_update_wm(struct drm_crtc *crtc)
+static int skl_compute_wm(struct drm_crtc *crtc,
+			  struct drm_atomic_state *state)
 {
+	struct intel_atomic_state *intel_state = to_intel_atomic_state(state);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct skl_wm_values *results = &dev_priv->wm.skl_results;
+	struct drm_crtc_state *cstate ;
+	struct skl_wm_values *results = &intel_state->skl_wm;
 	struct skl_pipe_wm pipe_wm = {};
 
-	memset(results, 0, sizeof(*results));
+	cstate = drm_atomic_get_existing_crtc_state(state, crtc) ?: crtc->state;
 
-	if (!skl_update_pipe_wm(crtc, &results->ddb, &pipe_wm))
-		return;
+	if (!skl_update_pipe_wm(cstate, &results->ddb, &pipe_wm))
+		return 0;
 
 	skl_compute_wm_results(dev, &pipe_wm, results, intel_crtc);
 	results->dirty[intel_crtc->pipe] = true;
 
-	skl_update_other_pipe_wm(dev, crtc, results);
+	skl_update_other_pipe_wm(state, crtc, results);
+
+	return 0;
+}
+
+static void skl_program_watermarks(struct drm_i915_private *dev_priv)
+{
+	struct skl_wm_values *results = &dev_priv->wm.skl_results;
+
 	skl_write_wm_values(dev_priv, results);
 	skl_flush_wm_values(dev_priv, results);
 
 	/* store the new configuration */
 	dev_priv->wm.skl_hw = *results;
 }
+
 
 static void ilk_program_watermarks(struct drm_i915_private *dev_priv)
 {
@@ -7017,7 +7032,8 @@ void intel_init_pm(struct drm_device *dev)
 		else if (IS_SKYLAKE(dev))
 			dev_priv->display.init_clock_gating =
 				skl_init_clock_gating;
-		dev_priv->display.update_wm = skl_update_wm;
+		dev_priv->display.compute_pipe_wm = skl_compute_wm;
+		dev_priv->display.program_watermarks = skl_program_watermarks;
 	} else if (HAS_PCH_SPLIT(dev)) {
 		ilk_setup_wm_latency(dev);
 
