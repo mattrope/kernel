@@ -3134,7 +3134,7 @@ static int i915_ddb_info(struct seq_file *m, void *unused)
 
 	drm_modeset_lock_all(dev);
 
-	ddb = &dev_priv->wm.skl_hw.ddb;
+	ddb = &dev_priv->wm.skl.hw.ddb;
 
 	seq_printf(m, "%-15s%8s%8s%8s\n", "", "Start", "End", "Size");
 

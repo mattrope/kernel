@@ -1918,17 +1918,30 @@ struct drm_i915_private {
 		/* Committed wm config */
 		struct intel_wm_config config;
 
-		/*
-		 * The skl_wm_values structure is a bit too big for stack
-		 * allocation, so we keep the staging struct where we store
-		 * intermediate results here instead.
-		 */
-		struct skl_wm_values skl_results;
-
 		/* current hardware state */
 		union {
 			struct ilk_wm_values hw;
-			struct skl_wm_values skl_hw;
+			struct {
+				/*
+				 * The skl_wm_values structure is a bit too big
+				 * for stack allocation, so we keep the staging
+				 * struct where we store intermediate results
+				 * here instead.
+				 *
+				 * These watermark values correspond to the
+				 * state that has been swapped into the various
+				 * DRM objects, but may not have been
+				 * completely written to hardware yet due to
+				 * the multi-step flushing process.
+				 */
+				struct skl_wm_values pending;
+
+				/*
+				 * Watermark values that have been fully
+				 * written and flushed to the hardware.
+				 */
+				struct skl_wm_values hw;
+			} skl;
 			struct vlv_wm_values vlv;
 		};
 	} wm;

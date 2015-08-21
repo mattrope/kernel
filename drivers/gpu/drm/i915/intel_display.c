@@ -12581,7 +12581,7 @@ static void check_wm_state(struct drm_device *dev)
 		return;
 
 	skl_ddb_get_hw_state(dev_priv, &hw_ddb);
-	sw_ddb = &dev_priv->wm.skl_hw.ddb;
+	sw_ddb = &dev_priv->wm.skl.hw.ddb;
 
 	for_each_intel_crtc(dev, intel_crtc) {
 		struct skl_ddb_entry *hw_entry, *sw_entry;
@@ -13192,7 +13192,7 @@ static int intel_atomic_commit(struct drm_device *dev,
 
 	drm_atomic_helper_swap_state(dev, state);
 	dev_priv->wm.config = to_intel_atomic_state(state)->wm_config;
-	dev_priv->wm.skl_results = to_intel_atomic_state(state)->skl_wm;
+	dev_priv->wm.skl.pending = to_intel_atomic_state(state)->skl_wm;
 
 	for_each_crtc_in_state(state, crtc, crtc_state, i) {
 		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);

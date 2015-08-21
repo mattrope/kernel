@@ -3183,7 +3183,7 @@ static bool skl_ddb_allocation_changed(const struct skl_ddb_allocation *new_ddb,
 {
 	struct drm_device *dev = intel_crtc->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	const struct skl_ddb_allocation *cur_ddb = &dev_priv->wm.skl_hw.ddb;
+	const struct skl_ddb_allocation *cur_ddb = &dev_priv->wm.skl.hw.ddb;
 	enum pipe pipe = intel_crtc->pipe;
 
 	if (memcmp(new_ddb->plane[pipe], cur_ddb->plane[pipe],
@@ -3529,7 +3529,7 @@ static void skl_flush_wm_values(struct drm_i915_private *dev_priv,
 	enum pipe pipe;
 
 	new_ddb = &new_values->ddb;
-	cur_ddb = &dev_priv->wm.skl_hw.ddb;
+	cur_ddb = &dev_priv->wm.skl.hw.ddb;
 
 	/*
 	 * First pass: flush the pipes with the new allocation contained into
@@ -3693,13 +3693,13 @@ static int skl_compute_wm(struct drm_crtc *crtc,
 
 static void skl_program_watermarks(struct drm_i915_private *dev_priv)
 {
-	struct skl_wm_values *results = &dev_priv->wm.skl_results;
+	struct skl_wm_values *results = &dev_priv->wm.skl.pending;
 
 	skl_write_wm_values(dev_priv, results);
 	skl_flush_wm_values(dev_priv, results);
 
 	/* store the new configuration */
-	dev_priv->wm.skl_hw = *results;
+	dev_priv->wm.skl.hw = *results;
 }
 
 
@@ -3811,7 +3811,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct skl_wm_values *hw = &dev_priv->wm.skl_hw;
+	struct skl_wm_values *hw = &dev_priv->wm.skl.hw;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
 	struct skl_pipe_wm *active = &cstate->wm.skl;
@@ -3863,7 +3863,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 void skl_wm_get_hw_state(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct skl_ddb_allocation *ddb = &dev_priv->wm.skl_hw.ddb;
+	struct skl_ddb_allocation *ddb = &dev_priv->wm.skl.hw.ddb;
 	struct drm_crtc *crtc;
 
 	skl_ddb_get_hw_state(dev_priv, ddb);
