@@ -61,6 +61,30 @@ intel_create_plane_state(struct drm_plane *plane)
 	return state;
 }
 
+/*
+ * Duplicate any plane state (not just an already committed state).
+ */
+struct drm_plane_state *
+__intel_plane_duplicate_state(struct drm_plane_state *ps)
+{
+	struct drm_plane_state *state;
+	struct intel_plane_state *intel_state;
+
+	if (WARN_ON(!ps))
+		intel_state = intel_create_plane_state(ps->plane);
+	else
+		intel_state = kmemdup(ps, sizeof(*intel_state), GFP_KERNEL);
+
+	if (!intel_state)
+		return NULL;
+
+	state = &intel_state->base;
+
+	__drm_atomic_helper_plane_duplicate_state(ps, state);
+
+	return state;
+}
+
 /**
  * intel_plane_duplicate_state - duplicate plane state
  * @plane: drm plane
@@ -73,23 +97,7 @@ intel_create_plane_state(struct drm_plane *plane)
 struct drm_plane_state *
 intel_plane_duplicate_state(struct drm_plane *plane)
 {
-	struct drm_plane_state *state;
-	struct intel_plane_state *intel_state;
-
-	if (WARN_ON(!plane->state))
-		intel_state = intel_create_plane_state(plane);
-	else
-		intel_state = kmemdup(plane->state, sizeof(*intel_state),
-				      GFP_KERNEL);
-
-	if (!intel_state)
-		return NULL;
-
-	state = &intel_state->base;
-
-	__drm_atomic_helper_plane_duplicate_state(plane->state, state);
-
-	return state;
+	return __intel_plane_duplicate_state(plane->state);
 }
 
 /**

@@ -237,6 +237,15 @@ typedef struct dpll {
 struct intel_atomic_state {
 	struct drm_atomic_state base;
 
+	/*
+	 * A second top-level state object that holds the intermediate state
+	 * that the driver passes through when performing a modeset or
+	 * disabling CRTC's.  This state corresponds to the point where we've
+	 * disabled the CRTC's undergoing modesets.
+	 */
+	struct drm_atomic_state *intermediate;
+
+	bool any_ms;
 	unsigned int cdclk;
 	bool dpll_set;
 	struct intel_shared_dpll_config shared_dpll[I915_NUM_PLLS];
@@ -1419,6 +1428,7 @@ struct drm_crtc_state *intel_crtc_duplicate_state(struct drm_crtc *crtc);
 void intel_crtc_destroy_state(struct drm_crtc *crtc,
 			       struct drm_crtc_state *state);
 struct drm_atomic_state *intel_atomic_state_alloc(struct drm_device *dev);
+void intel_atomic_state_free(struct drm_atomic_state *s);
 void intel_atomic_state_clear(struct drm_atomic_state *);
 struct intel_shared_dpll_config *
 intel_atomic_get_shared_dpll_state(struct drm_atomic_state *s);
@@ -1437,6 +1447,8 @@ intel_atomic_get_crtc_state(struct drm_atomic_state *state,
 int intel_atomic_setup_scalers(struct drm_device *dev,
 	struct intel_crtc *intel_crtc,
 	struct intel_crtc_state *crtc_state);
+int intel_atomic_check_planes(struct drm_device *dev,
+			      struct drm_atomic_state *state);
 
 /* intel_atomic_plane.c */
 struct intel_plane_state *intel_create_plane_state(struct drm_plane *plane);
@@ -1444,5 +1456,7 @@ struct drm_plane_state *intel_plane_duplicate_state(struct drm_plane *plane);
 void intel_plane_destroy_state(struct drm_plane *plane,
 			       struct drm_plane_state *state);
 extern const struct drm_plane_helper_funcs intel_plane_helper_funcs;
+struct drm_plane_state *
+__intel_plane_duplicate_state(struct drm_plane_state *ps);
 
 #endif /* __INTEL_DRV_H__ */

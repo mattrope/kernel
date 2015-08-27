@@ -13024,7 +13024,7 @@ static int intel_atomic_check(struct drm_device *dev,
 		to_intel_atomic_state(state)->cdclk =
 			to_i915(state->dev)->cdclk_freq;
 
-	return drm_atomic_helper_check_planes(state->dev, state);
+	return intel_atomic_check_planes(state->dev, state);
 }
 
 /**
@@ -14312,6 +14312,7 @@ static const struct drm_mode_config_funcs intel_mode_funcs = {
 	.atomic_check = intel_atomic_check,
 	.atomic_commit = intel_atomic_commit,
 	.atomic_state_alloc = intel_atomic_state_alloc,
+	.atomic_state_free = intel_atomic_state_free,
 	.atomic_state_clear = intel_atomic_state_clear,
 };
 

@@ -74,32 +74,23 @@ intel_connector_atomic_get_property(struct drm_connector *connector,
 }
 
 /*
- * intel_crtc_duplicate_state - duplicate crtc state
- * @crtc: drm crtc
- *
- * Allocates and returns a copy of the crtc state (both common and
- * Intel-specific) for the specified crtc.
- *
- * Returns: The newly allocated crtc state, or NULL on failure.
+ * Duplicate any CRTC state (not just an already committed state).
  */
-struct drm_crtc_state *
-intel_crtc_duplicate_state(struct drm_crtc *crtc)
+static struct drm_crtc_state *
+__intel_crtc_duplicate_state(struct drm_crtc_state *cs)
 {
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *crtc_state;
 
-	if (WARN_ON(!intel_crtc->config))
+	if (WARN_ON(!cs))
 		crtc_state = kzalloc(sizeof(*crtc_state), GFP_KERNEL);
 	else
-		crtc_state = kmemdup(intel_crtc->config,
-				     sizeof(*intel_crtc->config), GFP_KERNEL);
-
+		crtc_state = kmemdup(cs, sizeof(*crtc_state), GFP_KERNEL);
 	if (!crtc_state)
 		return NULL;
 
-	__drm_atomic_helper_crtc_duplicate_state(crtc->state, &crtc_state->base);
+	__drm_atomic_helper_crtc_duplicate_state(cs, &crtc_state->base);
 
-	crtc_state->base.crtc = crtc;
+	crtc_state->base.crtc = cs->crtc;
 
 	crtc_state->wait_for_flips = false;
 	crtc_state->disable_fbc = false;
@@ -116,6 +107,21 @@ intel_crtc_duplicate_state(struct drm_crtc *crtc)
 	crtc_state->update_sprite_watermarks = 0;
 
 	return &crtc_state->base;
+}
+
+/*
+ * intel_crtc_duplicate_state - duplicate crtc state
+ * @crtc: drm crtc
+ *
+ * Allocates and returns a copy of the crtc state (both common and
+ * Intel-specific) for the specified crtc.
+ *
+ * Returns: The newly allocated crtc state, or NULL on failure.
+ */
+struct drm_crtc_state *
+intel_crtc_duplicate_state(struct drm_crtc *crtc)
+{
+	return __intel_crtc_duplicate_state(crtc->state);
 }
 
 /**
@@ -315,17 +321,113 @@ intel_atomic_state_alloc(struct drm_device *dev)
 {
 	struct intel_atomic_state *state = kzalloc(sizeof(*state), GFP_KERNEL);
 
-	if (!state || drm_atomic_state_init(dev, &state->base) < 0) {
-		kfree(state);
-		return NULL;
-	}
+	if (!state || drm_atomic_state_init(dev, &state->base) < 0)
+		goto fail;
 
+	/* Also allocate an intermediate state */
+	state->intermediate = kzalloc(sizeof(*state->intermediate), GFP_KERNEL);
+	if (!state->intermediate ||
+	    drm_atomic_state_init(dev, state->intermediate) < 0)
+		goto fail;
+
+	state->intermediate->acquire_ctx = state->base.acquire_ctx;
 	return &state->base;
+
+fail:
+	if (state)
+		kfree(state->intermediate);
+	drm_atomic_state_default_release(&state->base);
+	kfree(state);
+	return NULL;
+}
+
+void
+intel_atomic_state_free(struct drm_atomic_state *s)
+{
+	struct intel_atomic_state *state = to_intel_atomic_state(s);
+
+	if (WARN_ON(!s))
+		return;
+
+	drm_atomic_state_default_release(state->intermediate);
+	drm_atomic_state_default_release(s);
 }
 
 void intel_atomic_state_clear(struct drm_atomic_state *s)
 {
 	struct intel_atomic_state *state = to_intel_atomic_state(s);
+
+	drm_atomic_state_default_clear(state->intermediate);
 	drm_atomic_state_default_clear(&state->base);
 	state->dpll_set = false;
+}
+
+/**
+ * intel_atomic_check_planes - validate state object for planes changes
+ * @dev: DRM device
+ * @state: the driver state object
+ *
+ * An Intel-specific replacement for drm_atomic_helper_check_planes().  In
+ * addition to calling the ->atomic_check() entrypoints for all plane/crtc
+ * states present in the atomic transaction, it also creates an additional
+ * 'intermediate' state that corresponds to the point in the commit pipeline
+ * where any CRTC's performing a modeset (or disable) have been disabled but
+ * not yet reenabled.  Specifically, crtc_state->active = false for each CRTC
+ * involved in a modeset and the corresponding derived state is updated to
+ * reflect that.
+ */
+int
+intel_atomic_check_planes(struct drm_device *dev,
+			  struct drm_atomic_state *state)
+{
+	struct intel_atomic_state *istate = to_intel_atomic_state(state);
+	struct drm_atomic_state *inter = istate->intermediate;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *cstate;
+	struct drm_plane *plane;
+	struct drm_plane_state *pstate;
+	unsigned needs_ms = 0;
+	int i, ret;
+
+	/*
+	 * Start by checking calculating/checking the final state as usual;
+	 * if that doesn't work, then there's no point in worrying about
+	 * intermediate states.
+	 */
+	ret = drm_atomic_helper_check_planes(dev, state);
+	if (ret)
+		return ret;
+
+	/*
+	 * For CRTC's undergoing a modeset, copy CRTC and plane state into
+	 * the intermediate state, but update crtc_state->active = false.
+	 */
+	for_each_crtc_in_state(state, crtc, cstate, i) {
+		if (!drm_atomic_crtc_needs_modeset(cstate))
+			continue;
+
+		needs_ms |= drm_crtc_mask(crtc);
+		inter->crtcs[i] = crtc;
+		inter->crtc_states[i] = __intel_crtc_duplicate_state(cstate);
+		inter->crtc_states[i]->state = inter;
+		inter->crtc_states[i]->active = false;
+
+		if (drm_atomic_crtc_needs_modeset(cstate))
+			istate->any_ms = true;
+	}
+	for_each_plane_in_state(state, plane, pstate, i) {
+		crtc = plane->state->crtc ?: pstate->crtc;
+		if (!crtc || !(needs_ms & drm_crtc_mask(crtc)))
+			continue;
+
+		inter->planes[i] = plane;
+		inter->plane_states[i] = __intel_plane_duplicate_state(pstate);
+		inter->plane_states[i]->state = inter;
+	}
+
+	/*
+	 * Run all the plane/crtc check handlers to update the derived state
+	 * fields to reflect the ->active change.
+	 */
+	return drm_atomic_helper_check_planes(dev, inter);
 }
