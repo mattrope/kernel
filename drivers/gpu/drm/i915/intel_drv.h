@@ -456,6 +456,22 @@ struct intel_crtc_state {
 
 	/* w/a for waiting 2 vblanks during crtc enable */
 	enum pipe hsw_workaround_pipe;
+
+	/* Sleepable operations to perform before commit */
+	bool wait_for_flips;
+	bool disable_fbc;
+	bool disable_ips;
+	bool disable_cxsr;
+	bool pre_disable_primary;
+	bool update_wm_pre, update_wm_post;
+	unsigned disabled_planes;
+
+	/* Sleepable operations to perform after commit */
+	unsigned fb_bits;
+	bool wait_vblank;
+	bool update_fbc;
+	bool post_enable_primary;
+	unsigned update_sprite_watermarks;
 };
 
 struct vlv_wm_state {
@@ -487,30 +503,6 @@ struct skl_pipe_wm {
 	struct skl_wm_level wm[8];
 	struct skl_wm_level trans_wm;
 	uint32_t linetime;
-};
-
-/*
- * Tracking of operations that need to be performed at the beginning/end of an
- * atomic commit, outside the atomic section where interrupts are disabled.
- * These are generally operations that grab mutexes or might otherwise sleep
- * and thus can't be run with interrupts disabled.
- */
-struct intel_crtc_atomic_commit {
-	/* Sleepable operations to perform before commit */
-	bool wait_for_flips;
-	bool disable_fbc;
-	bool disable_ips;
-	bool disable_cxsr;
-	bool pre_disable_primary;
-	bool update_wm_pre, update_wm_post;
-	unsigned disabled_planes;
-
-	/* Sleepable operations to perform after commit */
-	unsigned fb_bits;
-	bool wait_vblank;
-	bool update_fbc;
-	bool post_enable_primary;
-	unsigned update_sprite_watermarks;
 };
 
 struct intel_crtc {
@@ -565,8 +557,6 @@ struct intel_crtc {
 
 	unsigned start_vbl_count;
 	ktime_t start_vbl_time;
-
-	struct intel_crtc_atomic_commit atomic;
 
 	/* scalers available on this crtc */
 	int num_scalers;

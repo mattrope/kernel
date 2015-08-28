@@ -101,6 +101,20 @@ intel_crtc_duplicate_state(struct drm_crtc *crtc)
 
 	crtc_state->base.crtc = crtc;
 
+	crtc_state->wait_for_flips = false;
+	crtc_state->disable_fbc = false;
+	crtc_state->disable_ips = false;
+	crtc_state->disable_cxsr = false;
+	crtc_state->pre_disable_primary = false;
+	crtc_state->update_wm_pre = false;
+	crtc_state->update_wm_post = false;
+	crtc_state->disabled_planes = 0;
+	crtc_state->fb_bits = 0;
+	crtc_state->wait_vblank = false;
+	crtc_state->update_fbc = false;
+	crtc_state->post_enable_primary = false;
+	crtc_state->update_sprite_watermarks = 0;
+
 	return &crtc_state->base;
 }
 
@@ -212,7 +226,7 @@ int intel_atomic_setup_scalers(struct drm_device *dev,
 				 * minimum required validation.
 				 */
 				if (plane->type == DRM_PLANE_TYPE_PRIMARY)
-					intel_crtc->atomic.wait_for_flips = true;
+					crtc_state->wait_for_flips = true;
 				crtc_state->base.planes_changed = true;
 			}
 
