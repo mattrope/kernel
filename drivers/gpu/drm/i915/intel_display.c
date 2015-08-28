@@ -13027,6 +13027,36 @@ static int intel_atomic_check(struct drm_device *dev,
 	return intel_atomic_check_planes(state->dev, state);
 }
 
+/*
+ * An Intel-specific version of drm_atomic_helper_cleanup_planes().
+ * Since we've potentially swapped to an intermediate state before
+ * swapping again to the final state, the actual framebuffers that
+ * need to be cleaned up will have been swapped into the intermediate
+ * state object for any CRTC's that are undergoing a modeset, so we
+ * need to grab them from there instead of the old_state object.
+ */
+static void
+intel_cleanup_planes(struct drm_device *dev,
+		     struct drm_atomic_state *old_state)
+{
+	struct drm_atomic_state *inter =
+		to_intel_atomic_state(old_state)->intermediate;
+	struct drm_plane *plane;
+	struct drm_plane_state *plane_state;
+	int i;
+
+	for_each_plane_in_state(old_state, plane, plane_state, i) {
+		const struct drm_plane_helper_funcs *funcs;
+
+		funcs = plane->helper_private;
+
+		plane_state = inter->plane_states[i] ?: plane_state;
+
+		if (funcs->cleanup_fb)
+			funcs->cleanup_fb(plane, plane_state);
+	}
+}
+
 /**
  * intel_atomic_commit - commit validated state object
  * @dev: DRM device
@@ -13048,11 +13078,12 @@ static int intel_atomic_commit(struct drm_device *dev,
 			       bool async)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_atomic_state *istate = to_intel_atomic_state(state);
+	struct drm_atomic_state *inter = istate->intermediate;
 	struct drm_crtc *crtc;
-	struct drm_crtc_state *crtc_state;
+	struct drm_crtc_state *old_crtc_state;
 	int ret = 0;
 	int i;
-	bool any_ms = false;
 
 	if (async) {
 		DRM_DEBUG_KMS("i915 does not yet support async commit\n");
@@ -13063,59 +13094,84 @@ static int intel_atomic_commit(struct drm_device *dev,
 	if (ret)
 		return ret;
 
-	drm_atomic_helper_swap_state(dev, state);
+	if (!istate->any_ms) {
+		/*
+		 * If there's no modeset involved, just move to the final state
+		 * and jump directly to the final plane updates.
+		 */
+		drm_atomic_helper_swap_state(dev, state);
+		intel_modeset_update_crtc_state(state);
+		goto nomodeset;
+	}
 
-	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+	/* Swap in intermediate state */
+	drm_atomic_helper_swap_state(dev, inter);
+
+	/*
+	 * Commit all planes in one go to make them pop out as atomically
+	 * as possible.
+	 */
+	for_each_crtc_in_state(inter, crtc, old_crtc_state, i) {
 		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 
-		if (!needs_modeset(crtc->state))
-			continue;
-
-		any_ms = true;
 		intel_pre_plane_update(intel_crtc);
+		drm_atomic_helper_commit_planes_on_crtc(old_crtc_state);
+		intel_post_plane_update(intel_crtc);
+	}
 
-		if (crtc_state->active) {
-			intel_crtc_disable_planes(crtc, crtc_state->plane_mask);
+	for_each_crtc_in_state(inter, crtc, old_crtc_state, i) {
+		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+
+		if (old_crtc_state->active) {
+			intel_crtc_disable_planes(crtc,
+						  old_crtc_state->plane_mask);
 			dev_priv->display.crtc_disable(crtc);
 			intel_crtc->active = false;
 			intel_disable_shared_dpll(intel_crtc);
 		}
 	}
 
+	/* Commit final state to the underlying crtc/plane objects */
+	drm_atomic_helper_swap_state(dev, state);
+
 	/* Only after disabling all output pipelines that will be changed can we
 	 * update the the output configuration. */
 	intel_modeset_update_crtc_state(state);
+	intel_shared_dpll_commit(state);
 
-	if (any_ms) {
-		intel_shared_dpll_commit(state);
+	drm_atomic_helper_update_legacy_modeset_state(state->dev, state);
+	modeset_update_crtc_power_domains(state);
 
-		drm_atomic_helper_update_legacy_modeset_state(state->dev, state);
-		modeset_update_crtc_power_domains(state);
-	}
-
-	/* Now enable the clocks, plane, pipe, and connectors that we set up. */
-	for_each_crtc_in_state(state, crtc, crtc_state, i) {
-		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	/* Now enable the clocks, pipe, and connectors that we set up. */
+	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
 		bool modeset = needs_modeset(crtc->state);
 
 		if (modeset && crtc->state->active) {
 			update_scanline_offset(to_intel_crtc(crtc));
 			dev_priv->display.crtc_enable(crtc);
 		}
+	}
 
-		if (!modeset)
-			intel_pre_plane_update(intel_crtc);
+nomodeset:
 
-		drm_atomic_helper_commit_planes_on_crtc(crtc_state);
+	/*
+	 * Commit all planes in one go to make them pop in as atomically as
+	 * possible.
+	 */
+	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
+		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+
+		intel_pre_plane_update(intel_crtc);
+		drm_atomic_helper_commit_planes_on_crtc(old_crtc_state);
 		intel_post_plane_update(intel_crtc);
 	}
 
 	/* FIXME: add subpixel order */
 
 	drm_atomic_helper_wait_for_vblanks(dev, state);
-	drm_atomic_helper_cleanup_planes(dev, state);
+	intel_cleanup_planes(dev, state);
 
-	if (any_ms)
+	if (istate->any_ms)
 		intel_modeset_check_state(dev, state);
 
 	drm_atomic_state_free(state);
