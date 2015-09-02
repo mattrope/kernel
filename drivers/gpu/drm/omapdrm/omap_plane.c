@@ -258,7 +258,7 @@ omap_plane_atomic_duplicate_state(struct drm_plane *plane)
 	if (copy == NULL)
 		return NULL;
 
-	__drm_atomic_helper_plane_duplicate_state(plane, &copy->base);
+	__drm_atomic_helper_plane_duplicate_state(plane->state, &copy->base);
 
 	return &copy->base;
 }

@@ -97,7 +97,7 @@ intel_crtc_duplicate_state(struct drm_crtc *crtc)
 	if (!crtc_state)
 		return NULL;
 
-	__drm_atomic_helper_crtc_duplicate_state(crtc, &crtc_state->base);
+	__drm_atomic_helper_crtc_duplicate_state(crtc->state, &crtc_state->base);
 
 	crtc_state->base.crtc = crtc;
 

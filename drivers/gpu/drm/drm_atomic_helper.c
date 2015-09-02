@@ -2149,10 +2149,10 @@ EXPORT_SYMBOL(drm_atomic_helper_crtc_reset);
  * Copies atomic state from a CRTC's current state and resets inferred values.
  * This is useful for drivers that subclass the CRTC state.
  */
-void __drm_atomic_helper_crtc_duplicate_state(struct drm_crtc *crtc,
+void __drm_atomic_helper_crtc_duplicate_state(struct drm_crtc_state *from,
 					      struct drm_crtc_state *state)
 {
-	memcpy(state, crtc->state, sizeof(*state));
+	memcpy(state, from, sizeof(*state));
 
 	if (state->mode_blob)
 		drm_property_reference_blob(state->mode_blob);
@@ -2181,7 +2181,7 @@ drm_atomic_helper_crtc_duplicate_state(struct drm_crtc *crtc)
 
 	state = kmalloc(sizeof(*state), GFP_KERNEL);
 	if (state)
-		__drm_atomic_helper_crtc_duplicate_state(crtc, state);
+		__drm_atomic_helper_crtc_duplicate_state(crtc->state, state);
 
 	return state;
 }
@@ -2248,10 +2248,10 @@ EXPORT_SYMBOL(drm_atomic_helper_plane_reset);
  * Copies atomic state from a plane's current state. This is useful for
  * drivers that subclass the plane state.
  */
-void __drm_atomic_helper_plane_duplicate_state(struct drm_plane *plane,
+void __drm_atomic_helper_plane_duplicate_state(struct drm_plane_state *from,
 					       struct drm_plane_state *state)
 {
-	memcpy(state, plane->state, sizeof(*state));
+	memcpy(state, from, sizeof(*state));
 
 	if (state->fb)
 		drm_framebuffer_reference(state->fb);
@@ -2275,7 +2275,7 @@ drm_atomic_helper_plane_duplicate_state(struct drm_plane *plane)
 
 	state = kmalloc(sizeof(*state), GFP_KERNEL);
 	if (state)
-		__drm_atomic_helper_plane_duplicate_state(plane, state);
+		__drm_atomic_helper_plane_duplicate_state(plane->state, state);
 
 	return state;
 }

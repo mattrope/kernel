@@ -455,7 +455,7 @@ static struct drm_plane_state *tegra_plane_atomic_duplicate_state(struct drm_pla
 	if (!copy)
 		return NULL;
 
-	__drm_atomic_helper_plane_duplicate_state(plane, &copy->base);
+	__drm_atomic_helper_plane_duplicate_state(plane->state, &copy->base);
 	copy->tiling = state->tiling;
 	copy->format = state->format;
 	copy->swap = state->swap;
@@ -1036,7 +1036,7 @@ tegra_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 	if (!copy)
 		return NULL;
 
-	__drm_atomic_helper_crtc_duplicate_state(crtc, &copy->base);
+	__drm_atomic_helper_crtc_duplicate_state(crtc->state, &copy->base);
 	copy->clk = state->clk;
 	copy->pclk = state->pclk;
 	copy->div = state->div;
