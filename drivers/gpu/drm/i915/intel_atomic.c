@@ -362,6 +362,8 @@ void intel_atomic_state_clear(struct drm_atomic_state *s)
 	state->dpll_set = false;
 }
 
+void debug_state(struct drm_atomic_state *state);
+
 /**
  * intel_atomic_check_planes - validate state object for planes changes
  * @dev: DRM device
@@ -398,6 +400,9 @@ intel_atomic_check_planes(struct drm_device *dev,
 	if (ret)
 		return ret;
 
+	printk("MDR Calculated final state\n");
+	debug_state(state);
+
 	/*
 	 * For CRTC's undergoing a modeset, copy CRTC and plane state into
 	 * the intermediate state, but update crtc_state->active = false.
@@ -429,5 +434,12 @@ intel_atomic_check_planes(struct drm_device *dev,
 	 * Run all the plane/crtc check handlers to update the derived state
 	 * fields to reflect the ->active change.
 	 */
-	return drm_atomic_helper_check_planes(dev, inter);
+	ret = drm_atomic_helper_check_planes(dev, inter);
+	if (ret)
+		return ret;
+
+	printk("MDR Calculated intermediate state\n");
+	debug_state(inter);
+
+	return 0;
 }

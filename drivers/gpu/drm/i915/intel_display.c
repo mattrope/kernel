@@ -12950,6 +12950,29 @@ static int intel_modeset_checks(struct drm_atomic_state *state)
 	return 0;
 }
 
+void debug_state(struct drm_atomic_state *state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	struct drm_plane *plane;
+	struct drm_plane_state *plane_state;
+	int i, j;
+
+	printk("MDR :: Atomic State %p\n", state);
+	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+		printk(" - CRTC %d (state->active=%d committed->active=%d)\n",
+		       i, crtc_state->active, crtc->state->active);
+
+		for_each_plane_in_state(state, plane, plane_state, j) {
+			struct intel_plane_state *ps = to_intel_plane_state(plane_state);
+			struct intel_plane_state *cs = to_intel_plane_state(plane->state);
+
+			printk("   * Plane %d (state->visible=%d committed->visible=%d)\n",
+			       j, ps->visible, cs->visible);
+		}
+	}
+}
+
 /**
  * intel_atomic_check - validate state object
  * @dev: drm device
@@ -13131,6 +13154,9 @@ static int intel_atomic_commit(struct drm_device *dev,
 		}
 	}
 
+	printk("MDR :: Done committing intermediate\n");
+	debug_state(inter);
+
 	/* Commit final state to the underlying crtc/plane objects */
 	drm_atomic_helper_swap_state(dev, state);
 
@@ -13173,6 +13199,9 @@ nomodeset:
 
 	if (istate->any_ms)
 		intel_modeset_check_state(dev, state);
+
+	printk("MDR :: Done committing final\n");
+	debug_state(state);
 
 	drm_atomic_state_free(state);
 
