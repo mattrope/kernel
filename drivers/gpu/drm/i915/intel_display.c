@@ -14936,6 +14936,54 @@ void intel_modeset_init_hw(struct drm_device *dev)
 	intel_enable_gt_powersave(dev);
 }
 
+/*
+ * Calculate what we think the watermarks should be for the state we've read
+ * out of the hardware and then immediately program those watermarks so that
+ * we ensure the hardware settings match our internal state.
+ */
+static void sanitize_watermarks(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	struct drm_atomic_state *state;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *cstate;
+	int ret;
+	int i;
+
+	/* Only supported on platforms that use atomic watermark design */
+	if (!dev_priv->display.program_watermarks)
+		return;
+
+	/*
+	 * Calculate what we think WM's should be by creating a dummy state and
+	 * running it through the atomic check code.
+	 */
+	state = drm_atomic_helper_duplicate_state(dev,
+						  dev->mode_config.acquire_ctx);
+	if (WARN_ON(IS_ERR(state)))
+		return;
+
+	ret = intel_atomic_check(dev, state);
+	if (ret) {
+		/*
+		 * Just give up and leave watermarks untouched if we get an
+		 * error back from 'check'
+		 */
+		DRM_DEBUG_KMS("Could not determine valid watermarks for inherited state\n");
+		return;
+	}
+
+	/* Write calculated watermark values back */
+	to_i915(dev)->wm.config = to_intel_atomic_state(state)->wm_config;
+	for_each_crtc_in_state(state, crtc, cstate, i) {
+		struct intel_crtc_state *cs = to_intel_crtc_state(cstate);
+
+		dev_priv->display.program_watermarks(cs);
+	}
+
+	drm_atomic_state_free(state);
+}
+
 void intel_modeset_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -15059,6 +15107,13 @@ void intel_modeset_init(struct drm_device *dev)
 		 */
 		intel_find_initial_plane_obj(crtc, &plane_config);
 	}
+
+	/*
+	 * Make sure hardware watermarks really match the state we read out.
+	 * Note that we need to do this after reconstructing the BIOS fb's
+	 * since the watermark calculation done here will use pstate->fb.
+	 */
+	sanitize_watermarks(dev);
 }
 
 static void intel_enable_pipe_a(struct drm_device *dev)
