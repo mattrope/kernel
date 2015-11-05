@@ -15021,6 +15021,7 @@ static void sanitize_watermarks(struct drm_device *dev)
 	struct drm_atomic_state *state;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *cstate;
+	struct drm_modeset_acquire_ctx ctx;
 	int ret;
 	int i;
 
@@ -15032,8 +15033,8 @@ static void sanitize_watermarks(struct drm_device *dev)
 	 * Calculate what we think WM's should be by creating a dummy state and
 	 * running it through the atomic check code.
 	 */
-	state = drm_atomic_helper_duplicate_state(dev,
-						  dev->mode_config.acquire_ctx);
+	drm_modeset_acquire_init(&ctx, 0);
+	state = drm_atomic_helper_duplicate_state(dev, &ctx);
 	if (WARN_ON(IS_ERR(state)))
 		return;
 
@@ -15064,6 +15065,8 @@ static void sanitize_watermarks(struct drm_device *dev)
 	}
 
 	drm_atomic_state_free(state);
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
 }
 
 void intel_modeset_init(struct drm_device *dev)
