@@ -2048,7 +2048,7 @@ static void intel_read_wm_latency(struct drm_device *dev, uint16_t wm[8])
 	if (IS_GEN9(dev)) {
 		uint32_t val;
 		int ret, i;
-		int level, max_level = ilk_wm_max_level(dev);
+		int level, max_level = dev_priv->wm.max_level;
 
 		/* read the first set of memory latencies[0:3] */
 		val = 0; /* data0 to be programmed to 0 for first set */
@@ -2163,24 +2163,11 @@ static void intel_fixup_cur_wm_latency(struct drm_device *dev, uint16_t wm[5])
 		wm[3] *= 2;
 }
 
-int ilk_wm_max_level(const struct drm_device *dev)
-{
-	/* how many WM levels are we expecting */
-	if (INTEL_INFO(dev)->gen >= 9)
-		return 7;
-	else if (IS_HASWELL(dev) || IS_BROADWELL(dev))
-		return 4;
-	else if (INTEL_INFO(dev)->gen >= 6)
-		return 3;
-	else
-		return 2;
-}
-
 static void intel_print_wm_latency(struct drm_device *dev,
 				   const char *name,
 				   const uint16_t wm[8])
 {
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = to_i915(dev)->wm.max_level;
 
 	for (level = 0; level <= max_level; level++) {
 		unsigned int latency = wm[level];
@@ -2209,7 +2196,7 @@ static void intel_print_wm_latency(struct drm_device *dev,
 static bool ilk_increase_wm_latency(struct drm_i915_private *dev_priv,
 				    uint16_t wm[5], uint16_t min)
 {
-	int level, max_level = ilk_wm_max_level(dev_priv->dev);
+	int level, max_level = dev_priv->wm.max_level;
 
 	if (wm[0] >= min)
 		return false;
@@ -2263,6 +2250,13 @@ static void ilk_setup_wm_latency(struct drm_device *dev)
 
 	if (IS_GEN6(dev))
 		snb_wm_latency_quirk(dev);
+
+	if (IS_HASWELL(dev) || IS_BROADWELL(dev))
+		dev_priv->wm.max_level = 4;
+	else if (INTEL_INFO(dev)->gen >= 6)
+		dev_priv->wm.max_level = 3;
+	else
+		dev_priv->wm.max_level = 2;
 }
 
 static void skl_setup_wm_latency(struct drm_device *dev)
@@ -2271,6 +2265,8 @@ static void skl_setup_wm_latency(struct drm_device *dev)
 
 	intel_read_wm_latency(dev, dev_priv->wm.skl_latency);
 	intel_print_wm_latency(dev, "Gen9 Plane", dev_priv->wm.skl_latency);
+
+	dev_priv->wm.max_level = 7;
 }
 
 static bool ilk_validate_pipe_wm(struct drm_device *dev,
@@ -2309,7 +2305,7 @@ static int ilk_compute_pipe_wm(struct intel_crtc *intel_crtc,
 	struct intel_plane_state *pristate = NULL;
 	struct intel_plane_state *sprstate = NULL;
 	struct intel_plane_state *curstate = NULL;
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = dev_priv->wm.max_level;
 	struct ilk_wm_maximums max;
 
 	cstate = intel_atomic_get_crtc_state(state, intel_crtc);
@@ -2388,7 +2384,7 @@ static int ilk_compute_intermediate_wm(struct drm_device *dev,
 {
 	struct intel_pipe_wm *a = &newstate->wm.intermediate;
 	struct intel_pipe_wm *b = &intel_crtc->wm.active.ilk;
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = to_i915(dev)->wm.max_level;
 
 	/*
 	 * Start with the final, target watermarks, then combine with the
@@ -2472,7 +2468,7 @@ static void ilk_wm_merge(struct drm_device *dev,
 			 struct intel_pipe_wm *merged)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = dev_priv->wm.max_level;
 	int last_enabled_level = max_level;
 
 	/* ILK/SNB/IVB: LP1+ watermarks only w/ single pipe */
@@ -2612,7 +2608,7 @@ static struct intel_pipe_wm *ilk_find_best_result(struct drm_device *dev,
 						  struct intel_pipe_wm *r1,
 						  struct intel_pipe_wm *r2)
 {
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = to_i915(dev)->wm.max_level;
 	int level1 = 0, level2 = 0;
 
 	for (level = 1; level <= max_level; level++) {
@@ -3312,7 +3308,7 @@ static void skl_compute_pipe_wm(struct intel_crtc_state *cstate,
 {
 	struct drm_device *dev = cstate->base.crtc->dev;
 	const struct drm_i915_private *dev_priv = dev->dev_private;
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = dev_priv->wm.max_level;
 
 	for (level = 0; level <= max_level; level++) {
 		skl_compute_wm_level(dev_priv, ddb, cstate,
@@ -3328,7 +3324,7 @@ static void skl_compute_wm_results(struct drm_device *dev,
 				   struct skl_wm_values *r,
 				   struct intel_crtc *intel_crtc)
 {
-	int level, max_level = ilk_wm_max_level(dev);
+	int level, max_level = to_i915(dev)->wm.max_level;
 	enum pipe pipe = intel_crtc->pipe;
 	uint32_t temp;
 	int i;
@@ -3397,7 +3393,7 @@ static void skl_write_wm_values(struct drm_i915_private *dev_priv,
 	struct intel_crtc *crtc;
 
 	for_each_intel_crtc(dev, crtc) {
-		int i, level, max_level = ilk_wm_max_level(dev);
+		int i, level, max_level = dev_priv->wm.max_level;
 		enum pipe pipe = crtc->pipe;
 
 		if (!new->dirty[pipe])
@@ -3790,7 +3786,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	int level, i, max_level;
 	uint32_t temp;
 
-	max_level = ilk_wm_max_level(dev);
+	max_level = dev_priv->wm.max_level;
 
 	hw->wm_linetime[pipe] = I915_READ(PIPE_WM_LINETIME(pipe));
 
@@ -3880,7 +3876,7 @@ static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 		active->wm[0].cur_val = tmp & WM0_PIPE_CURSOR_MASK;
 		active->linetime = hw->wm_linetime[pipe];
 	} else {
-		int level, max_level = ilk_wm_max_level(dev);
+		int level, max_level = dev_priv->wm.max_level;
 
 		/*
 		 * For inactive pipes, all watermark levels
