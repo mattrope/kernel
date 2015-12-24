@@ -1159,6 +1159,7 @@ int intel_plane_atomic_set_property(struct drm_plane *plane,
 				    uint64_t val);
 int intel_plane_atomic_calc_changes(struct drm_crtc_state *crtc_state,
 				    struct drm_plane_state *plane_state);
+uint32_t ilk_pipe_pixel_rate(const struct intel_crtc_state *pipe_config);
 
 unsigned int
 intel_tile_height(struct drm_device *dev, uint32_t pixel_format,
@@ -1587,7 +1588,6 @@ void ilk_wm_get_hw_state(struct drm_device *dev);
 void skl_wm_get_hw_state(struct drm_device *dev);
 void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 			  struct skl_ddb_allocation *ddb /* out */);
-uint32_t ilk_pipe_pixel_rate(const struct intel_crtc_state *pipe_config);
 bool ilk_disable_lp_wm(struct drm_device *dev);
 
 /* intel_sdvo.c */
@@ -1604,6 +1604,16 @@ void intel_pipe_update_end(struct intel_crtc *crtc);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_device *dev);
+
+/* intel_wm_ilk.c */
+int ilk_compute_pipe_wm(struct intel_crtc *intel_crtc,
+			struct drm_atomic_state *state);
+int ilk_compute_intermediate_wm(struct drm_device *dev,
+				struct intel_crtc *intel_crtc,
+				struct intel_crtc_state *newstate);
+void ilk_initial_watermarks(struct intel_crtc_state *cstate);
+void ilk_optimize_watermarks(struct intel_crtc_state *cstate);
+void ilk_wm_get_hw_state(struct drm_device *dev);
 
 /* intel_atomic.c */
 int intel_connector_atomic_get_property(struct drm_connector *connector,
