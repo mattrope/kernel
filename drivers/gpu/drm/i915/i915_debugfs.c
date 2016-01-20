@@ -5255,6 +5255,103 @@ static int i915_sseu_status(struct seq_file *m, void *unused)
 	return 0;
 }
 
+#define ilk_print_wm_lv(lv, component) \
+	if (!lv.enable) seq_puts(m, "  --"); \
+	else seq_printf(m, "  %2d", lv.component ##_val);
+
+static void ilk_watermark_status(struct drm_device *dev, struct seq_file *m)
+{
+	struct drm_crtc *crtc;
+	struct intel_crtc_state *cstate;
+	struct intel_pipe_wm *pipe_wm;
+	int i, max_level = ilk_wm_max_level(dev);
+
+	seq_printf(m, "Platform has %d watermark levels\n\n", max_level+1);
+
+	seq_puts(m, "Current Watermarks\n");
+	seq_puts(m, "------------------\n");
+	for_each_crtc(dev, crtc) {
+		cstate = to_intel_crtc_state(crtc->state);
+
+		seq_printf(m, "%s Intermediate:", crtc->name);
+		pipe_wm = &cstate->wm.intermediate;
+		seq_puts(m, "\n - Primary:");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], pri);
+		seq_puts(m, "\n - Sprite: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], spr);
+		seq_puts(m, "\n - Cursor: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], cur);
+		seq_puts(m, "\n - FBC:    ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], fbc);
+
+		seq_printf(m, "\n\n %s Optimal:", crtc->name);
+		pipe_wm = &cstate->wm.optimal.ilk;
+		seq_puts(m, "\n - Primary:");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], pri);
+		seq_puts(m, "\n - Sprite: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], spr);
+		seq_puts(m, "\n - Cursor: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], cur);
+		seq_puts(m, "\n - FBC:    ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], fbc);
+
+		seq_puts(m, "\n\n");
+	}
+}
+
+#define skl_print_wm_lv(lv, p) \
+	if (!lv.plane_en) seq_puts(m, "  (--/--)"); \
+	else seq_printf(m, "  (%2d/%2d)", lv.plane_res_b[p], lv.plane_res_l[p]);
+
+static void skl_watermark_status(struct drm_device *dev, struct seq_file *m)
+{
+	struct drm_crtc *crtc;
+	struct intel_plane *plane;
+	struct intel_crtc_state *cstate;
+	struct skl_pipe_wm *pipe_wm;
+	int i, max_level = ilk_wm_max_level(dev);
+
+	seq_printf(m, "Platform has %d watermark levels\n\n", max_level+1);
+
+	seq_puts(m, "Current Watermarks\n");
+	seq_puts(m, "------------------\n\n");
+	for_each_crtc(dev, crtc) {
+		cstate = to_intel_crtc_state(crtc->state);
+
+		seq_printf(m, "%s Optimal (blocks/lines):", crtc->name);
+		pipe_wm = &cstate->wm.optimal.skl;
+		for_each_intel_plane_on_crtc(dev, to_intel_crtc(crtc), plane) {
+			seq_printf(m, "\n - %s:", plane->base.name);
+			for (i = 0; i <= max_level; i++)
+				skl_print_wm_lv(pipe_wm->wm[i], plane->plane);
+		}
+		seq_puts(m, "\n\n");
+	}
+}
+
+static int i915_watermark_info(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+
+	if (INTEL_INFO(dev)->gen >= 9)
+		skl_watermark_status(dev, m);
+	else if (HAS_PCH_SPLIT(dev))
+		ilk_watermark_status(dev, m);
+	else
+		seq_puts(m, "No watermark debugging on this platform yet.\n");
+
+	return 0;
+}
+
 static int i915_forcewake_open(struct inode *inode, struct file *file)
 {
 	struct drm_device *dev = inode->i_private;
@@ -5369,6 +5466,7 @@ static const struct drm_info_list i915_debugfs_list[] = {
 	{"i915_power_domain_info", i915_power_domain_info, 0},
 	{"i915_dmc_info", i915_dmc_info, 0},
 	{"i915_display_info", i915_display_info, 0},
+	{"i915_watermark_info", i915_watermark_info, 0},
 	{"i915_semaphore_status", i915_semaphore_status, 0},
 	{"i915_shared_dplls_info", i915_shared_dplls_info, 0},
 	{"i915_dp_mst_info", i915_dp_mst_info, 0},
