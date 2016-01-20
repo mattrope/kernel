@@ -5261,6 +5261,7 @@ static int i915_sseu_status(struct seq_file *m, void *unused)
 
 static void ilk_watermark_status(struct drm_device *dev, struct seq_file *m)
 {
+	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct drm_crtc *crtc;
 	struct intel_crtc_state *cstate;
 	struct intel_pipe_wm *pipe_wm;
@@ -5305,6 +5306,32 @@ static void ilk_watermark_status(struct drm_device *dev, struct seq_file *m)
 
 		seq_puts(m, "\n\n");
 	}
+
+	seq_puts(m, "Sanitized Watermarks at Boot\n");
+	seq_puts(m, "----------------------------\n");
+	for_each_crtc(dev, crtc) {
+		int pipe = to_intel_crtc(crtc)->pipe;
+
+		pipe_wm = dev_priv->wm.sanitized_pipe_wm[pipe];
+		if (!pipe_wm)
+			continue;
+
+		seq_printf(m, "%s:", crtc->name);
+		seq_puts(m, "\n - Primary:");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], pri);
+		seq_puts(m, "\n - Sprite: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], spr);
+		seq_puts(m, "\n - Cursor: ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], cur);
+		seq_puts(m, "\n - FBC:    ");
+		for (i = 0; i <= max_level; i++)
+			ilk_print_wm_lv(pipe_wm->wm[i], fbc);
+
+		seq_puts(m, "\n\n");
+	}
 }
 
 #define skl_print_wm_lv(lv, p) \
@@ -5313,6 +5340,7 @@ static void ilk_watermark_status(struct drm_device *dev, struct seq_file *m)
 
 static void skl_watermark_status(struct drm_device *dev, struct seq_file *m)
 {
+	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct drm_crtc *crtc;
 	struct intel_plane *plane;
 	struct intel_crtc_state *cstate;
@@ -5328,6 +5356,24 @@ static void skl_watermark_status(struct drm_device *dev, struct seq_file *m)
 
 		seq_printf(m, "%s Optimal (blocks/lines):", crtc->name);
 		pipe_wm = &cstate->wm.optimal.skl;
+		for_each_intel_plane_on_crtc(dev, to_intel_crtc(crtc), plane) {
+			seq_printf(m, "\n - %s:", plane->base.name);
+			for (i = 0; i <= max_level; i++)
+				skl_print_wm_lv(pipe_wm->wm[i], plane->plane);
+		}
+		seq_puts(m, "\n\n");
+	}
+
+	seq_puts(m, "Sanitized Watermarks at Boot\n");
+	seq_puts(m, "----------------------------\n");
+	for_each_crtc(dev, crtc) {
+		int pipe = to_intel_crtc(crtc)->pipe;
+
+		pipe_wm = dev_priv->wm.sanitized_pipe_wm[pipe];
+		if (!pipe_wm)
+			continue;
+
+		seq_printf(m, "%s:", crtc->name);
 		for_each_intel_plane_on_crtc(dev, to_intel_crtc(crtc), plane) {
 			seq_printf(m, "\n - %s:", plane->base.name);
 			for (i = 0; i <= max_level; i++)

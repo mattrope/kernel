@@ -1945,6 +1945,13 @@ struct drm_i915_private {
 		 * cstate->wm.need_postvbl_update.
 		 */
 		struct mutex wm_mutex;
+
+		/*
+		 * The initial per-pipe values we picked during watermark
+		 * sanitization.  This is only useful for debugging; it
+		 * will never be used by the driver again.
+		 */
+		void *sanitized_pipe_wm[I915_MAX_PIPES];
 	} wm;
 
 	struct i915_runtime_pm pm;

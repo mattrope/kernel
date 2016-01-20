@@ -15391,9 +15391,15 @@ retry:
 	to_i915(dev)->wm.config = to_intel_atomic_state(state)->wm_config;
 	for_each_crtc_in_state(state, crtc, cstate, i) {
 		struct intel_crtc_state *cs = to_intel_crtc_state(cstate);
+		int pipe = to_intel_crtc(crtc)->pipe;
 
 		cs->wm.need_postvbl_update = true;
 		dev_priv->display.optimize_watermarks(cs);
+
+		/* Copy sanitized watermark values for later debugging */
+		dev_priv->wm.sanitized_pipe_wm[pipe] =
+			kmemdup(&cs->wm.optimal, sizeof(cs->wm.optimal),
+				GFP_KERNEL);
 	}
 
 	drm_atomic_state_free(state);
@@ -16108,6 +16114,7 @@ void intel_modeset_cleanup(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_connector *connector;
+	int pipe;
 
 	intel_disable_gt_powersave(dev);
 
@@ -16146,6 +16153,9 @@ void intel_modeset_cleanup(struct drm_device *dev)
 	mutex_unlock(&dev->struct_mutex);
 
 	intel_teardown_gmbus(dev);
+
+	for_each_pipe(dev_priv, pipe)
+		kfree(dev_priv->wm.sanitized_pipe_wm[pipe]);
 }
 
 /*
