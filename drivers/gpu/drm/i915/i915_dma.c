@@ -49,6 +49,7 @@
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <linux/oom.h>
+#include <linux/dmi.h>
 
 static unsigned int i915_load_fail_count;
 
@@ -1048,6 +1049,59 @@ static void i915_workqueues_cleanup(struct drm_i915_private *dev_priv)
 	destroy_workqueue(dev_priv->wq);
 }
 
+#define DMI_CHANNEL_WIDTH_UNKNOWN 0xFFFF
+
+/*
+ * Make sure DMI-provided entry is large enough to supply the desired
+ * field.
+ */
+#define MEMDEV_HAS(entry, field) \
+	(entry->length >= offsetof(struct dmi_entry_memdev, field) + \
+	 sizeof(entry->field))
+
+static void dmi_decode_memory_info(const struct dmi_header *hdr, void *priv)
+{
+	struct drm_i915_private *dev_priv = (struct drm_i915_private *) priv;
+	const struct dmi_entry_memdev *memdev =
+		(const struct dmi_entry_memdev *)hdr;
+	uint16_t mem_speed = 0;
+	uint16_t channel_width = 0;
+
+	if (hdr->type != DMI_ENTRY_MEM_DEVICE)
+		return;
+
+	/* Get the speed */
+	if (MEMDEV_HAS(memdev, conf_mem_clk_speed))
+		mem_speed = memdev->conf_mem_clk_speed;
+	else if (MEMDEV_HAS(memdev, speed))
+		mem_speed = memdev->speed;
+	else
+		return;
+
+	dev_priv->dmi.mem_channel++;
+
+	/* Get the channel width */
+	if (MEMDEV_HAS(memdev, data_width))
+		channel_width = memdev->data_width;
+
+	/* All channels are expected to have same the speed */
+	if (dev_priv->dmi.mem_speed == 0) {
+		dev_priv->dmi.mem_speed = mem_speed;
+	} else if (mem_speed != dev_priv->dmi.mem_speed) {
+		DRM_DEBUG_KMS("DMI memory speeds don't match (%d != %d); DMI is invalid\n",
+			      mem_speed, dev_priv->dmi.mem_speed);
+		dev_priv->dmi.valid = false;
+	}
+
+	/* Ignore unknown channel widths or error-correction-only channels */
+	if (dev_priv->dmi.channel_width == 0 ||
+	    dev_priv->dmi.channel_width == DMI_CHANNEL_WIDTH_UNKNOWN)
+		return;
+
+	dev_priv->dmi.channel_width = channel_width;
+}
+
+
 /**
  * i915_driver_init_early - setup state not requiring device access
  * @dev_priv: device private
@@ -1112,6 +1166,16 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 	if (IS_HSW_EARLY_SDV(dev))
 		DRM_INFO("This is an early pre-production Haswell machine. "
 			 "It may not be fully functional.\n");
+
+	/* walk the dmi device table for getting platform memory information */
+	dev_priv->dmi.valid = true;
+	dmi_walk(dmi_decode_memory_info, dev_priv);
+	if (!dev_priv->dmi.mem_speed)
+		dev_priv->dmi.valid = false;
+	if (dev_priv->dmi.channel_width == 0 ||
+	    dev_priv->dmi.channel_width == DMI_CHANNEL_WIDTH_UNKNOWN)
+		/* Assume 8 bit width if unknown */
+		dev_priv->dmi.channel_width = 8;
 
 	return 0;
 }
