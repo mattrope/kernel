@@ -168,6 +168,11 @@ struct drm_crtc_state {
 	 * drivers to steer the atomic commit control flow.
 	 */
 	bool color_mgmt_changed : 1;
+	/**
+	 * @bgcolor_changed: Background color value has changed.  Used by
+	 * drivers to steer the atomic commit control flow.
+	 */
+	bool bgcolor_changed : 1;
 
 	/**
 	 * @no_vblank:
@@ -273,6 +278,18 @@ struct drm_crtc_state {
 	 * NULL) is an array of &struct drm_color_lut.
 	 */
 	struct drm_property_blob *gamma_lut;
+
+	/**
+	 * @bgcolor:
+	 *
+	 * RGB value representing the pipe's background color.  The background
+	 * color (aka "canvas color") of a pipe is the color that will be used
+	 * for pixels not covered by a plane, or covered by transparent pixels
+	 * of a plane.  The value here should be built via drm_argb();
+	 * individual color components can be extracted with desired precision
+	 * via the DRM_ARGB_*() macros.
+	 */
+	u64 bgcolor;
 
 	/**
 	 * @target_vblank:
