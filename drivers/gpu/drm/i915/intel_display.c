@@ -3714,6 +3714,35 @@ static void intel_update_pipe_config(const struct intel_crtc_state *old_crtc_sta
 		else if (old_crtc_state->pch_pfit.enabled)
 			ironlake_pfit_disable(crtc, true);
 	}
+
+}
+
+static void
+intel_update_pipe_bgcolor(struct intel_crtc_state *cstate)
+{
+	struct intel_crtc *crtc = to_intel_crtc(cstate->base.crtc);
+	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
+	struct drm_rgba bgcolor = cstate->base.background_color;
+	uint32_t val;
+
+	if (INTEL_GEN(dev_priv) >= 9) {
+		/* BGR 16bpc property ==> RGB 10bpc register */
+		val = DRM_RGBA_REDBITS(bgcolor, 10) << 20
+		    | DRM_RGBA_GREENBITS(bgcolor, 10) << 10
+		    | DRM_RGBA_BLUEBITS(bgcolor, 10);
+
+		/*
+		 * NOTE:  We turn these on CSC and gamma unconditionally for
+		 * now to match how we've setup the corresponding plane bits.
+		 * If/when plane-level color management lands, we'll probably
+		 * need to figure out a way to make this userspace-configurable
+		 * as well.
+		 */
+		val |= PIPE_BOTTOM_CSC_ENABLE;
+		val |= PIPE_BOTTOM_GAMMA_ENABLE;
+
+		I915_WRITE(PIPE_BOTTOM_COLOR(crtc->pipe), val);
+	}
 }
 
 static void intel_fdi_normal_train(struct intel_crtc *crtc)
@@ -10465,6 +10494,13 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	if (HAS_IPS(dev_priv))
 		pipe_config->ips_enabled = hsw_compute_ips_config(pipe_config);
 
+	/*
+	 * Even though it's technically part of the pipe, the background color
+	 * behaves more like a dummy plane.
+	 */
+	if (crtc->state->background_color.v != crtc_state->background_color.v)
+		crtc_state->planes_changed = true;
+
 	return ret;
 }
 
@@ -12918,6 +12954,8 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 	/* Perform vblank evasion around commit operation */
 	intel_pipe_update_start(intel_cstate);
 
+	intel_update_pipe_bgcolor(intel_cstate);
+
 	if (modeset)
 		goto out;
 
@@ -13525,6 +13563,17 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 	intel_color_init(&intel_crtc->base);
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
+
+	crtc_state->base.background_color = drm_rgba(16, 0, 0, 0, 0);
+	if (INTEL_GEN(dev_priv) >= 9) {
+		struct drm_property *bgprop =
+			dev_priv->drm.mode_config.prop_bgcolor;
+		uint64_t v = crtc_state->base.background_color.v;
+
+		if (bgprop)
+			drm_object_attach_property(&intel_crtc->base.base,
+						   bgprop, v);
+	}
 
 	return 0;
 
