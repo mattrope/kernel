@@ -188,6 +188,14 @@ struct drm_crtc_state {
 	struct drm_property_blob *gamma_lut;
 
 	/**
+	 * @background_color:
+	 *
+	 * Background/canvas color that the hardware should display for any
+	 * regions not covered by planes.
+	 */
+	struct drm_rgba background_color;
+
+	/**
 	 * @target_vblank:
 	 *
 	 * Target vertical blank period when a page flip

@@ -348,6 +348,12 @@ static int drm_mode_create_standard_properties(struct drm_device *dev)
 		return -ENOMEM;
 	dev->mode_config.modifiers_property = prop;
 
+	prop = drm_property_create_rgba(dev, DRM_MODE_PROP_ATOMIC,
+					"BACKGROUND_COLOR");
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.prop_bgcolor = prop;
+
 	return 0;
 }
 
