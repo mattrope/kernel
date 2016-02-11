@@ -888,6 +888,32 @@ struct drm_mode_revoke_lease {
 	__u32 lessee_id;
 };
 
+/*
+ * Put RGBA values into a standard 64-bit representation that can be used
+ * for ioctl parameters, inter-driver commmunication, etc.  If the component
+ * values being provided contain less than 16 bits of precision, they'll
+ * be shifted into the most significant bits.
+ */
+static inline __u64
+drm_rgba(__u8 bpc, __u16 red, __u16 green, __u16 blue, __u16 alpha)
+{
+	int msb_shift = 16 - bpc;
+
+	return (__u64)alpha << msb_shift << 48 |
+	       (__u64)red   << msb_shift << 32 |
+	       (__u64)green << msb_shift << 16 |
+	       (__u64)blue  << msb_shift;
+}
+
+/*
+ * Extract the specified number of bits of a specific color component from a
+ * standard 64-bit RGBA value.
+ */
+#define DRM_RGBA_BLUE(c, numbits)  (__u16)((c & 0xFFFFull)     >> (16-numbits))
+#define DRM_RGBA_GREEN(c, numbits) (__u16)((c & 0xFFFFull<<16) >> (32-numbits))
+#define DRM_RGBA_RED(c, numbits)   (__u16)((c & 0xFFFFull<<32) >> (48-numbits))
+#define DRM_RGBA_ALPHA(c, numbits) (__u16)((c & 0xFFFFull<<48) >> (64-numbits))
+
 #if defined(__cplusplus)
 }
 #endif
