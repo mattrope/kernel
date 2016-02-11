@@ -807,6 +807,11 @@ struct drm_mode_config {
 	 */
 	struct drm_property *writeback_out_fence_ptr_property;
 
+	/**
+	 * @bgcolor_property: RGBA background color for CRTC.
+	 */
+	struct drm_property *bgcolor_property;
+
 	/* dumb ioctl parameters */
 	uint32_t preferred_depth, prefer_shadow;
 	bool quirk_addfb_prefer_xbgr_30bpp;
