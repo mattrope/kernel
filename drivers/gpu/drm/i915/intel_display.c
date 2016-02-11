@@ -3853,6 +3853,28 @@ unlock:
 	clear_bit(I915_RESET_MODESET, &dev_priv->gpu_error.flags);
 }
 
+static void skl_update_background_color(const struct intel_crtc_state *cstate)
+{
+	struct intel_crtc *crtc = to_intel_crtc(cstate->base.crtc);
+	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
+	uint64_t propval = cstate->base.background_color;
+	uint32_t hwval;
+
+	/* Hardware is programmed with 10 bits of precision */
+	hwval = DRM_RGBA_RED(propval, 10) << 20
+	      | DRM_RGBA_GREEN(propval, 10) << 10
+	      | DRM_RGBA_BLUE(propval, 10);
+
+	/*
+	 * Set CSC and gamma for bottom color to ensure background pixels
+	 * receive the same color transformations as plane content.
+	 */
+	hwval |= PIPE_BOTTOM_CSC_ENABLE;
+	hwval |= PIPE_BOTTOM_GAMMA_ENABLE;
+
+	I915_WRITE_FW(PIPE_BOTTOM_COLOR(crtc->pipe), hwval);
+}
+
 static void intel_update_pipe_config(const struct intel_crtc_state *old_crtc_state,
 				     const struct intel_crtc_state *new_crtc_state)
 {
@@ -3887,6 +3909,9 @@ static void intel_update_pipe_config(const struct intel_crtc_state *old_crtc_sta
 		else if (old_crtc_state->pch_pfit.enabled)
 			ironlake_pfit_disable(old_crtc_state);
 	}
+
+	if (new_crtc_state->base.bgcolor_changed)
+		skl_update_background_color(new_crtc_state);
 }
 
 static void intel_fdi_normal_train(struct intel_crtc *crtc)
@@ -10791,6 +10816,9 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 		crtc_state->planes_changed = true;
 	}
 
+	if (crtc_state->bgcolor_changed)
+		pipe_config->update_pipe = true;
+
 	ret = 0;
 	if (dev_priv->display.compute_pipe_wm) {
 		ret = dev_priv->display.compute_pipe_wm(pipe_config);
@@ -13831,6 +13859,7 @@ static void intel_crtc_init_scalers(struct intel_crtc *crtc,
 
 static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 {
+	struct drm_mode_config *mode_config = &dev_priv->drm.mode_config;
 	struct intel_crtc *intel_crtc;
 	struct intel_crtc_state *crtc_state = NULL;
 	struct intel_plane *primary = NULL;
@@ -13904,6 +13933,11 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 	intel_color_init(&intel_crtc->base);
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
+
+	if (INTEL_GEN(dev_priv) >= 9)
+		drm_object_attach_property(&intel_crtc->base.base,
+					   mode_config->bgcolor_property,
+					   drm_rgba(16, 0, 0, 0, 0xffff));
 
 	return 0;
 
