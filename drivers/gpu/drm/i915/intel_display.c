@@ -3373,8 +3373,25 @@ u32 skl_plane_stride(const struct drm_framebuffer *fb, int plane,
 	return stride;
 }
 
-static u32 skl_plane_ctl_format(uint32_t pixel_format)
+static u32 skl_plane_ctl_format(uint32_t pixel_format, enum i915_alpha alpha)
 {
+	u32 plane_ctl_alpha;
+
+	switch (alpha) {
+	case I915_ALPHA_NONE:
+		plane_ctl_alpha = PLANE_CTL_ALPHA_DISABLE;
+		break;
+	case I915_ALPHA_PREMUL:
+		plane_ctl_alpha = PLANE_CTL_ALPHA_SW_PREMULTIPLY;
+		break;
+	case I915_ALPHA_NON_PREMUL:
+		plane_ctl_alpha = PLANE_CTL_ALPHA_HW_PREMULTIPLY;
+		break;
+	default:
+		MISSING_CASE(alpha);
+		plane_ctl_alpha = PLANE_CTL_ALPHA_DISABLE;
+	}
+
 	switch (pixel_format) {
 	case DRM_FORMAT_C8:
 		return PLANE_CTL_FORMAT_INDEXED;
@@ -3382,10 +3399,14 @@ static u32 skl_plane_ctl_format(uint32_t pixel_format)
 		return PLANE_CTL_FORMAT_RGB_565;
 	case DRM_FORMAT_XBGR8888:
 	case DRM_FORMAT_ABGR8888:
-		return PLANE_CTL_FORMAT_XRGB_8888 | PLANE_CTL_ORDER_RGBX;
-	case DRM_FORMAT_XRGB8888:
+		return PLANE_CTL_FORMAT_XRGB_8888 |
+		       PLANE_CTL_ORDER_RGBX |
+		       plane_ctl_alpha;
 	case DRM_FORMAT_ARGB8888:
-		return PLANE_CTL_FORMAT_XRGB_8888;
+	case DRM_FORMAT_XRGB8888:
+		return PLANE_CTL_FORMAT_XRGB_8888 |
+		       PLANE_CTL_ORDER_BGRX |
+		       plane_ctl_alpha;
 	case DRM_FORMAT_XRGB2101010:
 		return PLANE_CTL_FORMAT_XRGB_2101010;
 	case DRM_FORMAT_XBGR2101010:
@@ -3496,7 +3517,8 @@ u32 skl_plane_ctl(const struct intel_crtc_state *crtc_state,
 			PLANE_CTL_PLANE_GAMMA_DISABLE;
 	}
 
-	plane_ctl |= skl_plane_ctl_format(fb->format->format);
+	plane_ctl |= skl_plane_ctl_format(fb->format->format,
+					  plane_state->alpha);
 	plane_ctl |= skl_plane_ctl_tiling(fb->modifier);
 	plane_ctl |= skl_plane_ctl_rotation(rotation);
 
@@ -10277,6 +10299,103 @@ static bool needs_scaling(const struct intel_plane_state *state)
 	return (src_w != dst_w || src_h != dst_h);
 }
 
+#define BLEND_FUNC(mode, src, dest) ( \
+	mode->src_factor == DRM_BLEND_FACTOR_ ## src && \
+	mode->dest_factor == DRM_BLEND_FACTOR_ ## dest)
+
+static int
+intel_plane_state_check_blend(struct drm_plane_state *plane_state)
+{
+	struct drm_i915_private *dev_priv = to_i915(plane_state->state->dev);
+	struct intel_plane_state *state = to_intel_plane_state(plane_state);
+	const struct drm_framebuffer *fb = plane_state->fb;
+	const struct drm_blend_mode *mode = &state->base.blend_mode;
+	struct drm_format_name_buf format_name;
+	bool has_per_pixel_blending;
+
+	/* We don't install the properties pre-gen9 */
+	if (INTEL_GEN(dev_priv) < 9)
+		return 0;
+
+	if (!fb)
+		return 0;
+
+	switch (fb->format->format) {
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_ARGB8888:
+		has_per_pixel_blending = true;
+		break;
+	default:
+		has_per_pixel_blending = false;
+	}
+
+	/*
+	 * The 'AUTO' behaviour is the default and keeps compatibility with
+	 * kernels before the introduction of the blend_func property:
+	 *   - pre-multiplied alpha if the fb has an alpha channel
+	 *   - disabled otherwise
+	 */
+	if (BLEND_FUNC(mode, AUTO, AUTO) ||
+	    BLEND_FUNC(mode, ONE, ONE_MINUS_SRC_ALPHA)) {
+		state->alpha = has_per_pixel_blending ?
+			I915_ALPHA_PREMUL : I915_ALPHA_NONE;
+		state->use_plane_alpha = false;
+
+	/* fbs without an alpha channel, or dropping the alpha channel */
+	} else if (BLEND_FUNC(mode, ONE, ZERO)) {
+		state->alpha = I915_ALPHA_NONE;
+		state->use_plane_alpha = false;
+
+	/* non pre-multiplied alpha */
+	} else if (BLEND_FUNC(mode, SRC_ALPHA, ONE_MINUS_SRC_ALPHA)) {
+		state->alpha = has_per_pixel_blending ?
+			I915_ALPHA_NON_PREMUL : I915_ALPHA_NONE;
+		state->use_plane_alpha = false;
+
+	/* plane alpha */
+	} else if (BLEND_FUNC(mode, CONSTANT_ALPHA, ONE_MINUS_CONSTANT_ALPHA)) {
+		state->alpha = I915_ALPHA_NONE;
+		state->use_plane_alpha = true;
+
+	/* plane alpha, pre-multiplied fb */
+	} else if (BLEND_FUNC(mode, CONSTANT_ALPHA,
+			      ONE_MINUS_CONSTANT_ALPHA_TIMES_SRC_ALPHA)) {
+		state->alpha = I915_ALPHA_PREMUL;
+		state->use_plane_alpha = true;
+
+	/* plane alpha, non pre-multiplied fb */
+	} else if (BLEND_FUNC(mode, CONSTANT_ALPHA_TIMES_SRC_ALPHA,
+			      ONE_MINUS_CONSTANT_ALPHA_TIMES_SRC_ALPHA)) {
+		state->alpha = I915_ALPHA_NON_PREMUL;
+		state->use_plane_alpha = true;
+
+	} else {
+		DRM_DEBUG_KMS("Invalid blend factor combination (0x%x,0x%x)\n",
+			      mode->src_factor, mode->dest_factor);
+		return -EINVAL;
+	}
+
+	/*
+	 * Make sure we don't try to do blending on pixel formats that can't
+	 * support it (i.e., non-RGB8888 formats).
+	 */
+	switch (fb->format->format) {
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_XRGB8888:
+		break;
+	default:
+		if (state->alpha != I915_ALPHA_NONE) {
+			DRM_DEBUG_KMS("Format %s does not support per-pixel alpha blending!",
+				      drm_get_format_name(fb->format->format, &format_name));
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 int intel_plane_atomic_calc_changes(const struct intel_crtc_state *old_crtc_state,
 				    struct drm_crtc_state *crtc_state,
 				    const struct intel_plane_state *old_plane_state,
@@ -10378,6 +10497,12 @@ int intel_plane_atomic_calc_changes(const struct intel_crtc_state *old_crtc_stat
 	    needs_scaling(to_intel_plane_state(plane_state)) &&
 	    !needs_scaling(old_plane_state))
 		pipe_config->disable_lp_wm = true;
+
+	if (plane->id != PLANE_CURSOR) {
+		ret = intel_plane_state_check_blend(plane_state);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
@@ -13385,6 +13510,10 @@ intel_primary_plane_create(struct drm_i915_private *dev_priv, enum pipe pipe)
 						   DRM_MODE_ROTATE_0,
 						   supported_rotations);
 
+
+	if (INTEL_GEN(dev_priv) >= 9)
+		intel_plane_add_blend_properties(primary);
+
 	drm_plane_helper_add(&primary->base, &intel_plane_helper_funcs);
 
 	return primary;
@@ -13394,6 +13523,22 @@ fail:
 	kfree(primary);
 
 	return ERR_PTR(ret);
+}
+
+void intel_plane_add_blend_properties(struct intel_plane *plane)
+{
+	struct drm_device *dev = plane->base.dev;
+	struct drm_property *prop;
+
+	prop = dev->mode_config.prop_blend_src_factor;
+	if (prop)
+		drm_object_attach_property(&plane->base.base, prop,
+					   DRM_BLEND_FACTOR_AUTO);
+
+	prop = dev->mode_config.prop_blend_dest_factor;
+	if (prop)
+		drm_object_attach_property(&plane->base.base, prop,
+					   DRM_BLEND_FACTOR_AUTO);
 }
 
 static struct intel_plane *

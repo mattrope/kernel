@@ -266,11 +266,15 @@ skl_update_plane(struct intel_plane *plane,
 	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
 		I915_WRITE_FW(PLANE_COLOR_CTL(pipe, plane_id),
 			      plane_state->color_ctl);
-	if (key->flags) {
+
+	I915_WRITE_FW(PLANE_KEYMAX(pipe, plane_id),
+		   (DRM_RGBA_ALPHABITS(plane_state->base.blend_mode.color, 8)
+			<< 24) | (key->max_value & 0x00ffffff));
+	I915_WRITE_FW(PLANE_KEYMSK(pipe, plane_id),
+		   (plane_state->use_plane_alpha << 31) |
+		   (key->channel_mask & GENMASK(0, 26)));
+	if (key->flags)
 		I915_WRITE_FW(PLANE_KEYVAL(pipe, plane_id), key->min_value);
-		I915_WRITE_FW(PLANE_KEYMAX(pipe, plane_id), key->max_value);
-		I915_WRITE_FW(PLANE_KEYMSK(pipe, plane_id), key->channel_mask);
-	}
 
 	I915_WRITE_FW(PLANE_OFFSET(pipe, plane_id), (y << 16) | x);
 	I915_WRITE_FW(PLANE_STRIDE(pipe, plane_id), stride);
@@ -1411,6 +1415,7 @@ intel_sprite_plane_create(struct drm_i915_private *dev_priv,
 	drm_plane_create_rotation_property(&intel_plane->base,
 					   DRM_MODE_ROTATE_0,
 					   supported_rotations);
+	intel_plane_add_blend_properties(intel_plane);
 
 	drm_plane_helper_add(&intel_plane->base, &intel_plane_helper_funcs);
 

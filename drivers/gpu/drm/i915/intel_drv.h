@@ -404,6 +404,12 @@ struct intel_atomic_state {
 	struct llist_node freed;
 };
 
+enum i915_alpha {
+	I915_ALPHA_NONE,
+	I915_ALPHA_PREMUL,
+	I915_ALPHA_NON_PREMUL
+};
+
 struct intel_plane_state {
 	struct drm_plane_state base;
 	struct drm_rect clip;
@@ -443,6 +449,11 @@ struct intel_plane_state {
 	 *     update_scaler_plane.
 	 */
 	int scaler_id;
+	/*
+	 * blending related hw states
+	 */
+	enum i915_alpha alpha;
+	bool use_plane_alpha;
 
 	struct drm_intel_sprite_colorkey ckey;
 };
@@ -1438,6 +1449,8 @@ int intel_plane_atomic_calc_changes(const struct intel_crtc_state *old_crtc_stat
 				    struct drm_crtc_state *crtc_state,
 				    const struct intel_plane_state *old_plane_state,
 				    struct drm_plane_state *plane_state);
+
+void intel_plane_add_blend_properties(struct intel_plane *plane);
 
 void assert_pch_transcoder_disabled(struct drm_i915_private *dev_priv,
 				    enum pipe pipe);
