@@ -290,6 +290,13 @@ struct intel_atomic_state {
 
 	bool dpll_set, modeset;
 
+	/*
+	 * Does this transaction change the pipes that are active?  This is
+	 * a subset of intel_state->modeset that is only true when a CRTC
+	 * is newly enabled/disabled.
+	 */
+	bool active_changed;
+
 	unsigned int active_crtcs;
 	unsigned int min_pixclk[I915_MAX_PIPES];
 
