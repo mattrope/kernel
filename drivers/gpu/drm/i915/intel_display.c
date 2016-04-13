@@ -12279,6 +12279,7 @@ clear_intel_crtc_state(struct intel_crtc_state *crtc_state)
 {
 	struct drm_crtc_state tmp_state;
 	struct intel_crtc_scaler_state scaler_state;
+	struct intel_crtc_wm_state wm_state;
 	struct intel_dpll_hw_state dpll_hw_state;
 	struct intel_shared_dpll *shared_dpll;
 	uint32_t ddi_pll_sel;
@@ -12291,6 +12292,7 @@ clear_intel_crtc_state(struct intel_crtc_state *crtc_state)
 
 	tmp_state = crtc_state->base;
 	scaler_state = crtc_state->scaler_state;
+	wm_state = crtc_state->wm;
 	shared_dpll = crtc_state->shared_dpll;
 	dpll_hw_state = crtc_state->dpll_hw_state;
 	ddi_pll_sel = crtc_state->ddi_pll_sel;
@@ -12300,6 +12302,7 @@ clear_intel_crtc_state(struct intel_crtc_state *crtc_state)
 
 	crtc_state->base = tmp_state;
 	crtc_state->scaler_state = scaler_state;
+	crtc_state->wm = wm_state;
 	crtc_state->shared_dpll = shared_dpll;
 	crtc_state->dpll_hw_state = dpll_hw_state;
 	crtc_state->ddi_pll_sel = ddi_pll_sel;

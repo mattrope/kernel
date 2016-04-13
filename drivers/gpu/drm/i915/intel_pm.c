@@ -2848,12 +2848,12 @@ skl_wm_plane_id(const struct intel_plane *plane)
 
 static void
 skl_ddb_get_pipe_allocation_limits(struct drm_device *dev,
-				   const struct intel_crtc_state *cstate,
-				   const struct intel_wm_config *config,
-				   struct skl_ddb_entry *alloc /* out */)
+				   struct intel_crtc_state *cstate,
+				   const struct intel_wm_config *config)
 {
 	struct drm_crtc *for_crtc = cstate->base.crtc;
 	struct drm_crtc *crtc;
+	struct skl_ddb_entry *alloc = &cstate->wm.skl.pipe_ddb;
 	unsigned int pipe_size, ddb_size;
 	int nth_active_pipe;
 
@@ -2905,6 +2905,8 @@ static void skl_ddb_entry_init_from_hw(struct skl_ddb_entry *entry, u32 reg)
 void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 			  struct skl_ddb_allocation *ddb /* out */)
 {
+	struct drm_crtc *crtc;
+	struct intel_crtc_state *cstate;
 	enum pipe pipe;
 	int plane;
 	u32 val;
@@ -2914,6 +2916,9 @@ void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 	for_each_pipe(dev_priv, pipe) {
 		enum intel_display_power_domain power_domain;
 		uint16_t startddb = ~0, endddb = 0;
+
+		crtc = intel_get_crtc_for_pipe(dev_priv->dev, pipe);
+		cstate = to_intel_crtc_state(crtc->state);
 
 		power_domain = POWER_DOMAIN_PIPE(pipe);
 		if (!intel_display_power_get_if_enabled(dev_priv, power_domain))
@@ -2937,6 +2942,8 @@ void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 		/* Reconstruct pipe DDB allocation from plane allocations */
 		ddb->pipe[pipe].start = startddb;
 		ddb->pipe[pipe].end = endddb;
+
+		cstate->wm.skl.pipe_ddb = ddb->pipe[pipe];
 
 		intel_display_power_put(dev_priv, power_domain);
 	}
@@ -3045,7 +3052,9 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	uint16_t y_minimum[I915_MAX_PLANES];
 	unsigned int total_data_rate;
 
-	skl_ddb_get_pipe_allocation_limits(dev, cstate, config, alloc);
+	skl_ddb_get_pipe_allocation_limits(dev, cstate, config);
+	*alloc = cstate->wm.skl.pipe_ddb;
+
 	alloc_size = skl_ddb_entry_size(alloc);
 	if (alloc_size == 0) {
 		memset(ddb->plane[pipe], 0, sizeof(ddb->plane[pipe]));

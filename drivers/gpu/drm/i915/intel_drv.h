@@ -433,6 +433,9 @@ struct intel_crtc_wm_state {
 		struct {
 			/* gen9+ only needs 1-step wm programming */
 			struct skl_pipe_wm optimal;
+
+			/* Pipe's DDB allocation */
+			struct skl_ddb_entry pipe_ddb;
 		} skl;
 	};
 
