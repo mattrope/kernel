@@ -2913,6 +2913,7 @@ void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 
 	for_each_pipe(dev_priv, pipe) {
 		enum intel_display_power_domain power_domain;
+		uint16_t startddb = ~0, endddb = 0;
 
 		power_domain = POWER_DOMAIN_PIPE(pipe);
 		if (!intel_display_power_get_if_enabled(dev_priv, power_domain))
@@ -2922,11 +2923,20 @@ void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 			val = I915_READ(PLANE_BUF_CFG(pipe, plane));
 			skl_ddb_entry_init_from_hw(&ddb->plane[pipe][plane],
 						   val);
+
+			startddb = min(startddb, ddb->plane[pipe][plane].start);
+			endddb = max(endddb, ddb->plane[pipe][plane].end);
 		}
 
 		val = I915_READ(CUR_BUF_CFG(pipe));
 		skl_ddb_entry_init_from_hw(&ddb->plane[pipe][PLANE_CURSOR],
 					   val);
+		startddb = min(startddb, ddb->plane[pipe][PLANE_CURSOR].start);
+		endddb = max(endddb, ddb->plane[pipe][PLANE_CURSOR].end);
+
+		/* Reconstruct pipe DDB allocation from plane allocations */
+		ddb->pipe[pipe].start = startddb;
+		ddb->pipe[pipe].end = endddb;
 
 		intel_display_power_put(dev_priv, power_domain);
 	}
