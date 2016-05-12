@@ -2002,6 +2002,18 @@ struct drm_i915_private {
 		 * (which we don't fully trust).
 		 */
 		bool distrust_bios_wm;
+
+		/*
+		 * DRAM characteristics (# channels, rank, freq, etc.).  This
+		 * is needed when deciding whether to apply specific watermark
+		 * workarounds.
+		 */
+		struct {
+			unsigned speed;
+			unsigned channels;
+			unsigned total_size;
+			bool multi_rank;
+		} dram;
 	} wm;
 
 	struct i915_runtime_pm pm;

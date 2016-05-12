@@ -15259,6 +15259,62 @@ static void i915_disable_vga(struct drm_device *dev)
 	POSTING_READ(vga_reg);
 }
 
+static void
+intel_read_dram_info(struct drm_i915_private *dev_priv)
+{
+	uint32_t dclk, dimm;
+	unsigned freq = 0;
+	unsigned freq_type;
+	const i915_reg_t CHANNELS[] = {SKL_DIMM_C0, SKL_DIMM_C1};
+	int i;
+
+	memset(&dev_priv->wm.dram, 0, sizeof(dev_priv->wm.dram));
+
+	/*
+	 * FIXME:  Need to find the appropriate registers for KBL and BXT
+	 * too.
+	 */
+	if (!IS_SKYLAKE(dev_priv))
+		return;
+
+	/* Get the memory frequency from the dclk */
+	dclk = I915_READ(DCLK);
+	freq = dclk & SKL_DCLK_FREQ_MASK >> SKL_DCLK_FREQ_SHIFT;
+	freq_type = dclk & SKL_DCLK_FREQ_TYPE_MASK >> SKL_DCLK_FREQ_TYPE_SHIFT;
+
+	switch (freq_type) {
+	case SKL_DCLK_FREQ_TYPE_133:
+		dev_priv->wm.dram.speed = freq * 133;
+		break;
+	case SKL_DCLK_FREQ_TYPE_100:
+		dev_priv->wm.dram.speed = freq * 100;
+		break;
+	default:
+		MISSING_CASE(freq_type);
+		dev_priv->wm.dram.speed = freq * 100;
+	}
+
+	/* Get the # channels, width, and # ranks */
+	for (i = 0; i < ARRAY_SIZE(CHANNELS); i++) {
+		dimm = I915_READ(CHANNELS[i]);
+
+		if (dimm & (SKL_DIMM_L_SIZE_MASK | SKL_DIMM_S_SIZE_MASK)) {
+			dev_priv->wm.dram.channels++;
+
+			if (dimm & (SKL_DIMM_L_RANKS_MASK |
+				    SKL_DIMM_S_RANKS_MASK))
+				dev_priv->wm.dram.multi_rank = true;
+
+			dev_priv->wm.dram.total_size +=
+				(dimm & SKL_DIMM_L_SIZE_MASK >>
+					SKL_DIMM_L_SIZE_SHIFT);
+			dev_priv->wm.dram.total_size +=
+				(dimm & SKL_DIMM_S_SIZE_MASK >>
+				        SKL_DIMM_S_SIZE_SHIFT);
+		}
+	}
+}
+
 void intel_modeset_init_hw(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -15269,6 +15325,7 @@ void intel_modeset_init_hw(struct drm_device *dev)
 
 	intel_init_clock_gating(dev);
 	intel_enable_gt_powersave(dev_priv);
+	intel_read_dram_info(dev_priv);
 }
 
 /*

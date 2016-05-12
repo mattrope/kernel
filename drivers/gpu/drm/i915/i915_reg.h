@@ -2646,6 +2646,12 @@ enum skl_disp_power_wells {
 
 /* Memory controller frequency in MCHBAR for Haswell (possible SNB+) */
 #define DCLK _MMIO(MCHBAR_MIRROR_BASE_SNB + 0x5e04)
+#define   SKL_DCLK_FREQ_MASK		GENMASK(3, 0)
+#define   SKL_DCLK_FREQ_SHIFT		0
+#define   SKL_DCLK_FREQ_TYPE_MASK	GENMASK(7, 4)
+#define   SKL_DCLK_FREQ_TYPE_SHIFT	4
+#define   SKL_DCLK_FREQ_TYPE_133	0
+#define   SKL_DCLK_FREQ_TYPE_100	1
 
 /* 915-945 and GM965 MCH register controlling DRAM channel access */
 #define DCC			_MMIO(MCHBAR_MIRROR_BASE + 0x200)
@@ -2694,6 +2700,22 @@ enum skl_disp_power_wells {
 #define   MCH_SSKPD_WM0_VAL		0xc
 
 #define MCH_SECP_NRG_STTS		_MMIO(MCHBAR_MIRROR_BASE_SNB + 0x592c)
+
+/* SKL MCH registers for reading DRAM configuration */
+#define SKL_DIMM_C0			_MMIO(MCHBAR_MIRROR_BASE_SNB + 0x500C)
+#define SKL_DIMM_C1			_MMIO(MCHBAR_MIRROR_BASE_SNB + 0x5010)
+#define   SKL_DIMM_L_SIZE_MASK		GENMASK(5, 0)
+#define   SKL_DIMM_L_SIZE_SHIFT		0
+#define   SKL_DIMM_L_WIDTH_MASK		GENMASK(9, 8)
+#define   SKL_DIMM_L_WIDTH_SHIFT	8
+#define   SKL_DIMM_L_RANKS_MASK		GENMASK(10, 10)
+#define   SKL_DIMM_L_RANKS_SHIFT	10
+#define   SKL_DIMM_S_SIZE_MASK		GENMASK(21, 16)
+#define   SKL_DIMM_S_SIZE_SHIFT		16
+#define   SKL_DIMM_S_WIDTH_MASK		GENMASK(25, 24)
+#define   SKL_DIMM_S_WIDTH_SHIFT	24
+#define   SKL_DIMM_S_RANKS_MASK		GENMASK(26, 26)
+#define   SKL_DIMM_S_RANKS_SHIFT	26
 
 /* Clocking configuration register */
 #define CLKCFG			_MMIO(MCHBAR_MIRROR_BASE + 0xc00)
