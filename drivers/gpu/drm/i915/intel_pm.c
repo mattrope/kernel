@@ -2876,6 +2876,109 @@ skl_wm_plane_id(const struct intel_plane *plane)
 }
 
 static void
+skl_sagv_get_hw_state(struct drm_i915_private *dev_priv)
+{
+	u32 temp;
+	int ret;
+
+	if (IS_BROXTON(dev_priv))
+		return;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+	ret = sandybridge_pcode_read(dev_priv, GEN9_PCODE_SAGV_CONTROL, &temp);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	if (!ret) {
+		dev_priv->skl_sagv_enabled = !(temp & 0x1);
+	} else {
+		/*
+		 * If for some reason we can't access the SAGV state, follow
+		 * the bspec and assume it's enabled
+		 */
+		DRM_ERROR("Failed to get SAGV state, assuming enabled\n");
+		dev_priv->skl_sagv_enabled = true;
+	}
+}
+
+/*
+ * SAGV dynamically adjusts the system agent voltage and clock frequencies
+ * depending on power and performance requirements. The display engine access
+ * to system memory is blocked during the adjustment time. Having this enabled
+ * in multi-pipe configurations can cause issues (such as underruns causing
+ * full system hangs), and the bspec also suggests that software disable it
+ * when more then one pipe is enabled.
+ */
+int
+skl_enable_sagv(struct drm_i915_private *dev_priv)
+{
+	int ret;
+
+	if (IS_BROXTON(dev_priv))
+		return 0;
+	if (dev_priv->skl_sagv_enabled)
+		return 0;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+	DRM_DEBUG_KMS("Enabling the SAGV\n");
+
+	ret = sandybridge_pcode_write(dev_priv, GEN9_PCODE_SAGV_CONTROL,
+				      GEN9_SAGV_DYNAMIC_FREQ);
+	if (!ret)
+		dev_priv->skl_sagv_enabled = true;
+	else
+		DRM_ERROR("Failed to enable the SAGV\n");
+
+	/* We don't need to wait for SAGV when enabling */
+	mutex_unlock(&dev_priv->rps.hw_lock);
+	return ret;
+}
+
+int
+skl_disable_sagv(struct drm_i915_private *dev_priv)
+{
+	int ret = 0;
+	unsigned long timeout;
+	u32 temp;
+
+	if (IS_BROXTON(dev_priv))
+		return 0;
+	if (!dev_priv->skl_sagv_enabled)
+		return 0;
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+	DRM_DEBUG_KMS("Disabling the SAGV\n");
+
+	/* bspec says to keep retrying for at least 1 ms */
+	timeout = jiffies + msecs_to_jiffies(1);
+	do {
+		ret = sandybridge_pcode_write(dev_priv, GEN9_PCODE_SAGV_CONTROL,
+					      GEN9_SAGV_DISABLE);
+		if (ret) {
+			DRM_ERROR("Failed to disable the SAGV\n");
+			goto out;
+		}
+
+		ret = sandybridge_pcode_read(dev_priv, GEN9_PCODE_SAGV_CONTROL,
+					     &temp);
+		if (ret) {
+			DRM_ERROR("Failed to check the status of the SAGV\n");
+			goto out;
+		}
+	} while (!(temp & 0x1) && time_before(jiffies, timeout));
+
+	if (temp & 0x1) {
+		dev_priv->skl_sagv_enabled = false;
+	} else {
+		ret = -1;
+		DRM_ERROR("Request to disable SAGV timed out\n");
+	}
+
+out:
+	mutex_unlock(&dev_priv->rps.hw_lock);
+	return ret;
+}
+
+static void
 skl_ddb_get_pipe_allocation_limits(struct drm_device *dev,
 				   const struct intel_crtc_state *cstate,
 				   struct skl_ddb_entry *alloc, /* out */
@@ -4228,6 +4331,8 @@ void skl_wm_get_hw_state(struct drm_device *dev)
 		/* Easy/common case; just sanitize DDB now if everything off */
 		memset(ddb, 0, sizeof(*ddb));
 	}
+
+	skl_sagv_get_hw_state(dev_priv);
 }
 
 static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)

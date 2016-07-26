@@ -4562,9 +4562,12 @@ static void intel_post_plane_update(struct intel_crtc_state *old_crtc_state)
 {
 	struct intel_crtc *crtc = to_intel_crtc(old_crtc_state->base.crtc);
 	struct drm_atomic_state *old_state = old_crtc_state->base.state;
+	struct intel_atomic_state *old_intel_state =
+		to_intel_atomic_state(old_state);
 	struct intel_crtc_state *pipe_config =
 		to_intel_crtc_state(crtc->base.state);
 	struct drm_device *dev = crtc->base.dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct drm_plane *primary = crtc->base.primary;
 	struct drm_plane_state *old_pri_state =
 		drm_atomic_get_existing_plane_state(old_state, primary);
@@ -4589,6 +4592,11 @@ static void intel_post_plane_update(struct intel_crtc_state *old_crtc_state)
 		     !old_primary_state->visible))
 			intel_post_enable_primary(&crtc->base);
 	}
+
+	if (old_intel_state->modeset &&
+	    (old_intel_state->active_crtcs == 0 ||
+	     is_power_of_2(old_intel_state->active_crtcs)))
+		skl_enable_sagv(dev_priv);
 }
 
 static void intel_pre_plane_update(struct intel_crtc_state *old_crtc_state)
@@ -4599,6 +4607,8 @@ static void intel_pre_plane_update(struct intel_crtc_state *old_crtc_state)
 	struct intel_crtc_state *pipe_config =
 		to_intel_crtc_state(crtc->base.state);
 	struct drm_atomic_state *old_state = old_crtc_state->base.state;
+	struct intel_atomic_state *old_intel_state =
+		to_intel_atomic_state(old_state);
 	struct drm_plane *primary = crtc->base.primary;
 	struct drm_plane_state *old_pri_state =
 		drm_atomic_get_existing_plane_state(old_state, primary);
@@ -4647,6 +4657,15 @@ static void intel_pre_plane_update(struct intel_crtc_state *old_crtc_state)
 		ilk_disable_lp_wm(dev);
 		intel_wait_for_vblank(dev, crtc->pipe);
 	}
+
+	/*
+	 * SKL workaround: bspec recommends we disable the SAGV when we have
+	 * more then one pipe enabled
+	 */
+	if (old_intel_state->modeset &&
+	    !is_power_of_2(old_intel_state->active_crtcs) &&
+	    old_intel_state->active_crtcs != 0)
+		skl_disable_sagv(dev_priv);
 
 	/*
 	 * If we're doing a modeset, we're done.  No need to do any pre-vblank
