@@ -13698,6 +13698,47 @@ static void i915_do_update(struct drm_atomic_state *state)
 		intel_atomic_wait_for_vblanks(dev, dev_priv, crtc_vblank_mask);
 }
 
+// FIXME:  Pick better name -- DDB-based iteration
+static void gen9_do_update(struct drm_atomic_state *state, unsigned int ddbstep)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state;
+	unsigned crtc_vblank_mask = 0;
+	int i;
+
+	/* Now enable the clocks, plane, pipe, and connectors that we set up. */
+	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
+		struct intel_crtc_state *pipe_config =
+			to_intel_crtc_state(crtc->state);
+
+		if (pipe_config->wm.skl.ddb_realloc != ddbstep)
+			continue;
+
+		real_tail(state, crtc, pipe_config);
+
+		if (crtc->state->active)
+			drm_atomic_helper_commit_planes_on_crtc(old_crtc_state);
+
+		if (pipe_config->base.active && needs_vblank_wait(pipe_config))
+			crtc_vblank_mask |= 1 << i;
+	}
+
+	/* FIXME: We should call drm_atomic_helper_commit_hw_done() here
+	 * already, but still need the state for the delayed optimization. To
+	 * fix this:
+	 * - wrap the optimization/post_plane_update stuff into a per-crtc work.
+	 * - schedule that vblank worker _before_ calling hw_done
+	 * - at the start of commit_tail, cancel it _synchrously
+	 * - switch over to the vblank wait helper in the core after that since
+	 *   we don't need out special handling any more.
+	 */
+	if (!state->legacy_cursor_update)
+		intel_atomic_wait_for_vblanks(dev, dev_priv, crtc_vblank_mask);
+}
+
+
 static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 {
 	struct drm_device *dev = state->dev;
@@ -13788,7 +13829,17 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 		intel_modeset_verify_disabled(dev);
 	}
 
-	i915_do_update(state);
+	/*
+	 * Gen9 needs to update pipes in a very specific order according
+	 * to DDB changes
+	 */
+	if (IS_GEN9(dev_priv) && dev_priv->wm.skl_results.ddb_changed) {
+		gen9_do_update(state, SHRINK_CONTAINED);
+		gen9_do_update(state, SHRINK_MOVE);
+		gen9_do_update(state, GROW);
+	} else {
+		i915_do_update(state);
+	}
 
 	/*
 	 * Now that the vblank has passed, we can go ahead and program the
