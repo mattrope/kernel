@@ -13628,6 +13628,39 @@ static bool needs_vblank_wait(struct intel_crtc_state *crtc_state)
 	return false;
 }
 
+// FIXME:  Think of a smarter function name!
+static void
+real_tail(struct drm_atomic_state *state,
+	  struct drm_crtc *crtc,
+	  struct intel_crtc_state *pipe_config)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	bool modeset = needs_modeset(crtc->state);
+
+	if (modeset && crtc->state->active) {
+		update_scanline_offset(to_intel_crtc(crtc));
+		dev_priv->display.crtc_enable(crtc);
+	}
+
+	/* Complete events for now disable pipes here. */
+	if (modeset && !crtc->state->active && crtc->state->event) {
+		spin_lock_irq(&dev->event_lock);
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		spin_unlock_irq(&dev->event_lock);
+
+		crtc->state->event = NULL;
+	}
+
+	if (!modeset)
+		intel_pre_plane_update(pipe_config);
+
+	if (crtc->state->active &&
+	    drm_atomic_get_existing_plane_state(state, crtc->primary))
+		intel_fbc_enable(intel_crtc, pipe_config, to_intel_plane_state(crtc->primary->state));
+}
+
 static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 {
 	struct drm_device *dev = state->dev;
@@ -13721,31 +13754,10 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 
 	/* Now enable the clocks, plane, pipe, and connectors that we set up. */
 	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
-		struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-		bool modeset = needs_modeset(crtc->state);
 		struct intel_crtc_state *pipe_config =
 			to_intel_crtc_state(crtc->state);
 
-		if (modeset && crtc->state->active) {
-			update_scanline_offset(to_intel_crtc(crtc));
-			dev_priv->display.crtc_enable(crtc);
-		}
-
-		/* Complete events for now disable pipes here. */
-		if (modeset && !crtc->state->active && crtc->state->event) {
-			spin_lock_irq(&dev->event_lock);
-			drm_crtc_send_vblank_event(crtc, crtc->state->event);
-			spin_unlock_irq(&dev->event_lock);
-
-			crtc->state->event = NULL;
-		}
-
-		if (!modeset)
-			intel_pre_plane_update(to_intel_crtc_state(old_crtc_state));
-
-		if (crtc->state->active &&
-		    drm_atomic_get_existing_plane_state(state, crtc->primary))
-			intel_fbc_enable(intel_crtc, pipe_config, to_intel_plane_state(crtc->primary->state));
+		real_tail(state, crtc, pipe_config);
 
 		if (crtc->state->active)
 			drm_atomic_helper_commit_planes_on_crtc(old_crtc_state);
