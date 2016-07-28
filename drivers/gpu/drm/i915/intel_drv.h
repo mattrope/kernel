@@ -467,6 +467,13 @@ struct intel_crtc_wm_state {
 			/* minimum block allocation */
 			uint16_t minimum_blocks[I915_MAX_PLANES];
 			uint16_t minimum_y_blocks[I915_MAX_PLANES];
+
+			enum {
+				NONE = 0,
+				SHRINK_CONTAINED,
+				SHRINK_MOVE,
+				GROW
+			} ddb_realloc;
 		} skl;
 	};
 

@@ -3892,16 +3892,33 @@ skl_wm_flush_pipe(struct drm_i915_private *dev_priv, enum pipe pipe, int pass)
 }
 
 static bool
-skl_ddb_allocation_included(const struct skl_ddb_allocation *old,
-			    const struct skl_ddb_allocation *new,
-			    enum pipe pipe)
+skl_ddb_allocation_equals(const struct skl_ddb_allocation *old,
+			  const struct skl_ddb_allocation *new,
+			  enum pipe pipe)
+{
+	return new->pipe[pipe].start == old->pipe[pipe].start &&
+	       new->pipe[pipe].end == old->pipe[pipe].end;
+}
+
+static bool
+skl_ddb_allocation_shrinks(const struct skl_ddb_allocation *old,
+			   const struct skl_ddb_allocation *new,
+			   enum pipe pipe)
 {
 	uint16_t old_size, new_size;
 
 	old_size = skl_ddb_entry_size(&old->pipe[pipe]);
 	new_size = skl_ddb_entry_size(&new->pipe[pipe]);
 
-	return old_size != new_size &&
+	return old_size >= new_size;
+}
+
+static bool
+skl_ddb_allocation_included(const struct skl_ddb_allocation *old,
+			    const struct skl_ddb_allocation *new,
+			    enum pipe pipe)
+{
+	return skl_ddb_allocation_shrinks(old, new, pipe) &&
 	       new->pipe[pipe].start >= old->pipe[pipe].start &&
 	       new->pipe[pipe].end <= old->pipe[pipe].end;
 }
@@ -4097,6 +4114,7 @@ skl_compute_ddb(struct drm_atomic_state *state)
 
 	for_each_intel_crtc_mask(dev, intel_crtc, realloc_pipes) {
 		struct intel_crtc_state *cstate;
+		enum pipe pipe = intel_crtc->pipe;
 
 		cstate = intel_atomic_get_crtc_state(state, intel_crtc);
 		if (IS_ERR(cstate))
@@ -4109,6 +4127,19 @@ skl_compute_ddb(struct drm_atomic_state *state)
 		if (!intel_state->wm_results.ddb_changed &&
 		    skl_pipe_ddb_changed(old_ddb, new_ddb, intel_crtc->pipe))
 			intel_state->wm_results.ddb_changed = true;
+
+		/*
+		 * How the pipe DDB allocation changes will be used later to
+		 * determine the order we flush our pipes in.
+		 */
+		if (skl_ddb_allocation_equals(old_ddb, new_ddb, pipe))
+			cstate->wm.skl.ddb_realloc = NONE;
+		else if (skl_ddb_allocation_included(old_ddb, new_ddb, pipe))
+			cstate->wm.skl.ddb_realloc = SHRINK_CONTAINED;
+		else if (skl_ddb_allocation_shrinks(old_ddb, new_ddb, pipe))
+			cstate->wm.skl.ddb_realloc = SHRINK_MOVE;
+		else
+			cstate->wm.skl.ddb_realloc = GROW;
 	}
 
 	return 0;
