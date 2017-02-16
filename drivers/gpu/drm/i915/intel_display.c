@@ -12482,7 +12482,7 @@ int intel_plane_atomic_calc_changes(struct drm_crtc_state *crtc_state,
 	struct drm_framebuffer *fb = plane_state->fb;
 	int ret;
 
-	if (INTEL_GEN(dev) >= 9 && plane->type != DRM_PLANE_TYPE_CURSOR) {
+	if (INTEL_GEN(dev_priv) >= 9 && plane->type != DRM_PLANE_TYPE_CURSOR) {
 		ret = skl_update_scaler_plane(
 			to_intel_crtc_state(crtc_state),
 			to_intel_plane_state(plane_state));
@@ -15015,18 +15015,18 @@ static struct drm_plane *intel_primary_plane_create(struct drm_device *dev,
 	if (ret)
 		goto fail;
 
-	if (INTEL_GEN(dev) >= 9) {
+	if (INTEL_GEN(dev_priv) >= 9) {
 		supported_rotations =
 			DRM_ROTATE_0 | DRM_ROTATE_90 |
 			DRM_ROTATE_180 | DRM_ROTATE_270;
-	} else if (INTEL_GEN(dev) >= 4) {
+	} else if (INTEL_GEN(dev_priv) >= 4) {
 		supported_rotations =
 			DRM_ROTATE_0 | DRM_ROTATE_180;
 	} else {
 		supported_rotations = DRM_ROTATE_0;
 	}
 
-	if (INTEL_GEN(dev) >= 4)
+	if (INTEL_GEN(dev_priv) >= 4)
 		drm_plane_create_rotation_property(&primary->base,
 						   DRM_ROTATE_0,
 						   supported_rotations);
@@ -15169,7 +15169,7 @@ static struct drm_plane *intel_cursor_plane_create(struct drm_device *dev,
 	if (ret)
 		goto fail;
 
-	if (INTEL_GEN(dev) >= 4)
+	if (INTEL_GEN(to_i915(dev)) >= 4)
 		drm_plane_create_rotation_property(&cursor->base,
 						   DRM_ROTATE_0,
 						   DRM_ROTATE_0 |
