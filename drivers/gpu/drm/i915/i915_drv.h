@@ -56,6 +56,7 @@
 #define dma_fence_signal fence_signal
 #define dma_fence_context_alloc fence_context_alloc
 #define DMA_FENCE_FLAG_SIGNALED_BIT FENCE_FLAG_SIGNALED_BIT
+#define DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT FENCE_FLAG_ENABLE_SIGNAL_BIT
 
 #include <drm/drmP.h>
 #include <drm/intel-gtt.h>
@@ -3560,6 +3561,16 @@ static inline void i915_gem_context_put(struct i915_gem_context *ctx)
 {
 	lockdep_assert_held(&ctx->i915->drm.struct_mutex);
 	kref_put(&ctx->ref, i915_gem_context_free);
+}
+
+static inline struct intel_timeline *
+i915_gem_context_lookup_timeline(struct i915_gem_context *ctx,
+				 struct intel_engine_cs *engine)
+{
+	struct i915_address_space *vm;
+
+	vm = ctx->ppgtt ? &ctx->ppgtt->base : &ctx->i915->ggtt.base;
+	return &vm->timeline.engine[engine->id];
 }
 
 static inline bool i915_gem_context_is_default(const struct i915_gem_context *c)
