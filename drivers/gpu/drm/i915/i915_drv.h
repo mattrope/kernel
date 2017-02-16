@@ -2105,6 +2105,7 @@ struct drm_i915_private {
 
 		struct list_head timelines;
 		struct i915_gem_timeline global_timeline;
+		u32 active_requests;
 
 		/**
 		 * Is the GPU currently considered idle, or busy executing
@@ -2113,7 +2114,6 @@ struct drm_i915_private {
 		 * In order to reduce the effect on performance, there
 		 * is a slight delay before we do so.
 		 */
-		unsigned int active_engines;
 		bool awake;
 
 		/**
