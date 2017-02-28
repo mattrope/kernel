@@ -4,6 +4,11 @@
 #include <asm/alternative.h>
 #include <asm/nops.h>
 
+#ifndef alternative_2
+#define alternative_2(oldinstr, newinstr1, feature1, newinstr2, feature2) \
+	asm volatile(ALTERNATIVE_2(oldinstr, newinstr1, feature1, newinstr2, feature2) ::: "memory")
+#endif
+
 /*
  * Force strict CPU ordering.
  * And yes, this is required on UP too when we're talking
