@@ -551,20 +551,6 @@ repeat:
 	return 0;
 }
 
-static bool object_is_idle(struct drm_i915_gem_object *obj)
-{
-	unsigned long active = i915_gem_object_get_active(obj);
-	int idx;
-
-	for_each_active(active, idx) {
-		if (!i915_gem_active_is_idle(&obj->last_read[idx],
-					     &obj->base.dev->struct_mutex))
-			return false;
-	}
-
-	return true;
-}
-
 static int
 i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 				   struct eb_vmas *eb,
@@ -648,10 +634,6 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 		return -EINVAL;
 	}
 
-	/* We can't wait for rendering with pagefaults disabled */
-	if (pagefault_disabled() && !object_is_idle(obj))
-		return -EFAULT;
-
 	ret = relocate_entry(obj, reloc, cache, target_offset);
 	if (ret)
 		return ret;
@@ -678,12 +660,23 @@ i915_gem_execbuffer_relocate_vma(struct i915_vma *vma,
 	remain = entry->relocation_count;
 	while (remain) {
 		struct drm_i915_gem_relocation_entry *r = stack_reloc;
-		int count = remain;
-		if (count > ARRAY_SIZE(stack_reloc))
-			count = ARRAY_SIZE(stack_reloc);
+		unsigned long unwritten;
+		unsigned int count;
+
+		count = min_t(unsigned int, remain, ARRAY_SIZE(stack_reloc));
 		remain -= count;
 
-		if (__copy_from_user_inatomic(r, user_relocs, count*sizeof(r[0]))) {
+		/* This is the fast path and we cannot handle a pagefault
+		 * whilst holding the struct mutex lest the user pass in the
+		 * relocations contained within a mmaped bo. For in such a case
+		 * we, the page fault handler would call i915_gem_fault() and
+		 * we would try to acquire the struct mutex again. Obviously
+		 * this is bad and so lockdep complains vehemently.
+		 */
+		pagefault_disable();
+		unwritten = __copy_from_user_inatomic(r, user_relocs, count*sizeof(r[0]));
+		pagefault_enable();
+		if (unlikely(unwritten)) {
 			ret = -EFAULT;
 			goto out;
 		}
@@ -740,20 +733,11 @@ i915_gem_execbuffer_relocate(struct eb_vmas *eb)
 	struct i915_vma *vma;
 	int ret = 0;
 
-	/* This is the fast path and we cannot handle a pagefault whilst
-	 * holding the struct mutex lest the user pass in the relocations
-	 * contained within a mmaped bo. For in such a case we, the page
-	 * fault handler would call i915_gem_fault() and we would try to
-	 * acquire the struct mutex again. Obviously this is bad and so
-	 * lockdep complains vehemently.
-	 */
-	pagefault_disable();
 	list_for_each_entry(vma, &eb->vmas, exec_list) {
 		ret = i915_gem_execbuffer_relocate_vma(vma, eb);
 		if (ret)
 			break;
 	}
-	pagefault_enable();
 
 	return ret;
 }
