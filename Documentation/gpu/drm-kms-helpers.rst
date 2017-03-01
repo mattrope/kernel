@@ -273,21 +273,6 @@ Panel Helper Reference
 .. kernel-doc:: drivers/gpu/drm/drm_panel.c
    :export:
 
-.. kernel-doc:: drivers/gpu/drm/drm_panel.c
-   :doc: drm panel
-
-Simple KMS Helper Reference
-===========================
-
-.. kernel-doc:: include/drm/drm_simple_kms_helper.h
-   :internal:
-
-.. kernel-doc:: drivers/gpu/drm/drm_simple_kms_helper.c
-   :export:
-
-.. kernel-doc:: drivers/gpu/drm/drm_simple_kms_helper.c
-   :doc: overview
-
 Auxiliary Modeset Helpers
 =========================
 
