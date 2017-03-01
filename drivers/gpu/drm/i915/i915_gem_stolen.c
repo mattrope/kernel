@@ -513,12 +513,10 @@ i915_pages_create_for_stolen(struct drm_device *dev,
 			     u32 offset, u32 size)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
-	struct i915_ggtt *ggtt = &dev_priv->ggtt;
 	struct sg_table *st;
 	struct scatterlist *sg;
 
-	DRM_DEBUG_DRIVER("offset=0x%x, size=%d\n", offset, size);
-	BUG_ON(offset > ggtt->stolen_size - size);
+	GEM_BUG_ON(offset > ggtt->stolen_size - size);
 
 	/* We hide that we have no struct page backing our stolen object
 	 * by wrapping the contiguous physical allocation with a fake
@@ -618,7 +616,6 @@ i915_gem_object_create_stolen(struct drm_device *dev, u32 size)
 	if (!drm_mm_initialized(&dev_priv->mm.stolen))
 		return NULL;
 
-	DRM_DEBUG_KMS("creating stolen object: size=%x\n", size);
 	if (size == 0)
 		return NULL;
 
