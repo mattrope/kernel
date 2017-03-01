@@ -164,8 +164,9 @@ i915_gem_shrink(struct drm_i915_private *dev_priv,
 			    obj->madv != I915_MADV_DONTNEED)
 				continue;
 
-			if ((flags & I915_SHRINK_ACTIVE) == 0 &&
-			    i915_gem_object_is_active(obj))
+			if (!(flags & I915_SHRINK_ACTIVE) &&
+			    (i915_gem_object_is_active(obj) ||
+			     obj->framebuffer_references))
 				continue;
 
 			if (!can_release_pages(obj))
