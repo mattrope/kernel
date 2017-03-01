@@ -43,6 +43,13 @@
 #include <linux/pm_qos.h>
 #include <linux/shmem_fs.h>
 
+/* Forklift compatibility */
+#define dma_fence fence
+#define dma_fence_array fence_array
+#define to_dma_fence_array to_fence_array
+#define dma_fence_is_array fence_is_array
+#define DMA_FENCE_FLAG_SIGNALED_BIT FENCE_FLAG_SIGNALED_BIT
+
 #include <drm/drmP.h>
 #include <drm/intel-gtt.h>
 #include <drm/drm_legacy.h> /* for struct drm_dma_handle */
@@ -1421,6 +1428,9 @@ struct i915_error_state_file_priv {
 	struct drm_device *dev;
 	struct drm_i915_error_state *error;
 };
+
+#define I915_RESET_TIMEOUT (10 * HZ) /* 10s */
+#define I915_FENCE_TIMEOUT (10 * HZ) /* 10s */
 
 struct i915_gpu_error {
 	/* For hangcheck timer */
