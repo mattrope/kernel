@@ -28,6 +28,12 @@
 #ifndef DRM_ATOMIC_H_
 #define DRM_ATOMIC_H_
 
+/* Forklift compatibility */
+#ifndef dma_fence
+#define dma_fence fence
+#define dma_fence_put fence_put
+#endif
+
 #include <drm/drm_crtc.h>
 
 /**
@@ -345,6 +351,8 @@ drm_atomic_set_crtc_for_plane(struct drm_plane_state *plane_state,
 			      struct drm_crtc *crtc);
 void drm_atomic_set_fb_for_plane(struct drm_plane_state *plane_state,
 				 struct drm_framebuffer *fb);
+void drm_atomic_set_fence_for_plane(struct drm_plane_state *plane_state,
+				    struct dma_fence *fence);
 int __must_check
 drm_atomic_set_crtc_for_connector(struct drm_connector_state *conn_state,
 				  struct drm_crtc *crtc);
