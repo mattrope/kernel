@@ -609,6 +609,22 @@ struct drm_mode_config {
 	struct drm_property *prop_bgcolor;
 
 	/**
+	 * @prop_blend_src_factor: Atomic plane property to specify the
+	 * blending source factor for the plane.
+	 */
+	struct drm_property *prop_blend_src_factor;
+	/**
+	 * @prop_blend_dest_factor: Atomic plane property to specify the
+	 * blending destination factor for the plane.
+	 */
+	struct drm_property *prop_blend_dest_factor;
+	/**
+	 * @prop_blend_color: Atomic plane property to specify the color
+	 * value that should be taken into account for some blend factors.
+	 */
+	struct drm_property *prop_blend_color;
+
+	/**
 	 * @dvi_i_subconnector_property: Optional DVI-I property to
 	 * differentiate between analog or digital mode.
 	 */

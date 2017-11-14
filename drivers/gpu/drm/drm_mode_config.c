@@ -20,6 +20,7 @@
  * OF THIS SOFTWARE.
  */
 
+#include <drm/drm_blend.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_mode_config.h>
 #include <drm/drmP.h>
@@ -205,6 +206,21 @@ static const struct drm_prop_enum_list drm_plane_type_enum_list[] = {
 	{ DRM_PLANE_TYPE_CURSOR, "Cursor" },
 };
 
+static const struct drm_prop_enum_list drm_blend_factor_enum_list[] = {
+	{ DRM_BLEND_FACTOR_AUTO, "AUTO" },
+	{ DRM_BLEND_FACTOR_ZERO, "ZERO" },
+	{ DRM_BLEND_FACTOR_ONE, "ONE" },
+	{ DRM_BLEND_FACTOR_SRC_ALPHA, "SRC_ALPHA" },
+	{ DRM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, "ONE_MINUS_SRC_ALPHA" },
+	{ DRM_BLEND_FACTOR_CONSTANT_ALPHA, "CONSTANT_ALPHA" },
+	{ DRM_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+		"ONE_MINUS_CONSTANT_ALPHA" },
+	{ DRM_BLEND_FACTOR_CONSTANT_ALPHA_TIMES_SRC_ALPHA,
+		"CONSTANT_ALPHA_TIMES_SRC_ALPHA" },
+	{ DRM_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA_TIMES_SRC_ALPHA,
+		"ONE_MINUS_CONSTANT_ALPHA_TIMES_SRC_ALPHA" },
+};
+
 static int drm_mode_create_standard_properties(struct drm_device *dev)
 {
 	struct drm_property *prop;
@@ -353,6 +369,26 @@ static int drm_mode_create_standard_properties(struct drm_device *dev)
 	if (!prop)
 		return -ENOMEM;
 	dev->mode_config.prop_bgcolor = prop;
+
+	prop = drm_property_create_enum(dev, DRM_MODE_PROP_ATOMIC,
+					"SRC_FACTOR", drm_blend_factor_enum_list,
+					ARRAY_SIZE(drm_blend_factor_enum_list));
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.prop_blend_src_factor = prop;
+
+	prop = drm_property_create_enum(dev, DRM_MODE_PROP_ATOMIC,
+					"DEST_FACTOR", drm_blend_factor_enum_list,
+					ARRAY_SIZE(drm_blend_factor_enum_list));
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.prop_blend_dest_factor = prop;
+
+	prop = drm_property_create_rgba(dev, DRM_MODE_PROP_ATOMIC,
+					"blend_color");
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.prop_blend_color = prop;
 
 	return 0;
 }
