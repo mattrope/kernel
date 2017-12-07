@@ -322,6 +322,7 @@ void __iomem *i915_vma_pin_iomap(struct i915_vma *vma)
 	if (err)
 		goto err_unpin;
 
+	i915_vma_set_ggtt_write(vma);
 	return ptr;
 
 err_unpin:
@@ -330,11 +331,23 @@ err:
 	return IO_ERR_PTR(err);
 }
 
+void i915_vma_flush_writes(struct i915_vma *vma)
+{
+	if (!i915_vma_has_ggtt_write(vma))
+		return;
+
+	i915_gem_flush_ggtt_writes(vma->vm->i915);
+
+	i915_vma_unset_ggtt_write(vma);
+}
+
 void i915_vma_unpin_iomap(struct i915_vma *vma)
 {
 	lockdep_assert_held(&vma->obj->base.dev->struct_mutex);
 
 	GEM_BUG_ON(vma->iomap == NULL);
+
+	i915_vma_flush_writes(vma);
 
 	i915_vma_unpin_fence(vma);
 	i915_vma_unpin(vma);
@@ -466,6 +479,7 @@ i915_vma_insert(struct i915_vma *vma, u64 size, u64 alignment, u64 flags)
 	u64 start, end;
 	int ret;
 
+	GEM_BUG_ON(i915_vma_is_closed(vma));
 	GEM_BUG_ON(vma->flags & (I915_VMA_GLOBAL_BIND | I915_VMA_LOCAL_BIND));
 	GEM_BUG_ON(drm_mm_node_allocated(&vma->node));
 
@@ -678,7 +692,9 @@ static void i915_vma_destroy(struct i915_vma *vma)
 		GEM_BUG_ON(i915_gem_active_isset(&vma->last_read[i]));
 	GEM_BUG_ON(i915_gem_active_isset(&vma->last_fence));
 
+	list_del(&vma->obj_link);
 	list_del(&vma->vm_link);
+
 	if (!i915_vma_is_ggtt(vma))
 		i915_ppgtt_put(i915_vm_to_ppgtt(vma->vm));
 
@@ -690,7 +706,6 @@ void i915_vma_close(struct i915_vma *vma)
 	GEM_BUG_ON(i915_vma_is_closed(vma));
 	vma->flags |= I915_VMA_CLOSED;
 
-	list_del(&vma->obj_link);
 	rb_erase(&vma->obj_node, &vma->obj->vma_tree);
 
 	if (!i915_vma_is_active(vma) && !i915_vma_is_pinned(vma))
@@ -790,6 +805,15 @@ int i915_vma_unbind(struct i915_vma *vma)
 	GEM_BUG_ON(!i915_gem_object_has_pinned_pages(obj));
 
 	if (i915_vma_is_map_and_fenceable(vma)) {
+		/*
+		 * Check that we have flushed all writes through the GGTT
+		 * before the unbind, other due to non-strict nature of those
+		 * indirect writes they may end up referencing the GGTT PTE
+		 * after the unbind.
+		 */
+		i915_vma_flush_writes(vma);
+		GEM_BUG_ON(i915_vma_has_ggtt_write(vma));
+
 		/* release the fence reg _after_ flushing */
 		ret = i915_vma_put_fence(vma);
 		if (ret)

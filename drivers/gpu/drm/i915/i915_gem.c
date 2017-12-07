@@ -330,16 +330,9 @@ int i915_gem_object_unbind(struct drm_i915_gem_object *obj)
 	 * must wait for all rendering to complete to the object (as unbinding
 	 * must anyway), and retire the requests.
 	 */
-	ret = i915_gem_object_wait(obj,
-				   I915_WAIT_INTERRUPTIBLE |
-				   I915_WAIT_LOCKED |
-				   I915_WAIT_ALL,
-				   MAX_SCHEDULE_TIMEOUT,
-				   NULL);
+	ret = i915_gem_object_set_to_cpu_domain(obj, false);
 	if (ret)
 		return ret;
-
-	i915_gem_retire_requests(to_i915(obj->base.dev));
 
 	while ((vma = list_first_entry_or_null(&obj->vma_list,
 					       struct i915_vma,
@@ -673,17 +666,13 @@ fb_write_origin(struct drm_i915_gem_object *obj, unsigned int domain)
 		obj->frontbuffer_ggtt_origin : ORIGIN_CPU);
 }
 
-static void
-flush_write_domain(struct drm_i915_gem_object *obj, unsigned int flush_domains)
+void i915_gem_flush_ggtt_writes(struct drm_i915_private *dev_priv)
 {
-	struct drm_i915_private *dev_priv = to_i915(obj->base.dev);
-
-	if (!(obj->base.write_domain & flush_domains))
-		return;
-
-	/* No actual flushing is required for the GTT write domain.  Writes
-	 * to it "immediately" go to main memory as far as we know, so there's
-	 * no chipset flush.  It also doesn't land in render cache.
+	/*
+	 * No actual flushing is required for the GTT write domain for reads
+	 * from the GTT domain. Writes to it "immediately" go to main memory
+	 * as far as we know, so there's no chipset flush. It also doesn't
+	 * land in the GPU render cache.
 	 *
 	 * However, we do have to enforce the order so that all writes through
 	 * the GTT land before any writes to the device, such as updates to
@@ -694,22 +683,46 @@ flush_write_domain(struct drm_i915_gem_object *obj, unsigned int flush_domains)
 	 * timing. This issue has only been observed when switching quickly
 	 * between GTT writes and CPU reads from inside the kernel on recent hw,
 	 * and it appears to only affect discrete GTT blocks (i.e. on LLC
-	 * system agents we cannot reproduce this behaviour).
+	 * system agents we cannot reproduce this behaviour, until Cannonlake
+	 * that was!).
 	 */
+
 	wmb();
+
+	intel_runtime_pm_get(dev_priv);
+	spin_lock_irq(&dev_priv->uncore.lock);
+
+	POSTING_READ_FW(RING_HEAD(RENDER_RING_BASE));
+
+	spin_unlock_irq(&dev_priv->uncore.lock);
+	intel_runtime_pm_put(dev_priv);
+}
+
+static void
+flush_write_domain(struct drm_i915_gem_object *obj, unsigned int flush_domains)
+{
+	struct drm_i915_private *dev_priv = to_i915(obj->base.dev);
+	struct i915_vma *vma;
+
+	if (!(obj->base.write_domain & flush_domains))
+		return;
 
 	switch (obj->base.write_domain) {
 	case I915_GEM_DOMAIN_GTT:
-		if (!HAS_LLC(dev_priv)) {
-			intel_runtime_pm_get(dev_priv);
-			spin_lock_irq(&dev_priv->uncore.lock);
-			POSTING_READ_FW(RING_HEAD(dev_priv->engine[RCS]->mmio_base));
-			spin_unlock_irq(&dev_priv->uncore.lock);
-			intel_runtime_pm_put(dev_priv);
-		}
+		i915_gem_flush_ggtt_writes(dev_priv);
 
 		intel_fb_obj_flush(obj,
 				   fb_write_origin(obj, I915_GEM_DOMAIN_GTT));
+
+		list_for_each_entry(vma, &obj->vma_list, obj_link) {
+			if (!i915_vma_is_ggtt(vma))
+				break;
+
+			if (vma->iomap)
+				continue;
+
+			i915_vma_unset_ggtt_write(vma);
+		}
 		break;
 
 	case I915_GEM_DOMAIN_CPU:
@@ -1971,6 +1984,8 @@ int i915_gem_fault(struct vm_fault *vmf)
 	if (!i915_vma_set_userfault(vma) && !obj->userfault_count++)
 		list_add(&obj->userfault_link, &dev_priv->mm.userfault_list);
 	GEM_BUG_ON(!obj->userfault_count);
+
+	i915_vma_set_ggtt_write(vma);
 
 err_fence:
 	i915_vma_unpin_fence(vma);
@@ -3371,7 +3386,9 @@ i915_gem_idle_work_handler(struct work_struct *work)
 	synchronize_irq(dev_priv->drm.irq);
 
 	intel_engines_park(dev_priv);
-	i915_gem_timelines_mark_idle(dev_priv);
+	i915_gem_timelines_park(dev_priv);
+
+	i915_pmu_gt_parked(dev_priv);
 
 	GEM_BUG_ON(!dev_priv->gt.awake);
 	dev_priv->gt.awake = false;
@@ -3751,7 +3768,8 @@ restart:
 			return -EBUSY;
 		}
 
-		if (i915_gem_valid_gtt_space(vma, cache_level))
+		if (!i915_vma_is_closed(vma) &&
+		    i915_gem_valid_gtt_space(vma, cache_level))
 			continue;
 
 		ret = i915_vma_unbind(vma);
@@ -4999,25 +5017,6 @@ out:
 	return ret;
 }
 
-bool intel_sanitize_semaphores(struct drm_i915_private *dev_priv, int value)
-{
-	if (INTEL_INFO(dev_priv)->gen < 6)
-		return false;
-
-	/* TODO: make semaphores and Execlists play nicely together */
-	if (i915_modparams.enable_execlists)
-		return false;
-
-	if (value >= 0)
-		return value;
-
-	/* Enable semaphores on SNB when IO remapping is off */
-	if (IS_GEN6(dev_priv) && intel_vtd_active())
-		return false;
-
-	return true;
-}
-
 static int __intel_engines_record_defaults(struct drm_i915_private *i915)
 {
 	struct i915_gem_context *ctx;
@@ -5047,7 +5046,7 @@ static int __intel_engines_record_defaults(struct drm_i915_private *i915)
 			goto out_ctx;
 		}
 
-		err = i915_switch_context(rq);
+		err = 0;
 		if (engine->init_context)
 			err = engine->init_context(rq);
 
@@ -5147,12 +5146,12 @@ int i915_gem_init(struct drm_i915_private *dev_priv)
 
 	dev_priv->mm.unordered_timeline = dma_fence_context_alloc(1);
 
-	if (!i915_modparams.enable_execlists) {
-		dev_priv->gt.resume = intel_legacy_submission_resume;
-		dev_priv->gt.cleanup_engine = intel_engine_cleanup;
-	} else {
+	if (HAS_LOGICAL_RING_CONTEXTS(dev_priv)) {
 		dev_priv->gt.resume = intel_lr_context_resume;
 		dev_priv->gt.cleanup_engine = intel_logical_ring_cleanup;
+	} else {
+		dev_priv->gt.resume = intel_legacy_submission_resume;
+		dev_priv->gt.cleanup_engine = intel_engine_cleanup;
 	}
 
 	ret = i915_gem_init_userptr(dev_priv);
