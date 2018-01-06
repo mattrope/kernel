@@ -18,6 +18,7 @@ struct drm_sg_mem;
 struct drm_local_map;
 struct drm_vma_offset_manager;
 struct drm_fb_helper;
+struct drm_cgroup_funcs;
 
 struct inode;
 
@@ -194,6 +195,13 @@ struct drm_device {
 	 * Set by drm_fb_helper_init() and cleared by drm_fb_helper_fini().
 	 */
 	struct drm_fb_helper *fb_helper;
+
+#ifdef CONFIG_CGROUPS
+	/**
+	 * @cgroup: Per-driver cgroup handlers.
+	 */
+	struct drm_cgroup_funcs *cgroup;
+#endif /* CONFIG_CGROUPS */
 };
 
 #endif

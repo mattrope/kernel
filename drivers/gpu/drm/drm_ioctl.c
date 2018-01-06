@@ -31,6 +31,7 @@
 #include <drm/drm_ioctl.h>
 #include <drm/drmP.h>
 #include <drm/drm_auth.h>
+#include <drm/drm_cgroup.h>
 #include "drm_legacy.h"
 #include "drm_internal.h"
 #include "drm_crtc_internal.h"
@@ -549,6 +550,10 @@ static const struct drm_ioctl_desc drm_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_IOCTL_GET_CAP, drm_getcap, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF(DRM_IOCTL_SET_CLIENT_CAP, drm_setclientcap, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_IOCTL_SET_VERSION, drm_setversion, DRM_UNLOCKED | DRM_MASTER),
+#if IS_ENABLED(CONFIG_CGROUPS)
+	DRM_IOCTL_DEF(DRM_IOCTL_CGROUP_SETPARAM, drm_cgroup_setparam_ioctl,
+		      DRM_UNLOCKED|DRM_RENDER_ALLOW),
+#endif
 
 	DRM_IOCTL_DEF(DRM_IOCTL_SET_UNIQUE, drm_invalid_op, DRM_AUTH|DRM_MASTER|DRM_ROOT_ONLY),
 	DRM_IOCTL_DEF(DRM_IOCTL_BLOCK, drm_noop, DRM_AUTH|DRM_MASTER|DRM_ROOT_ONLY),
