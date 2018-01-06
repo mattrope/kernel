@@ -1613,6 +1613,15 @@ struct drm_i915_perf_oa_config {
 	__u64 flex_regs_ptr;
 };
 
+/**
+ * Structure to supply driver-specific cgroup parameters
+ */
+struct drm_i915_cgroup_param {
+	__u32 cgroup_fd;
+	__u64 param;
+	__u64 value;
+};
+
 #if defined(__cplusplus)
 }
 #endif

@@ -1394,6 +1394,8 @@ int i915_driver_load(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	intel_runtime_pm_put(dev_priv);
 
+	i915_cgroup_init(dev_priv);
+
 	i915_welcome_messages(dev_priv);
 
 	return 0;
@@ -1421,6 +1423,8 @@ void i915_driver_unload(struct drm_device *dev)
 	struct pci_dev *pdev = dev_priv->drm.pdev;
 
 	i915_driver_unregister(dev_priv);
+
+	i915_cgroup_shutdown(dev_priv);
 
 	if (i915_gem_suspend(dev_priv))
 		DRM_ERROR("failed to idle hardware; continuing to unload!\n");

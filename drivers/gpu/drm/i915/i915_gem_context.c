@@ -274,7 +274,7 @@ __create_hw_context(struct drm_i915_private *dev_priv,
 	kref_init(&ctx->ref);
 	list_add_tail(&ctx->link, &dev_priv->contexts.list);
 	ctx->i915 = dev_priv;
-	ctx->priority = I915_PRIORITY_NORMAL;
+	ctx->priority = i915_cgroup_get_prio(dev_priv, file_priv);
 
 	INIT_RADIX_TREE(&ctx->handles_vma, GFP_KERNEL);
 	INIT_LIST_HEAD(&ctx->handles_list);

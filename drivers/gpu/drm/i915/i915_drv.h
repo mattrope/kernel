@@ -51,6 +51,7 @@
 #include <drm/drm_gem.h>
 #include <drm/drm_auth.h>
 #include <drm/drm_cache.h>
+#include <drm/drm_cgroup_helper.h>
 
 #include "i915_params.h"
 #include "i915_reg.h"
@@ -4077,5 +4078,36 @@ static inline int intel_hws_csb_write_index(struct drm_i915_private *i915)
 	else
 		return I915_HWS_CSB_WRITE_INDEX;
 }
+
+/* i915_cgroups.c */
+#ifdef CONFIG_CGROUPS
+void i915_cgroup_init(struct drm_i915_private *dev_priv);
+void i915_cgroup_shutdown(struct drm_i915_private *dev_priv);
+int i915_cgroup_get_prio(struct drm_i915_private *dev_priv,
+			 struct drm_i915_file_private *file_priv);
+#else
+static inline void
+i915_cgroup_init(struct drm_i915_private *dev_priv) { return; }
+static inline void
+i915_cgroup_shutdown(struct drm_i915_private *dev_priv) { return; }
+
+static inline int
+i915_cgroup_get_prio(struct drm_i915_private *dev_priv,
+		     struct drm_i915_private *file_priv)
+{
+	return I915_PRIORITY_NORMAL;
+}
+#endif
+
+enum i915_cgroup_param {
+	I915_CGRP_DEF_CONTEXT_PRIORITY = 1,
+};
+
+/* Driver-specific per-cgroup parameters to track */
+struct i915_cgroup_data {
+	struct drm_cgroup_helper_data base;
+
+	int priority;
+};
 
 #endif
