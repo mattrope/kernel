@@ -201,6 +201,11 @@ struct drm_device {
 	 * @cgroup: Per-driver cgroup handlers.
 	 */
 	struct drm_cgroup_funcs *cgroup;
+
+	/**
+	 * @cgrp_helper: cgroup helper handlers and data
+	 */
+	struct drm_cgroup_helper *cgroup_helper;
 #endif /* CONFIG_CGROUPS */
 };
 
