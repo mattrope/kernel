@@ -43,6 +43,9 @@
 /* walk all threaded css_sets in the domain */
 #define CSS_TASK_ITER_THREADED		(1U << 1)
 
+/* Driver-registered callbacks for cgroup destruction */
+extern struct blocking_notifier_head cgroup_destroy_notifier_list;
+
 /* a css_task_iter should be treated as an opaque object */
 struct css_task_iter {
 	struct cgroup_subsys		*ss;

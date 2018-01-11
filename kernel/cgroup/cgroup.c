@@ -75,6 +75,15 @@
 DEFINE_MUTEX(cgroup_mutex);
 DEFINE_SPINLOCK(css_set_lock);
 
+/*
+ * Driver-registered callbacks for cgroup destruction.  Drivers may wish to
+ * track their own per-cgroup data.  Registering a callback on this list will
+ * allow them to detect cgroup destruction and perform any appropriate cleanup
+ * of that data when the cgroup is destroyed.
+ */
+BLOCKING_NOTIFIER_HEAD(cgroup_destroy_notifier_list);
+EXPORT_SYMBOL_GPL(cgroup_destroy_notifier_list);
+
 #ifdef CONFIG_PROVE_RCU
 EXPORT_SYMBOL_GPL(cgroup_mutex);
 EXPORT_SYMBOL_GPL(css_set_lock);
@@ -5085,6 +5094,15 @@ static int cgroup_destroy_locked(struct cgroup *cgrp)
 	/* initiate massacre of all css's */
 	for_each_css(css, ssid, cgrp)
 		kill_css(css);
+
+	/*
+	 * Notify listeners of cgroup destruction on the default hierarchy.
+	 * Drivers that store per-cgroup data may register for callback to know
+	 * when it's safe to reap that data.
+	 */
+	if (cgroup_on_dfl(cgrp))
+		blocking_notifier_call_chain(&cgroup_destroy_notifier_list,
+					     0, cgrp);
 
 	/*
 	 * Remove @cgrp directory along with the base files.  @cgrp has an
