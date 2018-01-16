@@ -69,8 +69,9 @@
  * css_set_lock protects task->cgroups pointer, the list of css_set
  * objects, and the chain of tasks off each css_set.
  *
- * These locks are exported if CONFIG_PROVE_RCU so that accessors in
- * cgroup.h can use them for lockdep annotations.
+ * cgroup_mutex is always exported so that it may be taken by non-controller
+ * drivers.  css_set_lock is exported if CONFIG_PROVE_RCU so that accessors in
+ * cgroup.h can use it for lockdep annotations.
  */
 DEFINE_MUTEX(cgroup_mutex);
 DEFINE_SPINLOCK(css_set_lock);
@@ -84,8 +85,8 @@ DEFINE_SPINLOCK(css_set_lock);
 BLOCKING_NOTIFIER_HEAD(cgroup_destroy_notifier_list);
 EXPORT_SYMBOL_GPL(cgroup_destroy_notifier_list);
 
-#ifdef CONFIG_PROVE_RCU
 EXPORT_SYMBOL_GPL(cgroup_mutex);
+#ifdef CONFIG_PROVE_RCU
 EXPORT_SYMBOL_GPL(css_set_lock);
 #endif
 
@@ -1367,6 +1368,7 @@ struct cgroup *task_cgroup_from_root(struct task_struct *task,
 	 */
 	return cset_cgroup_from_root(task_css_set(task), root);
 }
+EXPORT_SYMBOL(task_cgroup_from_root);
 
 /*
  * A task must hold cgroup_mutex to modify cgroups.

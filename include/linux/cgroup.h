@@ -103,6 +103,8 @@ struct cgroup_subsys_state *css_tryget_online_from_dir(struct dentry *dentry,
 
 struct cgroup *cgroup_get_from_path(const char *path);
 struct cgroup *cgroup_get_from_fd(int fd);
+struct cgroup *task_cgroup_from_root(struct task_struct *task,
+				     struct cgroup_root *root);
 
 int cgroup_attach_task_all(struct task_struct *from, struct task_struct *);
 int cgroup_transfer_tasks(struct cgroup *to, struct cgroup *from);
@@ -432,7 +434,6 @@ static inline void cgroup_put(struct cgroup *cgrp)
  * as locks used during the cgroup_subsys::attach() methods.
  */
 #ifdef CONFIG_PROVE_RCU
-extern struct mutex cgroup_mutex;
 extern spinlock_t css_set_lock;
 #define task_css_set_check(task, __c)					\
 	rcu_dereference_check((task)->cgroups,				\
@@ -443,6 +444,8 @@ extern spinlock_t css_set_lock;
 #define task_css_set_check(task, __c)					\
 	rcu_dereference((task)->cgroups)
 #endif
+
+extern struct mutex cgroup_mutex;
 
 /**
  * task_css_check - obtain css for (task, subsys) w/ extra access conds
