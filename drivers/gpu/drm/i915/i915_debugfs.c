@@ -1975,6 +1975,9 @@ static int i915_context_status(struct seq_file *m, void *unused)
 		seq_putc(m, ctx->remap_slice ? 'R' : 'r');
 		seq_putc(m, '\n');
 
+		seq_printf(m, "User priority %d, cgroup offset = %d)\n",
+			   ctx->sched.priority, ctx->sched.cgrp_prio_offset);
+
 		for_each_engine(engine, dev_priv, id) {
 			struct intel_context *ce =
 				to_intel_context(ctx, engine);
