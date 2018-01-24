@@ -1839,6 +1839,8 @@ static void init_cgroup_housekeeping(struct cgroup *cgrp)
 	INIT_LIST_HEAD(&cgrp->cset_links);
 	INIT_LIST_HEAD(&cgrp->pidlists);
 	mutex_init(&cgrp->pidlist_mutex);
+	hash_init(cgrp->privdata);
+	mutex_init(&cgrp->privdata_mutex);
 	cgrp->self.cgroup = cgrp;
 	cgrp->self.flags |= CSS_ONLINE;
 	cgrp->dom_cgrp = cgrp;
@@ -4578,6 +4580,9 @@ static void css_release_work_fn(struct work_struct *work)
 		container_of(work, struct cgroup_subsys_state, destroy_work);
 	struct cgroup_subsys *ss = css->ss;
 	struct cgroup *cgrp = css->cgroup;
+	struct cgroup_priv *priv;
+	struct hlist_node *tmp;
+	int i;
 
 	mutex_lock(&cgroup_mutex);
 
@@ -4617,6 +4622,15 @@ static void css_release_work_fn(struct work_struct *work)
 					 NULL);
 
 		cgroup_bpf_put(cgrp);
+
+		/* Any private data must be released automatically */
+		mutex_lock(&cgrp->privdata_mutex);
+		hash_for_each_safe(cgrp->privdata, i, tmp, priv, hnode) {
+			hash_del(&priv->hnode);
+			if (!WARN_ON(!priv->free))
+				priv->free(priv);
+		}
+		mutex_unlock(&cgrp->privdata_mutex);
 	}
 
 	mutex_unlock(&cgroup_mutex);

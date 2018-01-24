@@ -8,6 +8,7 @@
 #ifndef _LINUX_CGROUP_DEFS_H
 #define _LINUX_CGROUP_DEFS_H
 
+#include <linux/hashtable.h>
 #include <linux/limits.h>
 #include <linux/list.h>
 #include <linux/idr.h>
@@ -307,6 +308,36 @@ struct cgroup_stat {
 	struct prev_cputime prev_cputime;
 };
 
+/*
+ * Private data associated with a cgroup by an indpendent (non-controller) part
+ * of the kernel.  This is useful for things like drivers that may wish to track
+ * their own cgroup-specific data.
+ *
+ * If an individual cgroup is destroyed, the cgroups framework will
+ * automatically free all associated private data.  If cgroup private data is
+ * registered by a kernel module, then it is the module's responsibility to
+ * manually free its own private data upon unload.
+ */
+struct cgroup_priv {
+	/* cgroup this private data is associated with */
+	struct cgroup *cgroup;
+
+	/*
+	 * Lookup key that defines the in-kernel consumer of this private
+	 * data.
+	 */
+	const void *key;
+
+	/*
+	 * Function to release private data.  This will be automatically called
+	 * if/when the cgroup is destroyed.
+	 */
+	void (*free)(struct cgroup_priv *priv);
+
+	/* Hashlist node in cgroup's privdata hashtable */
+	struct hlist_node hnode;
+};
+
 struct cgroup {
 	/* self css with NULL ->ss, points back to this cgroup */
 	struct cgroup_subsys_state self;
@@ -426,6 +457,13 @@ struct cgroup {
 
 	/* used to store eBPF programs */
 	struct cgroup_bpf bpf;
+
+	/*
+	 * cgroup private data registered by other non-controller parts of the
+	 * kernel
+	 */
+	DECLARE_HASHTABLE(privdata, 4);
+	struct mutex privdata_mutex;
 
 	/* ids of the ancestors at each level including self */
 	int ancestor_ids[];

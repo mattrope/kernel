@@ -833,4 +833,82 @@ static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 		free_cgroup_ns(ns);
 }
 
+/**
+ * cgroup_priv_install - install new cgroup private data
+ * @key: Key uniquely identifying kernel owner of private data
+ *
+ * Allows non-controller kernel subsystems to register their own private data
+ * associated with a cgroup.  This will often be used by drivers which wish to
+ * track their own per-cgroup data without building a full cgroup controller.
+ *
+ * Callers should ensure that no existing private data exists for the given key
+ * before adding new private data.  If two sets of private data are registered
+ * with the same key, it is undefined which will be returned by future calls
+ * to cgroup_priv_lookup.
+ *
+ * Kernel modules that register private data with this function should take
+ * care to free their private data when unloaded to prevent leaks.
+ */
+static inline void
+cgroup_priv_install(struct cgroup *cgrp,
+		    struct cgroup_priv *priv)
+{
+	WARN_ON(!mutex_is_locked(&cgrp->privdata_mutex));
+	WARN_ON(!priv->key);
+	WARN_ON(!priv->free);
+	WARN_ON(priv->cgroup);
+
+	priv->cgroup = cgrp;
+	hash_add(cgrp->privdata, &priv->hnode,
+		 (unsigned long)priv->key);
+}
+
+/**
+ * cgroup_priv_lookup - looks up cgroup private data
+ * @key: Key uniquely identifying owner of private data to lookup
+ *
+ * Looks up the private data associated with a key.
+ *
+ * Returns:
+ * Previously registered cgroup private data associated with the given key, or
+ * NULL if no private data has been registered.
+ */
+static inline struct cgroup_priv *
+cgroup_priv_lookup(struct cgroup *cgrp,
+		   const void *key)
+{
+	struct cgroup_priv *priv;
+
+	WARN_ON(!mutex_is_locked(&cgrp->privdata_mutex));
+
+	hash_for_each_possible(cgrp->privdata, priv, hnode,
+			       (unsigned long)key)
+		if (priv->key == key)
+			return priv;
+
+	return NULL;
+}
+
+/**
+ * cgroup_priv_free - free cgroup private data
+ * @key: Key uniquely identifying owner of private data to free
+ */
+static inline void
+cgroup_priv_free(struct cgroup *cgrp, const void *key)
+{
+	struct cgroup_priv *priv;
+	struct hlist_node *tmp;
+
+	mutex_lock(&cgrp->privdata_mutex);
+
+	hash_for_each_possible_safe(cgrp->privdata, priv, tmp, hnode,
+				    (unsigned long)key) {
+		hash_del(&priv->hnode);
+		if (priv->key == key && !WARN_ON(priv->free == NULL))
+			priv->free(priv);
+	}
+
+	mutex_unlock(&cgrp->privdata_mutex);
+}
+
 #endif /* _LINUX_CGROUP_H */
