@@ -81,10 +81,17 @@ EXPORT_SYMBOL_GPL(css_set_lock);
 #endif
 
 /*
- * Protects cgroup_idr and css_idr so that IDs can be released without
- * grabbing cgroup_mutex.
+ * ID allocator for cgroup private data keys; the ID's allocated here will
+ * be used to index all per-cgroup radix trees.  The radix tree built into
+ * the IDR itself will store a key-specific function to be passed to kref_put.
  */
-static DEFINE_SPINLOCK(cgroup_idr_lock);
+static DEFINE_IDR(cgroup_priv_idr);
+
+/*
+ * Protects cgroup_idr, css_idr, and cgroup_priv_idr so that IDs can be
+ * released without grabbing cgroup_mutex.
+ */
+DEFINE_SPINLOCK(cgroup_idr_lock);
 
 /*
  * Protects cgroup_file->kn for !self csses.  It synchronizes notifications
@@ -1839,6 +1846,8 @@ static void init_cgroup_housekeeping(struct cgroup *cgrp)
 	INIT_LIST_HEAD(&cgrp->cset_links);
 	INIT_LIST_HEAD(&cgrp->pidlists);
 	mutex_init(&cgrp->pidlist_mutex);
+	INIT_RADIX_TREE(&cgrp->privdata, GFP_NOWAIT);
+	spin_lock_init(&cgrp->privdata_lock);
 	cgrp->self.cgroup = cgrp;
 	cgrp->self.flags |= CSS_ONLINE;
 	cgrp->dom_cgrp = cgrp;
@@ -4578,6 +4587,8 @@ static void css_release_work_fn(struct work_struct *work)
 		container_of(work, struct cgroup_subsys_state, destroy_work);
 	struct cgroup_subsys *ss = css->ss;
 	struct cgroup *cgrp = css->cgroup;
+	struct radix_tree_iter iter;
+	void **slot;
 
 	mutex_lock(&cgroup_mutex);
 
@@ -4617,6 +4628,12 @@ static void css_release_work_fn(struct work_struct *work)
 					 NULL);
 
 		cgroup_bpf_put(cgrp);
+
+		/* Drop reference on any private data */
+		rcu_read_lock();
+		radix_tree_for_each_slot(slot, &cgrp->privdata, &iter, 0)
+			cgroup_priv_release(cgrp, iter.index);
+		rcu_read_unlock();
 	}
 
 	mutex_unlock(&cgroup_mutex);
@@ -5932,3 +5949,165 @@ static int __init cgroup_sysfs_init(void)
 }
 subsys_initcall(cgroup_sysfs_init);
 #endif /* CONFIG_SYSFS */
+
+/**
+ * cgroup_priv_getkey - obtain a new cgroup_priv lookup key
+ * @free: Function to release private data associated with this key
+ *
+ * Allows non-controller kernel subsystems to register a new key that will
+ * be used to insert/lookup private data associated with individual cgroups.
+ * Private data lookup tables are implemented as per-cgroup radix trees.
+ *
+ * Returns:
+ * A positive integer lookup key if successful, or a negative error code
+ * on failure (e.g., if ID allocation fails).
+ */
+int
+cgroup_priv_getkey(void (*free)(struct kref *))
+{
+	int ret;
+
+	WARN_ON(!free);
+
+	idr_preload(GFP_KERNEL);
+	spin_lock_bh(&cgroup_idr_lock);
+	ret = idr_alloc(&cgroup_priv_idr, free, 1, 0, GFP_NOWAIT);
+	spin_unlock_bh(&cgroup_idr_lock);
+	idr_preload_end();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_getkey);
+
+/**
+ * cgroup_priv_destroykey - release a cgroup_priv key
+ * @key: Private data key to be released
+ *
+ * Removes a cgroup private data key and all private data associated with this
+ * key in any cgroup.  This is a heavy operation that will take cgroup_mutex.
+ */
+void
+cgroup_priv_destroykey(int key)
+{
+	struct cgroup *cgrp;
+
+	WARN_ON(key == 0);
+
+	mutex_lock(&cgroup_mutex);
+	cgroup_for_each_live_child(cgrp, &cgrp_dfl_root.cgrp)
+		cgroup_priv_release(cgrp, key);
+	idr_remove(&cgroup_priv_idr, key);
+	mutex_unlock(&cgroup_mutex);
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_destroykey);
+
+/**
+ * cgroup_priv_install - install new cgroup private data
+ * @cgrp: cgroup to store private data for
+ * @key: key uniquely identifying kernel owner of private data
+ * @data: pointer to kref field of private data structure
+ *
+ * Allows non-controller kernel subsystems to register their own private data
+ * associated with a cgroup.  This will often be used by drivers which wish to
+ * track their own per-cgroup data without building a full cgroup controller.
+ *
+ * The caller is responsible for ensuring that no private data already exists
+ * for the given key.
+ *
+ * Registering cgroup private data with this function will increment the
+ * reference count for the private data structure.  If the cgroup is removed,
+ * the reference count will be decremented, allowing the private data to
+ * be freed if there are no other outstanding references.
+ *
+ * Returns:
+ * 0 on success, otherwise a negative error code on failure.
+ */
+int
+cgroup_priv_install(struct cgroup *cgrp, int key, struct kref *ref)
+{
+	int ret;
+
+	WARN_ON(cgrp->root != &cgrp_dfl_root);
+	WARN_ON(key == 0);
+
+	kref_get(ref);
+
+	ret = radix_tree_preload(GFP_KERNEL);
+	if (ret)
+		return ret;
+
+	spin_lock_bh(&cgrp->privdata_lock);
+	ret = radix_tree_insert(&cgrp->privdata, key, ref);
+	spin_unlock_bh(&cgrp->privdata_lock);
+	radix_tree_preload_end();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_install);
+
+/**
+ * cgroup_priv_get - looks up cgroup private data
+ * @cgrp: cgroup to lookup private data for
+ * @key: key uniquely identifying owner of private data to lookup
+ *
+ * Looks up the cgroup private data associated with a key.  The private
+ * data's reference count is incremented and a pointer to its kref field
+ * is returned to the caller (which can use container_of()) to obtain
+ * the private data itself.
+ *
+ * Returns:
+ * A pointer to the private data's kref field, or NULL if no private data has
+ * been registered.
+ */
+struct kref *
+cgroup_priv_get(struct cgroup *cgrp, int key)
+{
+	struct kref *ref;
+
+	WARN_ON(cgrp->root != &cgrp_dfl_root);
+	WARN_ON(key == 0);
+
+	rcu_read_lock();
+
+	ref = radix_tree_lookup(&cgrp->privdata, key);
+	if (ref)
+		kref_get(ref);
+
+	rcu_read_unlock();
+
+	return ref;
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_get);
+
+/**
+ * cgroup_priv_free - free cgroup private data
+ * @cgrp: cgroup to release private data for
+ * @key: key uniquely identifying owner of private data to free
+ *
+ * Removes private data associated with the given key from a cgroup's internal
+ * table and decrements the reference count for the private data removed,
+ * allowing it to freed if no other references exist.
+ */
+void
+cgroup_priv_release(struct cgroup *cgrp, int key)
+{
+	struct kref *ref;
+	void (*free)(struct kref *);
+
+	WARN_ON(cgrp->root != &cgrp_dfl_root);
+	WARN_ON(key == 0);
+
+	rcu_read_lock();
+
+	free = idr_find(&cgroup_priv_idr, key);
+	WARN_ON(!free);
+
+	spin_lock_bh(&cgrp->privdata_lock);
+	ref = radix_tree_delete(&cgrp->privdata, key);
+	spin_unlock_bh(&cgrp->privdata_lock);
+	if (ref)
+		kref_put(ref, free);
+
+	rcu_read_unlock();
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_release);

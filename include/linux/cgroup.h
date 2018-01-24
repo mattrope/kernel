@@ -833,4 +833,11 @@ static inline void put_cgroup_ns(struct cgroup_namespace *ns)
 		free_cgroup_ns(ns);
 }
 
+/* cgroup private data handling */
+int cgroup_priv_getkey(void (*free)(struct kref *));
+void cgroup_priv_destroykey(int key);
+int cgroup_priv_install(struct cgroup *cgrp, int key, struct kref *ref);
+struct kref *cgroup_priv_get(struct cgroup *cgrp, int key);
+void cgroup_priv_release(struct cgroup *cgrp, int key);
+
 #endif /* _LINUX_CGROUP_H */

@@ -427,6 +427,14 @@ struct cgroup {
 	/* used to store eBPF programs */
 	struct cgroup_bpf bpf;
 
+	/*
+	 * cgroup private data registered by other non-controller parts of the
+	 * kernel.  Insertions are protected by privdata_lock, lookups by
+	 * rcu_read_lock().
+	 */
+	struct radix_tree_root privdata;
+	spinlock_t privdata_lock;
+
 	/* ids of the ancestors at each level including self */
 	int ancestor_ids[];
 };
