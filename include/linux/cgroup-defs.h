@@ -441,6 +441,16 @@ struct cgroup {
 	/* If there is block congestion on this cgroup. */
 	atomic_t congestion_count;
 
+	/*
+	 * cgroup private data registered by other non-controller parts of the
+	 * kernel.  Insertions are protected by privdata_lock, lookups by
+	 * rcu_read_lock().
+	 */
+	struct radix_tree_root privdata;
+
+	/* Protect against concurrent insertions/deletions to privdata */
+	spinlock_t privdata_lock;
+
 	/* ids of the ancestors at each level including self */
 	int ancestor_ids[];
 };
