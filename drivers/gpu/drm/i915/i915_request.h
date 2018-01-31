@@ -87,6 +87,10 @@ enum {
 	I915_PRIORITY_NORMAL = I915_CONTEXT_DEFAULT_PRIORITY,
 	I915_PRIORITY_DEFAULT_DISPBOOST = I915_CONTEXT_MAX_USER_PRIORITY + 1,
 
+	/* Range reachable by combining user priority + cgroup offset */
+	I915_PRIORITY_MAX = 0x7fffff,
+	I915_PRIORITY_MIN = -I915_PRIORITY_MAX,
+
 	/* Special case priority values */
 	I915_PRIORITY_INVALID = INT_MIN,
 	I915_PRIORITY_IDLE = INT_MIN + 1,
