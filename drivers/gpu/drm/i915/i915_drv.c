@@ -1405,6 +1405,8 @@ int i915_driver_load(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	intel_runtime_pm_put(dev_priv);
 
+	i915_cgroup_init(dev_priv);
+
 	i915_welcome_messages(dev_priv);
 
 	return 0;
@@ -1430,6 +1432,8 @@ void i915_driver_unload(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct pci_dev *pdev = dev_priv->drm.pdev;
+
+	i915_cgroup_shutdown(dev_priv);
 
 	i915_driver_unregister(dev_priv);
 
@@ -2832,6 +2836,7 @@ static const struct drm_ioctl_desc i915_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(I915_PERF_OPEN, i915_perf_open_ioctl, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(I915_PERF_ADD_CONFIG, i915_perf_add_config_ioctl, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(I915_PERF_REMOVE_CONFIG, i915_perf_remove_config_ioctl, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(I915_CGROUP_SETPARAM, i915_cgroup_setparam_ioctl, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 };
 
 static struct drm_driver driver = {
