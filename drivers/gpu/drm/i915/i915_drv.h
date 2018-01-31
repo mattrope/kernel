@@ -2688,18 +2688,19 @@ int i915_cgroup_init(struct drm_i915_private *dev_priv);
 int i915_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
 			       struct drm_file *file);
 void i915_cgroup_shutdown(struct drm_i915_private *dev_priv);
+int i915_cgroup_get_current_prio_offset(struct drm_i915_private *dev_priv);
 #else
-static inline int
-i915_cgroup_init(struct drm_i915_private *dev_priv)
-{
-	return 0;
-}
+static inline void i915_cgroup_init(struct drm_i915_private *dev_priv) {}
 static inline void i915_cgroup_shutdown(struct drm_i915_private *dev_priv) {}
-static inline int
-i915_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
-			   struct drm_file *file)
+static inline int i915_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
+					     struct drm_file *file)
 {
 	return -EINVAL;
+}
+static inline int
+i915_cgroup_get_current_prio_offset(struct drm_i915_private *dev_priv)
+{
+	return 0;
 }
 #endif
 
