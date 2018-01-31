@@ -527,6 +527,35 @@ static inline struct cgroup *task_dfl_cgroup(struct task_struct *task)
 	return task_css_set(task)->dfl_cgrp;
 }
 
+/**
+ * task_get_dfl_cgroup() - find and get the cgroup for a task
+ * @task: the target task
+ *
+ * Find the cgroup in the v2 hierarchy that a task belongs to, increment its
+ * reference count, and return it.
+ *
+ * Returns:
+ * The appropriate cgroup from the default hierarchy.
+ */
+static inline struct cgroup *
+task_get_dfl_cgroup(struct task_struct *task)
+{
+	struct cgroup *cgrp;
+
+	rcu_read_lock();
+	while (true) {
+		cgrp = task_dfl_cgroup(task);
+
+		if (likely(cgroup_tryget(cgrp)))
+			break;
+
+		cpu_relax();
+	}
+	rcu_read_unlock();
+
+	return cgrp;
+}
+
 static inline struct cgroup *cgroup_parent(struct cgroup *cgrp)
 {
 	struct cgroup_subsys_state *parent_css = cgrp->self.parent;
