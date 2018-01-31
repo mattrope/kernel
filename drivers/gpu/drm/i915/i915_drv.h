@@ -1738,6 +1738,15 @@ struct drm_i915_private {
 
 	struct intel_ppat ppat;
 
+	/* cgroup private data */
+	int cgroup_priv_key;
+
+	/*
+	 * protects against concurrent attempts to create private data for a
+	 * cgroup
+	 */
+	struct mutex cgroup_lock;
+
 	/* Kernel Modesetting */
 
 	struct intel_crtc *plane_to_crtc_mapping[I915_MAX_PIPES];
@@ -2677,6 +2686,29 @@ intel_ggtt_update_needs_vtd_wa(struct drm_i915_private *dev_priv)
 
 int intel_sanitize_enable_ppgtt(struct drm_i915_private *dev_priv,
 				int enable_ppgtt);
+
+/* i915_cgroup.c */
+#ifdef CONFIG_CGROUPS
+int i915_cgroup_init(struct drm_i915_private *dev_priv);
+int i915_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file);
+void i915_cgroup_shutdown(struct drm_i915_private *dev_priv);
+#else
+static inline int
+i915_cgroup_init(struct drm_i915_private *dev_priv)
+{
+	return 0;
+}
+
+static inline void i915_cgroup_shutdown(struct drm_i915_private *dev_priv) {}
+
+static inline int
+i915_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
+			   struct drm_file *file)
+{
+	return -EINVAL;
+}
+#endif
 
 /* i915_drv.c */
 void __printf(3, 4)
