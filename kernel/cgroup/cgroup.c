@@ -5781,6 +5781,48 @@ struct cgroup *cgroup_get_from_fd(int fd)
 }
 EXPORT_SYMBOL_GPL(cgroup_get_from_fd);
 
+/**
+ * cgroup_permission - check cgroup fd permissions
+ * @fd: fd obtained by open(cgroup)
+ * @mask: Right to check for (%MAY_READ, %MAY_WRITE, %MAY_EXEC)
+ *
+ * Check for read/write/execute permissions on a cgroup.
+ */
+int cgroup_permission(int fd, int mask)
+{
+	struct file *f;
+	struct inode *inode;
+	struct cgroup_subsys_state *css;
+	int ret;
+
+	f = fget_raw(fd);
+	if (!f)
+		return -EBADF;
+
+	css = css_tryget_online_from_dir(f->f_path.dentry, NULL);
+	if (IS_ERR(css)) {
+		ret = PTR_ERR(css);
+		goto out_file;
+	}
+
+	inode = kernfs_get_inode(f->f_path.dentry->d_sb, css->cgroup->kn);
+	if (!inode) {
+		ret = -ENOMEM;
+		goto out_cgroup;
+	}
+
+	ret = inode_permission(inode, mask);
+	iput(inode);
+
+out_cgroup:
+	cgroup_put(css->cgroup);
+out_file:
+	fput(f);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(cgroup_permission);
+
 /*
  * sock->sk_cgrp_data handling.  For more info, see sock_cgroup_data
  * definition in cgroup-defs.h.
