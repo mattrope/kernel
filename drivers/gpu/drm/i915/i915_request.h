@@ -78,12 +78,19 @@ struct i915_priotree {
 	int priority;
 };
 
+/*
+ * Userspace can only assign priority values of [-1023,1023] via context param,
+ * but the effective priority value can fall in a larger range once we add in
+ * a cgroup-provided offset.
+ */
 enum {
-	I915_PRIORITY_MIN = I915_CONTEXT_MIN_USER_PRIORITY - 1,
 	I915_PRIORITY_NORMAL = I915_CONTEXT_DEFAULT_PRIORITY,
-	I915_PRIORITY_MAX = I915_CONTEXT_MAX_USER_PRIORITY + 1,
+	I915_PRIORITY_DEFAULT_DISPBOOST = I915_CONTEXT_MAX_USER_PRIORITY + 1,
 
-	I915_PRIORITY_INVALID = INT_MIN
+	/* Special case priority values */
+	I915_PRIORITY_INVALID = INT_MIN,
+	I915_PRIORITY_IDLE = INT_MIN + 1,
+	I915_PRIORITY_PREEMPT = INT_MAX,
 };
 
 struct i915_capture_list {
