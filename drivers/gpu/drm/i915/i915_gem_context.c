@@ -548,7 +548,7 @@ int i915_gem_contexts_init(struct drm_i915_private *dev_priv)
 	init_contexts(dev_priv);
 
 	/* lowest priority; idle task */
-	ctx = i915_gem_context_create_kernel(dev_priv, I915_PRIORITY_MIN);
+	ctx = i915_gem_context_create_kernel(dev_priv, I915_PRIORITY_IDLE);
 	if (IS_ERR(ctx)) {
 		DRM_ERROR("Failed to create default global context\n");
 		return PTR_ERR(ctx);
@@ -566,7 +566,8 @@ int i915_gem_contexts_init(struct drm_i915_private *dev_priv)
 
 	/* highest priority; preempting task */
 	if (needs_preempt_context(dev_priv)) {
-		ctx = i915_gem_context_create_kernel(dev_priv, INT_MAX);
+		ctx = i915_gem_context_create_kernel(dev_priv,
+						     I915_PRIORITY_PREEMPT);
 		if (!IS_ERR(ctx))
 			dev_priv->preempt_context = ctx;
 		else

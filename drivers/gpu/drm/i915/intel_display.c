@@ -13007,7 +13007,7 @@ static void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state)
 static void fb_obj_bump_render_priority(struct drm_i915_gem_object *obj)
 {
 	struct i915_sched_attr attr = {
-		.priority = I915_PRIORITY_DISPLAY,
+		.priority = I915_PRIORITY_DEFAULT_DISPBOOST,
 	};
 
 	i915_gem_object_wait_priority(obj, 0, &attr);
