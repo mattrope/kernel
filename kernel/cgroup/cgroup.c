@@ -6080,6 +6080,29 @@ cgroup_priv_get(struct cgroup *cgrp, int key)
 EXPORT_SYMBOL_GPL(cgroup_priv_get);
 
 /**
+ * cgroup_priv_get_current - looks up cgroup private data for current task
+ * @key: key uniquely identifying owner of private data to lookup
+ *
+ * Convenience function that performs cgroup_priv_get() on the cgroup that owns
+ * %current.
+ *
+ * Returns:
+ * A pointer to the private data's kref field, or NULL if no private data has
+ * been registered.
+ */
+struct kref *
+cgroup_priv_get_current(int key)
+{
+	struct cgroup *cgrp = task_get_dfl_cgroup(current);
+	struct kref *ref = cgroup_priv_get(cgrp, key);
+
+	cgroup_put(cgrp);
+
+	return ref;
+}
+EXPORT_SYMBOL_GPL(cgroup_priv_get_current);
+
+/**
  * cgroup_priv_free - free cgroup private data
  * @cgrp: cgroup to release private data for
  * @key: key uniquely identifying owner of private data to free
