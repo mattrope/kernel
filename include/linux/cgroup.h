@@ -867,6 +867,7 @@ int cgroup_priv_getkey(void (*free)(struct kref *));
 void cgroup_priv_destroykey(int key);
 int cgroup_priv_install(struct cgroup *cgrp, int key, struct kref *ref);
 struct kref *cgroup_priv_get(struct cgroup *cgrp, int key);
+struct kref *cgroup_priv_get_current(int key);
 void cgroup_priv_release(struct cgroup *cgrp, int key);
 
 #endif /* _LINUX_CGROUP_H */
