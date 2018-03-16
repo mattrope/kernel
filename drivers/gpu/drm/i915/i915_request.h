@@ -90,6 +90,7 @@ enum {
 	/* Range reachable by combining user priority + cgroup offset */
 	I915_PRIORITY_MAX = 0x7fffff,
 	I915_PRIORITY_MIN = -I915_PRIORITY_MAX,
+	I915_PRIORITY_MAX_DISPBOOST = I915_PRIORITY_MAX + 1,
 
 	/* Special case priority values */
 	I915_PRIORITY_INVALID = INT_MIN,

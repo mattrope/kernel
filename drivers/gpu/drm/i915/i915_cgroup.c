@@ -11,6 +11,7 @@
 
 struct i915_cgroup_data {
 	int priority_offset;
+	int display_boost;
 
 	struct kref ref;
 };
@@ -74,6 +75,8 @@ get_or_create_cgroup_data(struct drm_i915_private *dev_priv,
 			priv = ERR_PTR(-ENOMEM);
 			goto out;
 		}
+
+		priv->display_boost = I915_PRIORITY_DEFAULT_DISPBOOST;
 
 		kref_init(&priv->ref);
 		cgroup_priv_install(cgrp, dev_priv->cgroup_priv_key,
@@ -150,6 +153,19 @@ i915_cgroup_setparam_ioctl(struct drm_device *dev,
 		}
 		break;
 
+	case I915_CGROUP_PARAM_DISPBOOST_PRIORITY:
+		if (req->value < I915_PRIORITY_MAX_DISPBOOST &&
+		    req->value > I915_PRIORITY_MIN) {
+			DRM_DEBUG_DRIVER("Setting cgroup display boost priority to %lld\n",
+					 req->value);
+			cgrpdata->display_boost = req->value;
+		} else {
+			DRM_DEBUG_DRIVER("Invalid cgroup display boost priority %lld\n",
+					 req->value);
+			ret = -EINVAL;
+		}
+		break;
+
 	default:
 		DRM_DEBUG_DRIVER("Invalid cgroup parameter %lld\n", req->param);
 		ret = -EINVAL;
@@ -184,5 +200,6 @@ int i915_cgroup_get_current_##name(struct drm_i915_private *dev_priv)	\
 }
 
 CGROUP_GET(prio_offset, priority_offset, 0)
+CGROUP_GET(dispboost, display_boost, I915_PRIORITY_DEFAULT_DISPBOOST);
 
 #undef CGROUP_GET

@@ -1727,6 +1727,7 @@ struct drm_i915_cgroup_param {
 	__u32 flags;
 	__u64 param;
 #define I915_CGROUP_PARAM_PRIORITY_OFFSET	0x1
+#define I915_CGROUP_PARAM_DISPBOOST_PRIORITY    0x2
 	__s64 value;
 };
 

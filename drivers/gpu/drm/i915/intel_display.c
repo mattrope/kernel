@@ -12731,7 +12731,7 @@ intel_prepare_plane_fb(struct drm_plane *plane,
 	struct drm_framebuffer *fb = new_state->fb;
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	struct drm_i915_gem_object *old_obj = intel_fb_obj(plane->state->fb);
-	int ret;
+	int boost, ret;
 
 	if (old_obj) {
 		struct drm_crtc_state *crtc_state =
@@ -12783,7 +12783,8 @@ intel_prepare_plane_fb(struct drm_plane *plane,
 
 	ret = intel_plane_pin_fb(to_intel_plane_state(new_state));
 
-	i915_gem_object_wait_priority(obj, 0, I915_PRIORITY_DEFAULT_DISPBOOST);
+	boost = i915_cgroup_get_current_dispboost(dev_priv);
+	i915_gem_object_wait_priority(obj, 0, boost);
 
 	mutex_unlock(&dev_priv->drm.struct_mutex);
 	i915_gem_object_unpin_pages(obj);
