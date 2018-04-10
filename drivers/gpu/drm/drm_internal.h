@@ -192,3 +192,7 @@ int drm_syncobj_signal_ioctl(struct drm_device *dev, void *data,
 void drm_framebuffer_print_info(struct drm_printer *p, unsigned int indent,
 				const struct drm_framebuffer *fb);
 int drm_framebuffer_debugfs_init(struct drm_minor *minor);
+
+/* drm_cgroup.c */
+int drm_cgroup_setparam_ioctl(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv);

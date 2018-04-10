@@ -221,6 +221,22 @@ struct drm_device {
 	 * Set by drm_fb_helper_init() and cleared by drm_fb_helper_fini().
 	 */
 	struct drm_fb_helper *fb_helper;
+
+	/**
+	 * @cgroup_priv_key:
+	 *
+	 * IDA key used to lookup cgroup private data associated with
+	 * this device.
+	 */
+	int cgroup_priv_key;
+
+	/**
+	 * @mutex_cgroup_lock:
+	 *
+	 * Lock used to prevent concurrent creation of private data for the
+	 * same cgroup.
+	 */
+	struct mutex cgroup_lock;
 };
 
 #endif

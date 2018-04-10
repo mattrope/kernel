@@ -679,6 +679,11 @@ static const struct drm_ioctl_desc drm_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_IOCTL_MODE_LIST_LESSEES, drm_mode_list_lessees_ioctl, DRM_MASTER|DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_IOCTL_MODE_GET_LEASE, drm_mode_get_lease_ioctl, DRM_MASTER|DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_IOCTL_MODE_REVOKE_LEASE, drm_mode_revoke_lease_ioctl, DRM_MASTER|DRM_UNLOCKED),
+
+#if IS_ENABLED(CONFIG_CGROUPS)
+	DRM_IOCTL_DEF(DRM_IOCTL_CGROUP_SETPARAM, drm_cgroup_setparam_ioctl,
+		      DRM_RENDER_ALLOW|DRM_UNLOCKED),
+#endif
 };
 
 #define DRM_CORE_IOCTL_COUNT	ARRAY_SIZE( drm_ioctls )

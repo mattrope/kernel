@@ -702,6 +702,14 @@ struct drm_set_client_cap {
 	__u64 value;
 };
 
+/** DRM_IOCTL_CGROUP_SETPARAM ioctl argument type */
+struct drm_cgroup_param {
+	__s32 cgroup_fd;
+	__u32 flags;
+	__u64 param;
+	__s64 value;
+};
+
 #define DRM_RDWR O_RDWR
 #define DRM_CLOEXEC O_CLOEXEC
 struct drm_prime_handle {
@@ -805,6 +813,7 @@ extern "C" {
 #define DRM_IOCTL_GEM_OPEN		DRM_IOWR(0x0b, struct drm_gem_open)
 #define DRM_IOCTL_GET_CAP		DRM_IOWR(0x0c, struct drm_get_cap)
 #define DRM_IOCTL_SET_CLIENT_CAP	DRM_IOW( 0x0d, struct drm_set_client_cap)
+#define DRM_IOCTL_CGROUP_SETPARAM	DRM_IOW( 0x0e, struct drm_cgroup_param)
 
 #define DRM_IOCTL_SET_UNIQUE		DRM_IOW( 0x10, struct drm_unique)
 #define DRM_IOCTL_AUTH_MAGIC		DRM_IOW( 0x11, struct drm_auth)
