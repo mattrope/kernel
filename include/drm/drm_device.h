@@ -241,11 +241,18 @@ struct drm_device {
 
 		/** cgroup.has_prio_offset: Driver honors prio offsets? */
 		bool has_prio_offset;
+		/** cgroup.has_dispboost: Driver honors display boost? */
+		bool has_dispboost;
 
 		/** cgroup.min_prio_offset: priority offset lower bound */
 		int min_prio_offset;
 		/** cgroup.max_prio_offset: priority offset upper bound */
 		int max_prio_offset;
+
+		/** cgroup.default_dispboost: default display boost */
+		int default_dispboost;
+		/** cgroup.max_dispboost: display boost upper bound */
+		int max_dispboost;
 	} cgroup;
 };
 

@@ -65,6 +65,8 @@ get_or_create_cgroup_data(struct drm_device *dev,
                        goto out;
                }
 
+	       priv->display_boost = dev->cgroup.default_dispboost;
+
                kref_init(&priv->ref);
                cgroup_priv_install(cgrp, dev->cgroup.priv_key,
                                    &priv->ref);
@@ -144,6 +146,22 @@ drm_cgroup_setparam_ioctl(struct drm_device *dev,
 	       }
 	       break;
 
+       case DRM_CGROUP_PARAM_DISPBOOST_PRIORITY:
+	       if (!dev->cgroup.has_dispboost) {
+		       DRM_DEBUG_DRIVER("Driver does not honor display boost\n");
+		       ret = -EINVAL;
+	       } else if (req->value > dev->cgroup.max_dispboost) {
+		       DRM_DEBUG_DRIVER("Display boost %lld exceeds max allowed by driver (%d)\n",
+					req->value,
+					dev->cgroup.max_dispboost);
+		       ret = -EINVAL;
+	       } else {
+		       DRM_DEBUG_DRIVER("Setting cgroup display boost priority to %lld\n",
+					req->value);
+		       priv->display_boost = req->value;
+	       }
+	       break;
+
        default:
                DRM_DEBUG("Invalid cgroup parameter %lld\n", req->param);
                ret = -EINVAL;
@@ -180,5 +198,6 @@ int drm_cgroup_get_current_##name(struct drm_device *dev)		\
 EXPORT_SYMBOL(drm_cgroup_get_current_##name);
 
 CGROUP_GET(prio_offset, priority_offset, 0)
+CGROUP_GET(dispboost, display_boost, dev->cgroup.default_dispboost)
 
 #undef CGROUP_GET
