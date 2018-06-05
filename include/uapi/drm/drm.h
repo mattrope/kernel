@@ -707,6 +707,7 @@ struct drm_cgroup_param {
 	__s32 cgroup_fd;
 	__u32 flags;
 	__u64 param;
+#define DRM_CGROUP_PARAM_PRIORITY_OFFSET	0x1
 	__s64 value;
 };
 

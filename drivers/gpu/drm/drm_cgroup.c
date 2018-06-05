@@ -23,13 +23,13 @@ drm_cgroup_init(struct drm_device *dev)
 {
        int ret = 0;
 
-       dev->cgroup_priv_key = cgroup_priv_createkey(drm_cgroup_free);
-       if (dev->cgroup_priv_key < 0) {
+       dev->cgroup.priv_key = cgroup_priv_createkey(drm_cgroup_free);
+       if (dev->cgroup.priv_key < 0) {
                DRM_DEBUG("Failed to obtain cgroup private data key\n");
-               ret = dev->cgroup_priv_key;
+               ret = dev->cgroup.priv_key;
        }
 
-       mutex_init(&dev->cgroup_lock);
+       mutex_init(&dev->cgroup.lock);
 
        return ret;
 }
@@ -38,7 +38,7 @@ EXPORT_SYMBOL(drm_cgroup_init);
 void
 drm_cgroup_shutdown(struct drm_device *dev)
 {
-       cgroup_priv_destroykey(dev->cgroup_priv_key);
+       cgroup_priv_destroykey(dev->cgroup.priv_key);
 }
 EXPORT_SYMBOL(drm_cgroup_shutdown);
 
@@ -46,7 +46,6 @@ EXPORT_SYMBOL(drm_cgroup_shutdown);
  * Return drm cgroup private data, creating and registering it if one doesn't
  * already exist for this cgroup.
  */
-__maybe_unused
 static struct drm_cgroup_priv *
 get_or_create_cgroup_data(struct drm_device *dev,
                          struct cgroup *cgrp)
@@ -54,9 +53,9 @@ get_or_create_cgroup_data(struct drm_device *dev,
        struct kref *ref;
        struct drm_cgroup_priv *priv;
 
-       mutex_lock(&dev->cgroup_lock);
+       mutex_lock(&dev->cgroup.lock);
 
-       ref = cgroup_priv_get(cgrp, dev->cgroup_priv_key);
+       ref = cgroup_priv_get(cgrp, dev->cgroup.priv_key);
        if (ref) {
                priv = cgrp_ref_to_drm(ref);
        } else {
@@ -67,12 +66,12 @@ get_or_create_cgroup_data(struct drm_device *dev,
                }
 
                kref_init(&priv->ref);
-               cgroup_priv_install(cgrp, dev->cgroup_priv_key,
+               cgroup_priv_install(cgrp, dev->cgroup.priv_key,
                                    &priv->ref);
        }
 
 out:
-       mutex_unlock(&dev->cgroup_lock);
+       mutex_unlock(&dev->cgroup.lock);
 
        return priv;
 }
@@ -91,8 +90,9 @@ drm_cgroup_setparam_ioctl(struct drm_device *dev,
                           struct drm_file *file)
 {
        struct drm_cgroup_param *req = data;
+       struct drm_cgroup_priv *priv;
        struct cgroup *cgrp;
-       int ret;
+       int ret = 0;
 
        /* We don't actually support any flags yet. */
        if (req->flags) {
@@ -119,14 +119,66 @@ drm_cgroup_setparam_ioctl(struct drm_device *dev,
                goto out;
        }
 
+       priv = get_or_create_cgroup_data(dev, cgrp);
+       if (IS_ERR(priv)) {
+	       ret = PTR_ERR(priv);
+	       goto out;
+       }
+
        switch (req->param) {
+       case DRM_CGROUP_PARAM_PRIORITY_OFFSET:
+	       if (!dev->cgroup.has_prio_offset) {
+		       DRM_DEBUG_DRIVER("Driver does not honor priority offsets\n");
+		       ret = -EINVAL;
+	       } else if (req->value < dev->cgroup.min_prio_offset ||
+			  req->value > dev->cgroup.max_prio_offset) {
+		       DRM_DEBUG_DRIVER("Priority offset %lld not within driver supported range [%d,%d]\n",
+					req->value,
+					dev->cgroup.min_prio_offset,
+					dev->cgroup.max_prio_offset);
+		       ret = -EINVAL;
+	       } else {
+		       DRM_DEBUG_DRIVER("Setting cgroup priority offset to %lld\n",
+					req->value);
+		       priv->priority_offset = req->value;
+	       }
+	       break;
+
        default:
                DRM_DEBUG("Invalid cgroup parameter %lld\n", req->param);
                ret = -EINVAL;
        }
 
+       kref_put(&priv->ref, drm_cgroup_free);
+
 out:
        cgroup_put(cgrp);
 
-	return ret;
+       return ret;
 }
+
+/*
+ * Generator for simple getter functions that look up a cgroup private data
+ * field for the current task's cgroup.  It's safe to call these before
+ * a cgroup private data key has been registered; they'll just return the
+ * default value in that case.
+ */
+#define CGROUP_GET(name, field, def) \
+int drm_cgroup_get_current_##name(struct drm_device *dev)		\
+{									\
+	struct kref *ref;						\
+	int val = def;							\
+	if (!dev->cgroup.priv_key)					\
+		return val;						\
+	ref = cgroup_priv_get_current(dev->cgroup.priv_key);		\
+	if (ref) {							\
+		val = cgrp_ref_to_drm(ref)->field;			\
+		kref_put(ref, drm_cgroup_free);				\
+	}								\
+	return val;							\
+}									\
+EXPORT_SYMBOL(drm_cgroup_get_current_##name);
+
+CGROUP_GET(prio_offset, priority_offset, 0)
+
+#undef CGROUP_GET

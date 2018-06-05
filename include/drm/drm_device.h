@@ -222,21 +222,31 @@ struct drm_device {
 	 */
 	struct drm_fb_helper *fb_helper;
 
-	/**
-	 * @cgroup_priv_key:
-	 *
-	 * IDA key used to lookup cgroup private data associated with
-	 * this device.
-	 */
-	int cgroup_priv_key;
+	struct {
+		/**
+		 * @cgroup.priv_key:
+		 *
+		 * IDA key used to lookup cgroup private data associated with
+		 * this device.
+		 */
+		int priv_key;
 
-	/**
-	 * @mutex_cgroup_lock:
-	 *
-	 * Lock used to prevent concurrent creation of private data for the
-	 * same cgroup.
-	 */
-	struct mutex cgroup_lock;
+		/**
+		 * @cgroup.lock:
+		 *
+		 * Lock used to prevent concurrent creation of private data for
+		 * the same cgroup.
+		 */
+		struct mutex lock;
+
+		/** cgroup.has_prio_offset: Driver honors prio offsets? */
+		bool has_prio_offset;
+
+		/** cgroup.min_prio_offset: priority offset lower bound */
+		int min_prio_offset;
+		/** cgroup.max_prio_offset: priority offset upper bound */
+		int max_prio_offset;
+	} cgroup;
 };
 
 #endif
