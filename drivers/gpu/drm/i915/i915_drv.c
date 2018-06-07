@@ -1305,6 +1305,21 @@ static void i915_driver_unregister(struct drm_i915_private *dev_priv)
 	i915_gem_shrinker_unregister(dev_priv);
 }
 
+static inline int
+i915_cgroup_init(struct drm_i915_private *dev_priv)
+{
+	dev_priv->drm.cgroup.has_prio_offset = true;
+	dev_priv->drm.cgroup.has_dispboost = true;
+	dev_priv->drm.cgroup.max_prio_offset =
+		I915_PRIORITY_PREEMPT - I915_CONTEXT_MAX_USER_PRIORITY - 1;
+	dev_priv->drm.cgroup.min_prio_offset =
+		I915_PRIORITY_IDLE - I915_CONTEXT_MIN_USER_PRIORITY + 1;
+	dev_priv->drm.cgroup.max_dispboost = I915_PRIORITY_PREEMPT;
+	dev_priv->drm.cgroup.default_dispboost = I915_PRIORITY_PREEMPT;
+
+	return drm_cgroup_init(&dev_priv->drm);
+}
+
 static void i915_welcome_messages(struct drm_i915_private *dev_priv)
 {
 	if (drm_debug & DRM_UT_DRIVER) {
@@ -1432,6 +1447,10 @@ int i915_driver_load(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	enable_rpm_wakeref_asserts(dev_priv);
 
+	ret = i915_cgroup_init(dev_priv);
+	if (ret < 0)
+		goto out_cleanup_hw;
+
 	i915_welcome_messages(dev_priv);
 
 	return 0;
@@ -1455,6 +1474,8 @@ void i915_driver_unload(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct pci_dev *pdev = dev_priv->drm.pdev;
+
+	drm_cgroup_shutdown(dev);
 
 	disable_rpm_wakeref_asserts(dev_priv);
 

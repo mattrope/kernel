@@ -194,6 +194,7 @@ i915_sched_node_init(struct i915_sched_node *node)
 	INIT_LIST_HEAD(&node->waiters_list);
 	INIT_LIST_HEAD(&node->link);
 	node->attr.priority = I915_PRIORITY_INVALID;
+	node->attr.cgrp_prio_offset = 0;
 }
 
 static int reset_all_global_seqno(struct drm_i915_private *i915, u32 seqno)

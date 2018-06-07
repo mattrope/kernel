@@ -1151,7 +1151,7 @@ static void execlists_schedule(struct i915_request *request,
 	struct intel_engine_cs *engine, *last;
 	struct i915_dependency *dep, *p;
 	struct i915_dependency stack;
-	const int prio = attr->priority;
+	const int prio = attr->priority + attr->cgrp_prio_offset;
 	LIST_HEAD(dfs);
 
 	GEM_BUG_ON(prio == I915_PRIORITY_INVALID);

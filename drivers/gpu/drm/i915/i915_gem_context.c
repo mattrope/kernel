@@ -326,6 +326,7 @@ static struct i915_gem_context *
 __create_hw_context(struct drm_i915_private *dev_priv,
 		    struct drm_i915_file_private *file_priv)
 {
+	struct drm_device *dev = &dev_priv->drm;
 	struct i915_gem_context *ctx;
 	unsigned int n;
 	int ret;
@@ -338,6 +339,7 @@ __create_hw_context(struct drm_i915_private *dev_priv,
 	list_add_tail(&ctx->link, &dev_priv->contexts.list);
 	ctx->i915 = dev_priv;
 	ctx->sched.priority = I915_PRIORITY_NORMAL;
+	ctx->sched.cgrp_prio_offset = drm_cgroup_get_current_prio_offset(dev);
 
 	for (n = 0; n < ARRAY_SIZE(ctx->__engine); n++) {
 		struct intel_context *ce = &ctx->__engine[n];

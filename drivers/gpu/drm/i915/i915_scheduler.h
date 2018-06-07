@@ -38,6 +38,17 @@ struct i915_sched_attr {
 	 * The &drm_i915_private.kernel_context is assigned the lowest priority.
 	 */
 	int priority;
+
+	/**
+	 * @cgrp_prio_offset: priority offset
+	 *
+	 * Adjusts the context's self-assigned priority.  This value is
+	 * inherited from the submitting process' cgroup at context
+	 * creation and does not change if the owning process later
+	 * migrates to a different cgroup or if the underlying cgroup's
+	 * priority offset value is adjusted.
+	 */
+	int cgrp_prio_offset;
 };
 
 /*
