@@ -3868,6 +3868,15 @@ static void intel_update_pipe_config(const struct intel_crtc_state *old_crtc_sta
 		else if (old_crtc_state->pch_pfit.enabled)
 			ironlake_pfit_disable(old_crtc_state);
 	}
+
+	/*
+	 * We don't (yet) allow userspace to control the pipe background color,
+	 * so force it to black, but apply pipe gamma and CSC so that its
+	 * handling will match how we program our planes.
+	 */
+	if (INTEL_GEN(dev_priv) >= 9)
+		I915_WRITE(SKL_CANVAS(crtc->pipe),
+			   SKL_CANVAS_GAMMA_ENABLE | SKL_CANVAS_CSC_ENABLE);
 }
 
 static void intel_fdi_normal_train(struct intel_crtc *crtc)
@@ -15356,6 +15365,15 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 			    plane->base.type != DRM_PLANE_TYPE_PRIMARY)
 				intel_plane_disable_noatomic(crtc, plane);
 		}
+
+		/*
+		 * Disable any background color set by the BIOS, but enable the
+		 * gamma and CSC to match how we program our planes.
+		 */
+		if (INTEL_GEN(dev_priv) >= 9)
+			I915_WRITE(SKL_CANVAS(crtc->pipe),
+				   SKL_CANVAS_GAMMA_ENABLE |
+				   SKL_CANVAS_CSC_ENABLE);
 	}
 
 	/* Adjust the state of the output pipe according to whether we
