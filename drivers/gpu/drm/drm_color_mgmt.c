@@ -462,3 +462,67 @@ int drm_plane_create_color_properties(struct drm_plane *plane,
 	return 0;
 }
 EXPORT_SYMBOL(drm_plane_create_color_properties);
+
+/**
+ * drm_color_lut_check - check validity of lookup table
+ * @lut: property blob containing LUT to check
+ * @tests: bitmask of tests to run
+ *
+ * Helper to check whether a userspace-provided lookup table is valid and
+ * satisfies additional hardware requirements.  All table sizes should be a
+ * multiple of sizeof(struct drm_color_lut).  Drivers pass a bitmask indicating
+ * which of the following additional tests should also be performed:
+ *
+ * "DRM_COLOR_LUT_EQUAL_CHANNELS":
+ *     Checks whether the entries of a LUT all have equal values for the red,
+ *     green, and blue channels.  Intended for hardware that only accepts a
+ *     single value per LUT entry and assumes that value applies to all three
+ *     color components.
+ *
+ * "DRM_COLOR_LUT_INCREASING":
+ *     Checks whether the entries of a LUT are always flat or increasing
+ *     (never decreasing).
+ *
+ * Returns 0 on success, -EINVAL on failure.
+ */
+int drm_color_lut_check(struct drm_property_blob *lut,
+			 uint32_t tests)
+{
+	struct drm_color_lut *entry;
+	int i;
+
+	if (!lut)
+		return 0;
+
+	if (lut->length % sizeof(struct drm_color_lut)) {
+		DRM_DEBUG_KMS("LUT size (%lu) is not a multiple of LUT entry size (%lu)\n",
+			      lut->length, sizeof(struct drm_color_lut));
+		return -EINVAL;
+	}
+
+	if (!tests)
+		return 0;
+
+	entry = lut->data;
+	for (i = 0; i < drm_color_lut_size(lut); i++) {
+		if (tests & DRM_COLOR_LUT_EQUAL_CHANNELS) {
+			if (entry[i].red != entry[i].blue ||
+			    entry[i].red != entry[i].green) {
+				DRM_DEBUG_KMS("All LUT entries must have equal r/g/b\n");
+				return -EINVAL;
+			}
+		}
+
+		if (i > 0 && tests & DRM_COLOR_LUT_INCREASING) {
+			if (entry[i].red < entry[i - 1].red ||
+			    entry[i].green < entry[i - 1].green ||
+			    entry[i].blue < entry[i - 1].blue) {
+				DRM_DEBUG_KMS("LUT entries must never decrease.\n");
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_color_lut_check);
