@@ -69,4 +69,9 @@ int drm_plane_create_color_properties(struct drm_plane *plane,
 				      u32 supported_ranges,
 				      enum drm_color_encoding default_encoding,
 				      enum drm_color_range default_range);
+
+#define DRM_COLOR_LUT_EQUAL_CHANNELS BIT(0)
+#define DRM_COLOR_LUT_INCREASING     BIT(1)
+int drm_color_lut_check(struct drm_property_blob *lut,
+			uint32_t tests);
 #endif
