@@ -14414,6 +14414,21 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 		dev_priv->plane_to_crtc_mapping[i9xx_plane] = intel_crtc;
 	}
 
+	/*
+	 * "Big joiner" mode gangs two pipes together in a master/slave setup.
+	 * With our current hardware design, the potential CRTC pairs are
+	 * fixed (pipe B + pipe C only).
+	 */
+	if (pipe == PIPE_C && INTEL_GEN(dev_priv) >= 11) {
+		struct intel_crtc *pipe_b =
+			dev_priv->pipe_to_crtc_mapping[PIPE_B];
+
+		if (pipe_b) {
+			intel_crtc->base.state->gang_partner = &pipe_b->base;
+			pipe_b->base.state->gang_partner = &intel_crtc->base;
+		}
+	}
+
 	drm_crtc_helper_add(&intel_crtc->base, &intel_helper_funcs);
 
 	intel_color_init(intel_crtc);
@@ -15729,6 +15744,15 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 		 */
 		if (has_pch_trancoder(dev_priv, crtc->pipe))
 			crtc->pch_fifo_underrun_disabled = true;
+	}
+
+	if (INTEL_GEN(dev_priv) >= 11) {
+		if (crtc->pipe == PIPE_B)
+			crtc_state->base.gang_partner =
+				&dev_priv->pipe_to_crtc_mapping[PIPE_C]->base;
+		else if (crtc->pipe == PIPE_C)
+			crtc_state->base.gang_partner =
+				&dev_priv->pipe_to_crtc_mapping[PIPE_B]->base;
 	}
 }
 
