@@ -76,6 +76,58 @@ struct drm_crtc_helper_funcs;
 struct drm_plane_helper_funcs;
 
 /**
+ * enum drm_crtc_gang_mode - describes CRTC's gang participation
+ *
+ * A gang is a pair of CRTCs that a driver uses internally to drive the
+ * configuration that userspace requested on a single CRTC.  Some hardware
+ * allows the output of two CRTC's to be joined into a single image that is
+ * passed to downstream encoders and connectors as if it came from a single
+ * CRTC.
+ *
+ * The use of CRTC gangs is a driver/hardware internal detail and should remain
+ * invisible to userspace.  A gang may only be formed when userspace has left
+ * one of the CRTCs in a disabled state; the driver is free to steal that
+ * CRTC and make use of it internally, but there should be no change to any
+ * of the properties or state fields for the CRTC that userspace believes to
+ * be disabled.  The "disabled" CRTC that the driver steals for internal gang
+ * usage is considered the "slave" of the gang, and the CRTC that userspace
+ * provided a configuration for is considered the "master."
+ *
+ * Note that userspace may attempt to start using a gang slave on a subsequent
+ * atomic transaction.  If the driver is not able to transfer the slave
+ * responsibilities to a different disabled CRTC, the new atomic transaction
+ * must be rejected to avoid overcommitting the hardware.
+ */
+enum drm_crtc_gang_mode {
+	/**
+	 * @DRM_CRTC_GANG_MODE_NONE:
+	 *
+	 * CRTC is not currently involved in a gang.
+	 * @drm_crtc_state.gang_partner should be ignored.
+	 */
+	DRM_CRTC_GANG_MODE_NONE,
+
+	/**
+	 * @DRM_CRTC_GANG_MODE_MASTER:
+	 *
+	 * CRTC is the current master of a gang.  Its userspace-facing
+	 * properties and state accurately reflect the characteristics of the
+	 * display configuration being driven into the attached encoders and
+	 * connectors.
+	 */
+	DRM_CRTC_GANG_MODE_MASTER,
+
+	/**
+	 * @DRM_CRTC_GANG_MODE_SLAVE:
+	 *
+	 * CRTC is the slave of a gang.  Its userspace-facing properties
+	 * properties and state must not be altered, and the CRTC must appear
+	 * disabled to userspace.
+	 */
+	DRM_CRTC_GANG_MODE_SLAVE
+};
+
+/**
  * struct drm_crtc_state - mutable CRTC state
  *
  * Note that the distinction between @enable and @active is rather subtile:
@@ -98,6 +150,20 @@ struct drm_plane_helper_funcs;
 struct drm_crtc_state {
 	/** @crtc: backpointer to the CRTC */
 	struct drm_crtc *crtc;
+
+	/**
+	 * @gang_partner: Pointer to another CRTC that forms the other half
+	 * of a gang.
+	 *
+	 * This field should be ignored any time @gang_mode is set to
+	 * DRM_MODE_GANG_NONE.  That means drivers are free to assign
+	 * @gang_partner to a fixed CRTC at driver init if their hardware only
+	 * allows a single potential partner.
+	 */
+	struct drm_crtc *gang_partner;
+
+	/** @gang_mode: CRTC's current gang membership */
+	enum drm_crtc_gang_mode gang_mode;
 
 	/**
 	 * @enable: Whether the CRTC should be enabled, gates all other state.
