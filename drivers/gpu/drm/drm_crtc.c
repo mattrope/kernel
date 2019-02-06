@@ -746,3 +746,26 @@ int drm_mode_crtc_set_obj_prop(struct drm_mode_object *obj,
 
 	return ret;
 }
+
+/**
+ * drm_crtc_hw_active - checks whether CRTC is active at the hardware level
+ * @crtc_state: State of CRTC to check
+ *
+ * A CRTC that is disabled at the UAPI level may still be active at the
+ * hardware level due to its use in a CRTC gang.
+ */
+bool drm_crtc_hw_active(struct drm_crtc_state *crtc_state)
+{
+	struct drm_atomic_state *state = crtc_state->state;
+	struct drm_crtc_state *master;
+
+	if (crtc_state->gang_mode != DRM_CRTC_GANG_MODE_SLAVE)
+		return crtc_state->active;
+
+	master = drm_atomic_get_new_crtc_state(state, crtc_state->gang_partner);
+	if (WARN_ON(!master))
+		return crtc_state->active;
+
+	return master->active;
+}
+EXPORT_SYMBOL(drm_crtc_hw_active);
