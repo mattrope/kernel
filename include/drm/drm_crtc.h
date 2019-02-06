@@ -1247,4 +1247,6 @@ static inline struct drm_crtc *drm_crtc_find(struct drm_device *dev,
 #define drm_for_each_crtc(crtc, dev) \
 	list_for_each_entry(crtc, &(dev)->mode_config.crtc_list, head)
 
+bool drm_crtc_hw_active(struct drm_crtc_state *crtc_state);
+
 #endif /* __DRM_CRTC_H__ */
