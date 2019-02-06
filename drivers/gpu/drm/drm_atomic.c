@@ -266,33 +266,12 @@ void __drm_atomic_state_free(struct kref *ref)
 }
 EXPORT_SYMBOL(__drm_atomic_state_free);
 
-/**
- * drm_atomic_get_crtc_state - get crtc state
- * @state: global atomic state object
- * @crtc: crtc to get state object for
- *
- * This function returns the crtc state for the given crtc, allocating it if
- * needed. It will also grab the relevant crtc lock to make sure that the state
- * is consistent.
- *
- * Returns:
- *
- * Either the allocated state or the error code encoded into the pointer. When
- * the error is EDEADLK then the w/w mutex code has detected a deadlock and the
- * entire atomic sequence must be restarted. All other errors are fatal.
- */
-struct drm_crtc_state *
-drm_atomic_get_crtc_state(struct drm_atomic_state *state,
-			  struct drm_crtc *crtc)
+static struct drm_crtc_state *
+_drm_atomic_get_crtc_state(struct drm_atomic_state *state,
+			   struct drm_crtc *crtc)
 {
 	int ret, index = drm_crtc_index(crtc);
 	struct drm_crtc_state *crtc_state;
-
-	WARN_ON(!state->acquire_ctx);
-
-	crtc_state = drm_atomic_get_existing_crtc_state(state, crtc);
-	if (crtc_state)
-		return crtc_state;
 
 	ret = drm_modeset_lock(&crtc->mutex, state->acquire_ctx);
 	if (ret)
@@ -308,9 +287,58 @@ drm_atomic_get_crtc_state(struct drm_atomic_state *state,
 	state->crtcs[index].ptr = crtc;
 	crtc_state->state = state;
 
+	return crtc_state;
+}
+
+/**
+ * drm_atomic_get_crtc_state - get crtc state
+ * @state: global atomic state object
+ * @crtc: crtc to get state object for
+ *
+ * This function returns the crtc state for the given crtc, allocating it if
+ * needed. It will also grab the relevant crtc lock to make sure that the state
+ * is consistent.  If the CRTC is currently part of a CRTC gang, the gang
+ * partner will also be added to the atomic transaction and locked.
+ *
+ * Returns:
+ *
+ * Either the allocated state or the error code encoded into the pointer. When
+ * the error is EDEADLK then the w/w mutex code has detected a deadlock and the
+ * entire atomic sequence must be restarted. All other errors are fatal.
+ */
+struct drm_crtc_state *
+drm_atomic_get_crtc_state(struct drm_atomic_state *state,
+			  struct drm_crtc *crtc)
+{
+	struct drm_crtc_state *crtc_state, *gang_crtc_state;
+	struct drm_crtc *partner;
+
+	WARN_ON(!state->acquire_ctx);
+
+	crtc_state = drm_atomic_get_existing_crtc_state(state, crtc);
+	if (crtc_state)
+		return crtc_state;
+
+	crtc_state = _drm_atomic_get_crtc_state(state, crtc);
+	if (IS_ERR(crtc_state))
+		return crtc_state;
+
 	DRM_DEBUG_ATOMIC("Added [CRTC:%d:%s] %p state to %p\n",
 			 crtc->base.id, crtc->name, crtc_state, state);
 
+	if (crtc_state->gang_mode == DRM_CRTC_GANG_MODE_NONE)
+		goto out;
+
+	gang_crtc_state = _drm_atomic_get_crtc_state(state,
+						     crtc_state->gang_partner);
+	if (!IS_ERR(gang_crtc_state)) {
+		partner = gang_crtc_state->crtc;
+		DRM_DEBUG_ATOMIC("Added gang partner [CRTC:%d:%s] %p state to %p\n",
+				 partner->base.id, partner->name,
+				 gang_crtc_state, state);
+	}
+
+out:
 	return crtc_state;
 }
 EXPORT_SYMBOL(drm_atomic_get_crtc_state);
