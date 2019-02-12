@@ -12907,6 +12907,110 @@ static int calc_watermark_data(struct intel_atomic_state *state)
 }
 
 /**
+ * i915_adjust_gang_planes - adjust plane positions/coordinates in crtc gang
+ * @mode: Mode to be split horizontally across two CRTCs
+ * @master_state: CRTC state for gang master
+ * @slave_state: CRTC state for gang slave
+ *
+ * When using a big joiner mode serviced by two CRTC's, userspace has requested
+ * a single set of plane configurations based on the uapi mode.  We need to
+ * grab corresponding planes on the slave CRTC and adjust the coordinates and
+ * offsets of the planes on both CRTC's to display the proper subset of content.
+ * We'll use the master CRTC to display the left half of the uapi mode and the
+ * slave CRTC to display the right half of the uapi mode.
+ *
+ * Note that this function must *only* modify state fields that are used
+ * internally by the driver.  Anything that is exposed through the uapi must
+ * not be modified!
+ *
+ * ***
+ * *** TODO:  Need to take scaling into account!
+ * ***
+ *
+ * Returns 0 on success, negative errno on failure.
+ */
+int i915_adjust_gang_planes(struct drm_display_mode *mode,
+			    struct intel_crtc_state *master_state,
+			    struct intel_crtc_state *slave_state)
+{
+	struct intel_atomic_state *state =
+		to_intel_atomic_state(master_state->base.state);
+	struct intel_plane *plane;
+	struct intel_plane_state *plane_state;
+	struct intel_plane_state *master_plane_states[I915_MAX_PLANES];
+	struct intel_plane_state *slave_plane_states[I915_MAX_PLANES];
+	struct drm_rect master_area, slave_area;
+	int hdisplay, vdisplay;
+	int i;
+	u16 id_mask = 0;
+
+	WARN_ON(master_state->base.gang_mode != DRM_CRTC_GANG_MODE_MASTER);
+	WARN_ON(slave_state->base.gang_mode != DRM_CRTC_GANG_MODE_SLAVE);
+
+	/*
+	 * Define viewports that each CRTC is responsible for.
+	 *
+	 * TODO:  Potentially add excess here for scalers.
+	 */
+	drm_mode_get_hv_timing(mode, &hdisplay, &vdisplay);
+	master_area.x1 = 0;
+	master_area.y1 = 0;
+	master_area.x2 = hdisplay / 2 - 1;
+	master_area.y2 = vdisplay;
+	slave_area.x1 = hdisplay / 2;
+	slave_area.y1 = 0;
+	slave_area.x2 = hdisplay - 1;
+	slave_area.y2 = vdisplay;
+
+	/* Figure out which planes on the slave CRTC we need to grab */
+	for_each_new_intel_plane_in_state(state, plane, plane_state, i) {
+		if (plane->pipe != to_intel_crtc(master_state->base.crtc)->pipe)
+			continue;
+
+		id_mask |= BIT(plane->id);
+		master_plane_states[plane->id] = plane_state;
+	}
+
+	/* Grab all the same planes on the other CRTC and copy their rects */
+	for_each_intel_plane_on_crtc_mask(state->base.dev,
+					  to_intel_crtc(slave_state->base.crtc),
+					  id_mask, plane) {
+		struct intel_plane_state *ps =
+			intel_atomic_get_plane_state(state, plane);
+
+		if (IS_ERR(ps))
+			return PTR_ERR(ps);
+
+		ps->base.src = master_plane_states[plane->id]->base.src;
+		ps->base.dst = master_plane_states[plane->id]->base.dst;
+
+		slave_plane_states[plane->id] = ps;
+	}
+
+	/* Clip/translate viewports for both CRTC's */
+	for_each_planeid_masked(state->base.dev, id_mask, i) {
+		master_plane_states[i]->base.visible =
+			drm_rect_clip_scaled(&master_plane_states[i]->base.src,
+					     &master_plane_states[i]->base.dst,
+					     &master_area);
+		slave_plane_states[i]->base.visible =
+			drm_rect_clip_scaled(&slave_plane_states[i]->base.src,
+					     &slave_plane_states[i]->base.dst,
+					     &slave_area);
+
+		/*
+		 * We need to translate plane destination coordinates on slave
+		 * CRTC so that they fall within the CRTC's viewport rather
+		 * than inside the larger uapi mode.
+		 */
+		slave_plane_states[i]->base.dst.x1 -= hdisplay / 2;
+		slave_plane_states[i]->base.dst.x2 -= hdisplay / 2;
+	}
+
+	return 0;
+}
+
+/**
  * intel_atomic_check - validate state object
  * @dev: drm device
  * @state: state to validate
