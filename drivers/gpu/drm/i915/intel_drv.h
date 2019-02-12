@@ -1686,6 +1686,8 @@ void intel_audio_deinit(struct drm_i915_private *dev_priv);
 bool intel_bigjoiner_possible(struct intel_crtc_state *crtc_state);
 struct intel_crtc *intel_bigjoiner_master(struct intel_crtc *slave);
 struct intel_crtc *intel_bigjoiner_slave(struct intel_crtc *master);
+int i915_adjust_bigjoiner_planes(struct intel_crtc_state *master_state,
+				 struct intel_crtc_state *slave_state);
 
 /* intel_cdclk.c */
 int intel_crtc_compute_min_cdclk(const struct intel_crtc_state *crtc_state);

@@ -116,3 +116,102 @@ intel_bigjoiner_slave(struct intel_crtc *master)
 	return master->pipe == PIPE_B ?
 		dev_priv->pipe_to_crtc_mapping[PIPE_C] : NULL;
 }
+
+/**
+ * i915_adjust_bigjoiner_planes - adjust plane rectangles for big joiner
+ * @master_state: CRTC state for gang master
+ * @slave_state: CRTC state for gang slave
+ *
+ * When using a big joiner mode serviced by two CRTC's, userspace has requested
+ * a single set of plane configurations based on the uapi mode.  We need to
+ * grab corresponding planes on the slave CRTC and adjust the coordinates and
+ * offsets of the planes on both CRTC's to display the proper subset of content.
+ * The master CRTC will display the left half of the uapi mode and the
+ * slave CRTC to display the right half of the uapi mode.
+ *
+ * This function needs to be called before intel_plane_atomic_check so that we
+ * can divide up the planes before the regular CRTC clipping happens on the
+ * userspace-provided source/dest rectangles.
+ *
+ * Note that this function only updates the driver-internal plane rectangles;
+ * it does not change any of the other plane state.  In fact it's very
+ * important that we *not* touch any state fields that would be exposed through
+ * the uapi since userspace should not know that we're using extra planes/pipes
+ * behind its back.
+ *
+ * Returns 0 on success, negative errno on failure.
+ */
+int i915_adjust_bigjoiner_planes(struct intel_crtc_state *master_state,
+				 struct intel_crtc_state *slave_state)
+{
+	struct intel_atomic_state *state =
+		to_intel_atomic_state(master_state->base.state);
+	struct intel_plane *plane;
+	struct intel_plane_state *plane_state;
+	struct intel_plane_state *master_plane_states[I915_MAX_PLANES] = { 0 };
+	struct intel_plane_state *slave_plane_states[I915_MAX_PLANES] = { 0 };
+	struct drm_rect master_area = { 0 }, slave_area = { 0 };
+	int i;
+	u16 id_mask = 0;
+
+	WARN_ON(master_state->bigjoiner_mode != I915_BIGJOINER_MASTER);
+	WARN_ON(slave_state->bigjoiner_mode != I915_BIGJOINER_SLAVE);
+
+	/*
+	 * Define viewports of the original userspace mode each CRTC is
+	 * responsible for.
+	 */
+	master_area.x2 = master_state->pipe_src_w;
+	master_area.y2 = master_state->pipe_src_h;
+	slave_area = master_area;
+	slave_area.x1 += master_state->pipe_src_w;
+	slave_area.x2 += master_state->pipe_src_h;
+
+	/* Figure out which planes on the slave CRTC we need to grab */
+	for_each_new_intel_plane_in_state(state, plane, plane_state, i) {
+		if (plane->pipe != to_intel_crtc(master_state->base.crtc)->pipe)
+			continue;
+
+		id_mask |= BIT(plane->id);
+		master_plane_states[plane->id] = plane_state;
+	}
+
+	/* Grab all the same planes on the slave CRTC and copy the rects */
+	for_each_intel_plane_on_crtc_mask(state->base.dev,
+					  to_intel_crtc(slave_state->base.crtc),
+					  id_mask, plane) {
+		struct intel_plane_state *ps =
+			intel_atomic_get_plane_state(state, plane);
+
+		if (IS_ERR(ps))
+			return PTR_ERR(ps);
+
+		ps->base.src = master_plane_states[plane->id]->base.src;
+		ps->base.dst = master_plane_states[plane->id]->base.dst;
+
+		slave_plane_states[plane->id] = ps;
+	}
+
+	/* Clip/translate viewports for both CRTC's */
+	for_each_planeid_masked(state->base.dev, id_mask, i) {
+		master_plane_states[i]->base.visible =
+			drm_rect_clip_scaled(&master_plane_states[i]->base.src,
+					     &master_plane_states[i]->base.dst,
+					     &master_area);
+		slave_plane_states[i]->base.visible =
+			drm_rect_clip_scaled(&slave_plane_states[i]->base.src,
+					     &slave_plane_states[i]->base.dst,
+					     &slave_area);
+
+		/*
+		 * We need to translate plane destination coordinates on slave
+		 * CRTC so that they fall within the CRTC's viewport rather
+		 * than inside the larger uapi mode.
+		 */
+		slave_plane_states[i]->base.dst.x1 -= master_area.x2;
+		slave_plane_states[i]->base.dst.x2 -= master_area.x2;
+	}
+
+	return 0;
+}
+

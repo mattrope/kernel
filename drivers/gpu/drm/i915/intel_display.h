@@ -330,6 +330,14 @@ struct intel_link_m_n {
 			    base.head)					\
 		for_each_if((intel_plane)->pipe == (intel_crtc)->pipe)
 
+#define for_each_intel_plane_on_crtc_mask(dev, crtc, mask, plane)	\
+	for_each_intel_plane_on_crtc(dev, crtc, plane)			\
+		for_each_if(mask & BIT(plane->id))
+
+#define for_each_planeid_masked(dev, mask, i)				\
+	for ((i) = 0; (i) < I915_MAX_PLANES; (i)++)				\
+		for_each_if((mask) & BIT(i))
+
 #define for_each_intel_crtc(dev, intel_crtc)				\
 	list_for_each_entry(intel_crtc,					\
 			    &(dev)->mode_config.crtc_list,		\
