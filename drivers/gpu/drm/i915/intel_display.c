@@ -13011,6 +13011,125 @@ int i915_adjust_gang_planes(struct drm_display_mode *mode,
 }
 
 /**
+ * mode_needs_bj - check whether mode needs two pipes to service
+ * @mode: mode to check
+ *
+ * High data rate modes may require the use of two pipes, combined by the
+ * post-compression "big joiner" unit.
+ *
+ * Returns true if the mode exceeds the capabilities of a single pipe.
+ */
+static bool mode_needs_bj(struct drm_i915_private *dev_priv,
+			  struct drm_display_mode *mode)
+{
+	int hdisplay, vdisplay;
+
+	drm_mode_get_hv_timing(mode, &hdisplay, &vdisplay);
+	if (mode->clock > dev_priv->max_dotclk_freq || hdisplay >= 5120)
+		return true;
+
+	return false;
+}
+
+/**
+ * icl_check_crtc_gangs - setup a big joiner CRTC gang if needed
+ * @state: atomic state
+ *
+ * Inspects atomic state @state and sets up a big joiner-based configuration
+ * if necessary to satisfy the userspace-requested state.
+ *
+ * Returns 0 on success, negative error code on failure.
+ */
+static int icl_check_crtc_gangs(struct intel_atomic_state *state)
+{
+	struct drm_i915_private *dev_priv = to_i915(state->base.dev);
+	struct intel_crtc *crtc, *partner;
+	struct intel_crtc_state *crtc_state, *partner_state;
+	int ret, i;
+
+	if (INTEL_GEN(dev_priv) < 11)
+		return 0;
+
+	/*
+	 * Break any existing gang links; we'll reforge them as necessary
+	 * farther down.  Since adding a CRTC to an atomic state automatically
+	 * brings in any currently used gang partner as well, this loop will
+	 * take care of breaking both ends of the link.
+	 */
+	for_each_new_intel_crtc_in_state(state, crtc, crtc_state, i)
+		crtc_state->base.gang_mode = DRM_CRTC_GANG_MODE_NONE;
+
+	for_each_new_intel_crtc_in_state(state, crtc, crtc_state, i) {
+		/*
+		 * On current platforms we have no choice in gang partners;
+		 * it's hardwired to pipes B and C being joinable.  Since
+		 * we setup the gang_partner link at driver load, we don't
+		 * need any special logic to determine which CRTC's are
+		 * eligible partners or worry about switching partners
+		 * dynamically at runtime.
+		 */
+		partner = to_intel_crtc(crtc_state->base.gang_partner);
+		if (partner == NULL)
+			continue;
+
+		if (!crtc->base.enabled ||
+		    !mode_needs_bj(dev_priv, &crtc_state->base.adjusted_mode))
+			continue;
+
+		/*
+		 * Looks like we need to use the big joiner to satisfy the
+		 * requested mode.  We need to pull the other CRTC into the
+		 * atomic state to act as our slave.
+		 */
+		partner_state = intel_atomic_get_crtc_state(&state->base,
+							    partner);
+		if (IS_ERR(partner_state))
+			return PTR_ERR(partner_state);
+
+		/*
+		 * We can only use the second CRTC as our slave if userspace
+		 * left it unused.  If it's in use, then this display
+		 * configuration is impossible.
+		 */
+		if (partner_state->base.enable) {
+			DRM_DEBUG_KMS("Slave CRTC is in use; big joiner mode not possible.\n");
+			return -EINVAL;
+		}
+
+		crtc_state->base.gang_mode = DRM_CRTC_GANG_MODE_MASTER;
+		partner_state->base.gang_mode = DRM_CRTC_GANG_MODE_SLAVE;
+
+		ret = i915_adjust_gang_planes(&crtc_state->base.adjusted_mode,
+					      crtc_state, partner_state);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static struct drm_crtc_state *
+to_master(struct drm_crtc_state *crtc_state)
+{
+	struct drm_atomic_state *state = crtc_state->state;
+	struct drm_crtc *master;
+	struct drm_crtc_state *master_state;
+
+	if (crtc_state->gang_mode != DRM_CRTC_GANG_MODE_SLAVE)
+		return crtc_state;
+
+	master = crtc_state->gang_partner;
+	master_state = state ?
+		drm_atomic_get_existing_crtc_state(state, master) :
+		master->state;
+
+	if (WARN_ON(master_state == NULL))
+		return crtc_state;
+
+	return master_state;
+}
+
+/**
  * intel_atomic_check - validate state object
  * @dev: drm device
  * @state: state to validate
@@ -13037,11 +13156,29 @@ static int intel_atomic_check(struct drm_device *dev,
 	if (ret)
 		return ret;
 
+	/*
+	 * If we're running on a platform that supports CRTC gangs via a
+	 * post-pipe "big joiner" unit, then we need to figure out if/how the
+	 * big joiner will be applied and, if necessary, pull an extra slave
+	 * CRTC into the state before proceeding with the rest of our atomic
+	 * checks.
+	 *
+	 * Use of the big joiner won't change the mode used at the
+	 * transcoder/port, but will alter the pipe size, which is important to
+	 * things like DSC setup.  Splitting content over two pipes will also
+	 * require major shuffling of our plane configuration (i.e., grabbing
+	 * extra planes on a second CRTC and then clipping/translating them to
+	 * account for the viewport of each pipe.)
+	 */
+	ret = icl_check_crtc_gangs(intel_state);
+	if (ret)
+		return ret;
+
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, crtc_state, i) {
 		struct intel_crtc_state *pipe_config =
 			to_intel_crtc_state(crtc_state);
 
-		if (!drm_atomic_crtc_needs_modeset(crtc_state))
+		if (!drm_atomic_crtc_needs_modeset(to_master(crtc_state)))
 			continue;
 
 		if (!crtc_state->enable) {
