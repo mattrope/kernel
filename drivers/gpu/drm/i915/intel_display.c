@@ -478,12 +478,6 @@ skl_wa_clkgate(struct drm_i915_private *dev_priv, int pipe, bool enable)
 			   ~(DUPS1_GATING_DIS | DUPS2_GATING_DIS));
 }
 
-static bool
-needs_modeset(const struct drm_crtc_state *state)
-{
-	return drm_atomic_crtc_needs_modeset(state);
-}
-
 /*
  * Platform specific helpers to calculate the port PLL loopback- (clock.m),
  * and post-divider (clock.p) values, pre- (clock.vco) and post-divided fast
@@ -5379,7 +5373,7 @@ static bool hsw_pre_update_disable_ips(const struct intel_crtc_state *old_crtc_s
 	if (!old_crtc_state->ips_enabled)
 		return false;
 
-	if (needs_modeset(&new_crtc_state->base))
+	if (drm_atomic_crtc_needs_modeset(&new_crtc_state->base))
 		return true;
 
 	/*
@@ -5406,7 +5400,7 @@ static bool hsw_post_update_enable_ips(const struct intel_crtc_state *old_crtc_s
 	if (!new_crtc_state->ips_enabled)
 		return false;
 
-	if (needs_modeset(&new_crtc_state->base))
+	if (drm_atomic_crtc_needs_modeset(&new_crtc_state->base))
 		return true;
 
 	/*
@@ -5473,7 +5467,7 @@ static void intel_post_plane_update(struct intel_crtc_state *old_crtc_state)
 		intel_fbc_post_update(crtc);
 
 		if (new_primary_state->visible &&
-		    (needs_modeset(&pipe_config->base) ||
+		    (drm_atomic_crtc_needs_modeset(&pipe_config->base) ||
 		     !old_primary_state->visible))
 			intel_post_enable_primary(&crtc->base, pipe_config);
 	}
@@ -5495,7 +5489,7 @@ static void intel_pre_plane_update(struct intel_crtc_state *old_crtc_state,
 	struct drm_plane *primary = crtc->base.primary;
 	struct drm_plane_state *old_primary_state =
 		drm_atomic_get_old_plane_state(old_state, primary);
-	bool modeset = needs_modeset(&pipe_config->base);
+	bool modeset = drm_atomic_crtc_needs_modeset(&pipe_config->base);
 	struct intel_atomic_state *old_intel_state =
 		to_intel_atomic_state(old_state);
 
@@ -5551,7 +5545,7 @@ static void intel_pre_plane_update(struct intel_crtc_state *old_crtc_state,
 	 * If we're doing a modeset, we're done.  No need to do any pre-vblank
 	 * watermark programming here.
 	 */
-	if (needs_modeset(&pipe_config->base))
+	if (drm_atomic_crtc_needs_modeset(&pipe_config->base))
 		return;
 
 	/*
@@ -10960,7 +10954,7 @@ int intel_plane_atomic_calc_changes(const struct intel_crtc_state *old_crtc_stat
 	struct intel_plane *plane = to_intel_plane(plane_state->plane);
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
-	bool mode_changed = needs_modeset(crtc_state);
+	bool mode_changed = drm_atomic_crtc_needs_modeset(crtc_state);
 	bool was_crtc_enabled = old_crtc_state->base.active;
 	bool is_crtc_enabled = crtc_state->active;
 	bool turn_off, turn_on, visible, was_visible;
@@ -11217,7 +11211,7 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 	struct intel_crtc_state *pipe_config =
 		to_intel_crtc_state(crtc_state);
 	int ret;
-	bool mode_changed = needs_modeset(crtc_state);
+	bool mode_changed = drm_atomic_crtc_needs_modeset(crtc_state);
 
 	if (INTEL_GEN(dev_priv) < 5 && !IS_G4X(dev_priv) &&
 	    mode_changed && !crtc_state->active)
@@ -12679,7 +12673,7 @@ intel_modeset_verify_crtc(struct drm_crtc *crtc,
 			  struct drm_crtc_state *old_state,
 			  struct drm_crtc_state *new_state)
 {
-	if (!needs_modeset(new_state) &&
+	if (!drm_atomic_crtc_needs_modeset(new_state) &&
 	    !to_intel_crtc_state(new_state)->update_pipe)
 		return;
 
@@ -12772,7 +12766,7 @@ static void intel_modeset_clear_plls(struct drm_atomic_state *state)
 		struct intel_shared_dpll *old_dpll =
 			to_intel_crtc_state(old_crtc_state)->shared_dpll;
 
-		if (!needs_modeset(new_crtc_state))
+		if (!drm_atomic_crtc_needs_modeset(new_crtc_state))
 			continue;
 
 		to_intel_crtc_state(new_crtc_state)->shared_dpll = NULL;
@@ -12804,7 +12798,8 @@ static int haswell_mode_set_planes_workaround(struct drm_atomic_state *state)
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (!crtc_state->active || !needs_modeset(crtc_state))
+		if (!crtc_state->active ||
+		    !drm_atomic_crtc_needs_modeset(crtc_state))
 			continue;
 
 		if (first_crtc_state) {
@@ -12831,7 +12826,7 @@ static int haswell_mode_set_planes_workaround(struct drm_atomic_state *state)
 		pipe_config->hsw_workaround_pipe = INVALID_PIPE;
 
 		if (!pipe_config->base.active ||
-		    needs_modeset(&pipe_config->base))
+		    drm_atomic_crtc_needs_modeset(&pipe_config->base))
 			continue;
 
 		/* 2 or more enabled crtcs means no need for w/a */
@@ -12881,7 +12876,8 @@ static int intel_modeset_all_pipes(struct drm_atomic_state *state)
 		if (IS_ERR(crtc_state))
 			return PTR_ERR(crtc_state);
 
-		if (!crtc_state->active || needs_modeset(crtc_state))
+		if (!crtc_state->active ||
+		    drm_atomic_crtc_needs_modeset(crtc_state))
 			continue;
 
 		crtc_state->mode_changed = true;
@@ -13024,7 +13020,7 @@ static int intel_atomic_check(struct drm_device *dev,
 		struct intel_crtc_state *pipe_config =
 			to_intel_crtc_state(crtc_state);
 
-		if (!needs_modeset(crtc_state))
+		if (!drm_atomic_crtc_needs_modeset(crtc_state))
 			continue;
 
 		if (!crtc_state->enable) {
@@ -13048,11 +13044,11 @@ static int intel_atomic_check(struct drm_device *dev,
 			pipe_config->update_pipe = true;
 		}
 
-		if (needs_modeset(crtc_state))
+		if (drm_atomic_crtc_needs_modeset(crtc_state))
 			any_ms = true;
 
 		intel_dump_pipe_config(to_intel_crtc(crtc), pipe_config,
-				       needs_modeset(crtc_state) ?
+				       drm_atomic_crtc_needs_modeset(crtc_state) ?
 				       "[modeset]" : "[fastset]");
 	}
 
@@ -13107,7 +13103,7 @@ static void intel_update_crtc(struct drm_crtc *crtc,
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_crtc_state *pipe_config = to_intel_crtc_state(new_crtc_state);
-	bool modeset = needs_modeset(new_crtc_state);
+	bool modeset = drm_atomic_crtc_needs_modeset(new_crtc_state);
 	struct intel_plane_state *new_plane_state =
 		intel_atomic_get_new_plane_state(to_intel_atomic_state(state),
 						 to_intel_plane(crtc->primary));
@@ -13316,7 +13312,7 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 		new_intel_crtc_state = to_intel_crtc_state(new_crtc_state);
 		intel_crtc = to_intel_crtc(crtc);
 
-		if (needs_modeset(new_crtc_state) ||
+		if (drm_atomic_crtc_needs_modeset(new_crtc_state) ||
 		    to_intel_crtc_state(new_crtc_state)->update_pipe) {
 
 			put_domains[intel_crtc->pipe] =
@@ -13324,7 +13320,7 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 					new_intel_crtc_state);
 		}
 
-		if (!needs_modeset(new_crtc_state))
+		if (!drm_atomic_crtc_needs_modeset(new_crtc_state))
 			continue;
 
 		intel_pre_plane_update(old_intel_crtc_state, new_intel_crtc_state);
@@ -13380,7 +13376,7 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 
 	/* Complete the events for pipes that have now been disabled */
 	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
-		bool modeset = needs_modeset(new_crtc_state);
+		bool modeset = drm_atomic_crtc_needs_modeset(new_crtc_state);
 
 		/* Complete events for now disable pipes here. */
 		if (modeset && !new_crtc_state->active && new_crtc_state->event) {
@@ -13410,7 +13406,7 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 		new_intel_crtc_state = to_intel_crtc_state(new_crtc_state);
 
 		if (new_crtc_state->active &&
-		    !needs_modeset(new_crtc_state) &&
+		    !drm_atomic_crtc_needs_modeset(new_crtc_state) &&
 		    (new_intel_crtc_state->base.color_mgmt_changed ||
 		     new_intel_crtc_state->update_pipe))
 			intel_color_load_luts(new_intel_crtc_state);
@@ -13777,7 +13773,7 @@ intel_prepare_plane_fb(struct drm_plane *plane,
 		 * This should only fail upon a hung GPU, in which case we
 		 * can safely continue.
 		 */
-		if (needs_modeset(crtc_state)) {
+		if (drm_atomic_crtc_needs_modeset(crtc_state)) {
 			ret = i915_sw_fence_await_reservation(&intel_state->commit_ready,
 							      old_obj->resv, NULL,
 							      false, 0,
@@ -13929,7 +13925,7 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 		to_intel_atomic_state(old_crtc_state->state);
 	struct intel_crtc_state *intel_cstate =
 		intel_atomic_get_new_crtc_state(old_intel_state, intel_crtc);
-	bool modeset = needs_modeset(&intel_cstate->base);
+	bool modeset = drm_atomic_crtc_needs_modeset(&intel_cstate->base);
 
 	/* Perform vblank evasion around commit operation */
 	intel_pipe_update_start(intel_cstate);
@@ -13980,7 +13976,7 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 	intel_pipe_update_end(new_crtc_state);
 
 	if (new_crtc_state->update_pipe &&
-	    !needs_modeset(&new_crtc_state->base) &&
+	    !drm_atomic_crtc_needs_modeset(&new_crtc_state->base) &&
 	    old_crtc_state->mode.private_flags & I915_MODE_FLAG_INHERITED)
 		intel_crtc_arm_fifo_underrun(intel_crtc, new_crtc_state);
 }
@@ -14098,7 +14094,8 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 	 * When crtc is inactive or there is a modeset pending,
 	 * wait for it to complete in the slowpath
 	 */
-	if (!crtc_state->base.active || needs_modeset(&crtc_state->base) ||
+	if (!crtc_state->base.active ||
+	    drm_atomic_crtc_needs_modeset(&crtc_state->base) ||
 	    crtc_state->update_pipe)
 		goto slow;
 
