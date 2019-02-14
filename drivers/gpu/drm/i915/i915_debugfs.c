@@ -2796,6 +2796,11 @@ static void intel_crtc_info(struct seq_file *m, struct intel_crtc *intel_crtc)
 	struct drm_plane_state *plane_state = crtc->primary->state;
 	struct drm_framebuffer *fb = plane_state->fb;
 
+	if (intel_crtc->bigjoiner_mode == I915_BIGJOINER_MASTER)
+		seq_printf(m, "\tMaster CRTC for big joiner\n");
+	else if (intel_crtc->bigjoiner_mode == I915_BIGJOINER_SLAVE)
+		seq_printf(m, "\tSlave CRTC for big joiner\n");
+
 	if (fb)
 		seq_printf(m, "\tfb: %d, pos: %dx%d, size: %dx%d\n",
 			   fb->base.id, plane_state->src_x >> 16,
@@ -3043,7 +3048,8 @@ static int i915_display_info(struct seq_file *m, void *unused)
 			   pipe_config->pipe_src_w, pipe_config->pipe_src_h,
 			   yesno(pipe_config->dither), pipe_config->pipe_bpp);
 
-		if (pipe_config->base.active) {
+		if (pipe_config->base.active ||
+		    pipe_config->bigjoiner_mode == I915_BIGJOINER_SLAVE) {
 			struct intel_plane *cursor =
 				to_intel_plane(crtc->base.cursor);
 
