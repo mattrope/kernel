@@ -2796,6 +2796,11 @@ static void intel_crtc_info(struct seq_file *m, struct intel_crtc *intel_crtc)
 	struct drm_plane_state *plane_state = crtc->primary->state;
 	struct drm_framebuffer *fb = plane_state->fb;
 
+	if (crtc->state->gang_mode == DRM_CRTC_GANG_MODE_MASTER)
+		seq_printf(m, "\tMaster CRTC for big joiner\n");
+	else if (crtc->state->gang_mode == DRM_CRTC_GANG_MODE_SLAVE)
+		seq_printf(m, "\tSlave CRTC for big joiner\n");
+
 	if (fb)
 		seq_printf(m, "\tfb: %d, pos: %dx%d, size: %dx%d\n",
 			   fb->base.id, plane_state->src_x >> 16,
@@ -3037,13 +3042,14 @@ static int i915_display_info(struct seq_file *m, void *unused)
 		drm_modeset_lock(&crtc->base.mutex, NULL);
 		pipe_config = to_intel_crtc_state(crtc->base.state);
 
-		seq_printf(m, "CRTC %d: pipe: %c, active=%s, (size=%dx%d), dither=%s, bpp=%d\n",
+		seq_printf(m, "CRTC %d: pipe: %c, active=%s, hwactive=%s (size=%dx%d), dither=%s, bpp=%d\n",
 			   crtc->base.base.id, pipe_name(crtc->pipe),
 			   yesno(pipe_config->base.active),
+			   yesno(drm_crtc_hw_active(&pipe_config->base)),
 			   pipe_config->pipe_src_w, pipe_config->pipe_src_h,
 			   yesno(pipe_config->dither), pipe_config->pipe_bpp);
 
-		if (pipe_config->base.active) {
+		if (drm_crtc_hw_active(&pipe_config->base)) {
 			struct intel_plane *cursor =
 				to_intel_plane(crtc->base.cursor);
 
