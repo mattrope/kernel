@@ -6880,6 +6880,23 @@ static int intel_crtc_compute_config(struct intel_crtc *crtc,
 		}
 	}
 
+	/*
+	 * Gen11 has documented pipe source size limits.  Note that if we're
+	 * using the big joiner, the pipe size we're checking here has already
+	 * been set to half of the userspace-requested mode.
+	 */
+	if (pipe_config->pipe_src_w >= pipe_config->pipe_src_h &&
+	    (pipe_config->pipe_src_w > 5120 ||
+	     pipe_config->pipe_src_h > 3200)) {
+		DRM_DEBUG_KMS("Landscape pipe size is limited to 5120x3200\n");
+		return -EINVAL;
+	} else if (pipe_config->pipe_src_w < pipe_config->pipe_src_h &&
+		   (pipe_config->pipe_src_w > 2304 ||
+		    pipe_config->pipe_src_h > 4096)) {
+		DRM_DEBUG_KMS("Portrait pipe size is limited to 2304x4096\n");
+		return -EINVAL;
+	}
+
 	/* Cantiga+ cannot handle modes with a hsync front porch of 0.
 	 * WaPruneModeWithIncorrectHsyncOffset:ctg,elk,ilk,snb,ivb,vlv,hsw.
 	 */
