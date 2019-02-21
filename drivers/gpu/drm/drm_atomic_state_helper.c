@@ -73,8 +73,10 @@ void
 __drm_atomic_helper_crtc_reset(struct drm_crtc *crtc,
 			       struct drm_crtc_state *crtc_state)
 {
-	if (crtc_state)
+	if (crtc_state) {
 		crtc_state->crtc = crtc;
+		crtc_state->bgcolor = drm_argb(16, 0xffff, 0, 0, 0);
+	}
 
 	crtc->state = crtc_state;
 }
