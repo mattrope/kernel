@@ -10453,6 +10453,7 @@ static bool haswell_get_pipe_config(struct intel_crtc *crtc,
 	intel_wakeref_t wakerefs[POWER_DOMAIN_NUM], wf;
 	enum intel_display_power_domain power_domain;
 	u64 power_domain_mask;
+	u32 bgcolor;
 	bool active;
 
 	intel_crtc_init_scalers(crtc, pipe_config);
@@ -10563,6 +10564,15 @@ static bool haswell_get_pipe_config(struct intel_crtc *crtc,
 			I915_READ(PIPE_MULT(pipe_config->cpu_transcoder)) + 1;
 	} else {
 		pipe_config->pixel_multiplier = 1;
+	}
+
+	if (INTEL_GEN(dev_priv) >= 9) {
+		bgcolor = I915_READ(SKL_BOTTOM_COLOR(crtc->pipe));
+		pipe_config->base.bgcolor =
+			drm_argb(10, 0xFFFF,
+				 bgcolor >> 20 & 0x3FF,
+				 bgcolor >> 10 & 0x3FF,
+				 bgcolor       & 0x3FF);
 	}
 
 out:
@@ -12245,6 +12255,10 @@ dump_planes:
 		if (plane->pipe == crtc->pipe)
 			intel_dump_plane_state(plane_state);
 	}
+
+	if (INTEL_GEN(dev_priv) >= 9)
+		DRM_DEBUG_KMS("background color: %llx\n",
+			      pipe_config->base.bgcolor);
 }
 
 static bool check_digital_port_conflicts(struct intel_atomic_state *state)
@@ -12639,6 +12653,16 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	} \
 } while (0)
 
+#define PIPE_CONF_CHECK_LLX_MASKED(name, mask) do { \
+	if ((current_config->name & mask) != (pipe_config->name & mask)) { \
+		pipe_config_mismatch(fastset, __stringify(name), \
+				     "(expected 0x%016llx, found 0x%016llx)\n", \
+				     current_config->name & mask, \
+				     pipe_config->name & mask); \
+		ret = false; \
+	} \
+} while (0)
+
 #define PIPE_CONF_CHECK_I(name) do { \
 	if (current_config->name != pipe_config->name) { \
 		pipe_config_mismatch(fastset, __stringify(name), \
@@ -12945,6 +12969,14 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	PIPE_CONF_CHECK_INFOFRAME(hdmi);
 	PIPE_CONF_CHECK_INFOFRAME(drm);
 
+	/*
+	 * Hardware only holds top 10 bits of each color component; ignore
+	 * bottom six bits (and all of alpha) when comparing against readout.
+	 */
+	if (INTEL_GEN(dev_priv) >= 9)
+		PIPE_CONF_CHECK_LLX_MASKED(base.bgcolor, 0x0000FFC0FFC0FFC0);
+
+#undef PIPE_CONF_CHECK_LLX_MASKED
 #undef PIPE_CONF_CHECK_X
 #undef PIPE_CONF_CHECK_I
 #undef PIPE_CONF_CHECK_BOOL
