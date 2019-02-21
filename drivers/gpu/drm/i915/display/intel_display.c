@@ -11833,8 +11833,12 @@ static int intel_crtc_atomic_check(struct drm_crtc *_crtc,
 {
 	struct intel_crtc *crtc = to_intel_crtc(_crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
+	struct intel_atomic_state *state =
+		to_intel_atomic_state(_crtc_state->state);
 	struct intel_crtc_state *crtc_state =
 		to_intel_crtc_state(_crtc_state);
+	struct intel_crtc_state *old_crtc_state =
+		intel_atomic_get_old_crtc_state(state, crtc);
 	int ret;
 	bool mode_changed = needs_modeset(crtc_state);
 
@@ -11863,6 +11867,9 @@ static int intel_crtc_atomic_check(struct drm_crtc *_crtc,
 		if (ret)
 			return ret;
 	}
+
+	if (crtc_state->base.bgcolor != old_crtc_state->base.bgcolor)
+		crtc_state->base.color_mgmt_changed = true;
 
 	ret = 0;
 	if (dev_priv->display.compute_pipe_wm) {
@@ -15210,6 +15217,9 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
 
+	if (INTEL_GEN(dev_priv) >= 9)
+		drm_crtc_add_bgcolor_property(&intel_crtc->base);
+
 	return 0;
 
 fail:
@@ -16494,6 +16504,9 @@ static void intel_sanitize_crtc(struct intel_crtc *crtc,
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_crtc_state *crtc_state = to_intel_crtc_state(crtc->base.state);
 	enum transcoder cpu_transcoder = crtc_state->cpu_transcoder;
+
+	/* Always force bgcolor to solid black */
+	crtc_state->base.bgcolor = drm_argb(16, 0xFFFF, 0, 0, 0);
 
 	/* Clear any frame start delays used for debugging left by the BIOS */
 	if (crtc->active && !transcoder_is_dsi(cpu_transcoder)) {

@@ -481,12 +481,17 @@ static void skl_color_commit(const struct intel_crtc_state *crtc_state)
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum pipe pipe = crtc->pipe;
+	u64 propval = crtc_state->base.bgcolor;
 	u32 val = 0;
 
+	/* Hardware is programmed with 10 bits of precision */
+	val = DRM_ARGB_RED(propval, 10) << 20
+	    | DRM_ARGB_GREEN(propval, 10) << 10
+	    | DRM_ARGB_BLUE(propval, 10);
+
 	/*
-	 * We don't (yet) allow userspace to control the pipe background color,
-	 * so force it to black, but apply pipe gamma and CSC appropriately
-	 * so that its handling will match how we program our planes.
+	 * Apply pipe gamma and CSC appropriately so that its handling will
+	 * match how we program our planes.
 	 */
 	if (crtc_state->gamma_enable)
 		val |= SKL_BOTTOM_COLOR_GAMMA_ENABLE;
