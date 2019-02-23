@@ -13396,6 +13396,26 @@ static void intel_update_crtcs(struct drm_atomic_state *state)
 	}
 }
 
+/* If ganged, extend ddb entry to include slave's allocation as well */
+static void extend_gang_ddb(struct drm_atomic_state *state,
+			    struct drm_crtc_state *crtc_state,
+			    struct skl_ddb_entry *ddb)
+{
+	struct drm_crtc *crtc = crtc_state->crtc;
+	struct drm_crtc_state *slave_state;
+	struct skl_ddb_entry *slave_ddb;
+
+	if (crtc_state->gang_mode != DRM_CRTC_GANG_MODE_MASTER)
+		return;
+
+	slave_state = drm_atomic_get_new_crtc_state(state, crtc);
+	if (WARN_ON(!slave_state))
+		return;
+
+	slave_ddb = &to_intel_crtc_state(slave_state)->wm.skl.ddb;
+	skl_ddb_entries_merge(ddb, slave_ddb);
+}
+
 static void skl_update_crtcs(struct drm_atomic_state *state)
 {
 	struct drm_i915_private *dev_priv = to_i915(state->dev);
@@ -13403,7 +13423,6 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 	struct drm_crtc *crtc;
 	struct intel_crtc *intel_crtc;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
-	struct intel_crtc_state *cstate;
 	unsigned int updated = 0;
 	bool progress;
 	enum pipe pipe;
@@ -13414,7 +13433,7 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i)
 		/* ignore allocations for crtc's that have been turned off. */
-		if (new_crtc_state->active)
+		if (drm_crtc_hw_active(new_crtc_state))
 			entries[i] = to_intel_crtc_state(old_crtc_state)->wm.skl.ddb;
 
 	/* If 2nd DBuf slice required, enable it here */
@@ -13431,6 +13450,9 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 		progress = false;
 
 		for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+			struct intel_crtc_state *cstate =
+				to_intel_crtc_state(new_crtc_state);
+			struct skl_ddb_entry ddb = cstate->wm.skl.ddb;
 			bool vbl_wait = false;
 			unsigned int cmask = drm_crtc_mask(crtc);
 
@@ -13438,19 +13460,29 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 			cstate = to_intel_crtc_state(new_crtc_state);
 			pipe = intel_crtc->pipe;
 
-			if (updated & cmask || !cstate->base.active)
+			if (updated & cmask || !new_crtc_state->active)
 				continue;
 
-			if (skl_ddb_allocation_overlaps(&cstate->wm.skl.ddb,
-							entries,
+			/*
+			 * If this CRTC is a gang master, we want to program
+			 * the slave at the same time.  As such, we need to
+			 * consider a merged master+slave DDB entry when
+			 * figuring out if we're ready to program these two
+			 * CRTCs or whether we need to do other DDB re-shuffling
+			 * first.  Note that this also depends on master+slave
+			 * having adjacent allocations.
+			 */
+			extend_gang_ddb(state, new_crtc_state, &ddb);
+
+			if (skl_ddb_allocation_overlaps(&ddb, entries,
 							INTEL_INFO(dev_priv)->num_pipes, i))
 				continue;
 
 			updated |= cmask;
-			entries[i] = cstate->wm.skl.ddb;
+			entries[i] = ddb;
 
 			/*
-			 * If this is an already active pipe, it's DDB changed,
+			 * If this is an already active pipe, its DDB changed,
 			 * and this isn't the last pipe that needs updating
 			 * then we need to wait for a vblank to pass for the
 			 * new ddb allocation to take effect.
@@ -13463,6 +13495,32 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 
 			intel_update_crtc(crtc, state, old_crtc_state,
 					  new_crtc_state);
+
+			/*
+			 * If this is one member of a CRTC gang, we want to
+			 * update the gang partner immediately (and not wait
+			 * for a vblank between the two).  Note that this relies
+			 * on the block allocations for master and slave being
+			 * adjacent in the DDB.
+			 */
+			if (new_crtc_state->gang_mode == DRM_CRTC_GANG_MODE_MASTER) {
+				struct drm_crtc *slave =
+					new_crtc_state->gang_partner;
+				struct drm_crtc_state *old_slave_state,
+						      *new_slave_state;
+
+				updated |= drm_crtc_mask(slave);
+
+				new_slave_state =
+					drm_atomic_get_new_crtc_state(state,
+								      slave);
+				old_slave_state =
+					drm_atomic_get_old_crtc_state(state,
+								      slave);
+
+				intel_update_crtc(slave, state, old_slave_state,
+						  new_slave_state);
+			}
 
 			if (vbl_wait)
 				intel_wait_for_vblank(dev_priv, pipe);
