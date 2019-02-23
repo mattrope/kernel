@@ -5177,6 +5177,13 @@ static inline bool skl_ddb_entries_overlap(const struct skl_ddb_entry *a,
 	return a->start < b->end && b->start < a->end;
 }
 
+void skl_ddb_entries_merge(struct skl_ddb_entry *a,
+			   const struct skl_ddb_entry *b)
+{
+	a->start = min(a->start, b->start);
+	a->end = max(a->end, b->end);
+}
+
 bool skl_ddb_allocation_overlaps(const struct skl_ddb_entry *ddb,
 				 const struct skl_ddb_entry entries[],
 				 int num_entries, int ignore_idx)
