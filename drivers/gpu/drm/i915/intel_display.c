@@ -13173,6 +13173,32 @@ static void intel_update_crtcs(struct drm_atomic_state *state)
 	}
 }
 
+/*
+ * If this is a big joiner master, extend the ddb entry to include slave's
+ * allocation as well.
+ */
+static void extend_ddb_for_bigjoiner(const struct intel_crtc_state *crtc_state,
+				     struct skl_ddb_entry *ddb)
+{
+	struct intel_atomic_state *state =
+		to_intel_atomic_state(crtc_state->base.state);
+	struct intel_crtc *master, *slave;
+	struct intel_crtc_state *slave_state;
+
+	if (crtc_state->bigjoiner_mode != I915_BIGJOINER_MASTER)
+		return;
+
+	master = to_intel_crtc(crtc_state->base.crtc);
+	slave = intel_bigjoiner_slave(master);
+
+	/* Slave should already be part of the atomic transaction */
+	slave_state = intel_atomic_get_new_crtc_state(state, slave);
+	if (WARN_ON(!slave_state))
+		return;
+
+	skl_ddb_entries_merge(ddb, &slave_state->wm.skl.ddb);
+}
+
 static void skl_update_crtcs(struct drm_atomic_state *state)
 {
 	struct drm_i915_private *dev_priv = to_i915(state->dev);
@@ -13180,7 +13206,6 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 	struct drm_crtc *crtc;
 	struct intel_crtc *intel_crtc;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
-	struct intel_crtc_state *cstate;
 	unsigned int updated = 0;
 	bool progress;
 	enum pipe pipe;
@@ -13208,6 +13233,9 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 		progress = false;
 
 		for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+			struct intel_crtc_state *cstate =
+				to_intel_crtc_state(new_crtc_state);
+			struct skl_ddb_entry ddb = cstate->wm.skl.ddb;
 			bool vbl_wait = false;
 			unsigned int cmask = drm_crtc_mask(crtc);
 
@@ -13215,19 +13243,30 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 			cstate = to_intel_crtc_state(new_crtc_state);
 			pipe = intel_crtc->pipe;
 
-			if (updated & cmask || !cstate->base.active)
+			if (updated & cmask || !new_crtc_state->active)
 				continue;
 
-			if (skl_ddb_allocation_overlaps(&cstate->wm.skl.ddb,
-							entries,
+			/*
+			 * If this CRTC is the master of a big joiner
+			 * configuration we'll be programming both the master
+			 * and slave together on the same effective vblank.
+			 * As such, when considering DDB resizes we should
+			 * consider both master and slave DDB's together as a
+			 * single unit.  Note that this relies on the fact that
+			 * the atomic check code assigns master and slave
+			 * adjacent allocations.
+			 */
+			extend_ddb_for_bigjoiner(cstate, &ddb);
+
+			if (skl_ddb_allocation_overlaps(&ddb, entries,
 							INTEL_INFO(dev_priv)->num_pipes, i))
 				continue;
 
 			updated |= cmask;
-			entries[i] = cstate->wm.skl.ddb;
+			entries[i] = ddb;
 
 			/*
-			 * If this is an already active pipe, it's DDB changed,
+			 * If this is an already active pipe, its DDB changed,
 			 * and this isn't the last pipe that needs updating
 			 * then we need to wait for a vblank to pass for the
 			 * new ddb allocation to take effect.
@@ -13237,6 +13276,32 @@ static void skl_update_crtcs(struct drm_atomic_state *state)
 			    !new_crtc_state->active_changed &&
 			    intel_state->wm_results.dirty_pipes != updated)
 				vbl_wait = true;
+
+			/*
+			 * The big joiner programming sequence calls for
+			 * us to program the planes and pipe for the slave
+			 * before programming the planes, pipe, and transcoder
+			 * for the master.  So do that next if we're handling a
+			 * big joiner configuration.
+			 */
+			if (cstate->bigjoiner_mode == I915_BIGJOINER_MASTER) {
+				struct drm_crtc *slave =
+					&intel_bigjoiner_slave(intel_crtc)->base;
+				struct drm_crtc_state *old_slave_state,
+						      *new_slave_state;
+
+				updated |= drm_crtc_mask(slave);
+
+				new_slave_state =
+					drm_atomic_get_new_crtc_state(state,
+								      slave);
+				old_slave_state =
+					drm_atomic_get_old_crtc_state(state,
+								      slave);
+
+				intel_update_crtc(slave, state, old_slave_state,
+						  new_slave_state);
+			}
 
 			intel_update_crtc(crtc, state, old_crtc_state,
 					  new_crtc_state);
