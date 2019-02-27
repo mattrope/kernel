@@ -1976,8 +1976,12 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 	 * VDSC engine operates at 1 Pixel per clock, so if peak pixel rate
 	 * is greater than the maximum Cdclock and if slice count is even
 	 * then we need to use 2 VDSC instances.
+	 *
+	 * We must also always enable both VDSC instances any time the big
+	 * joiner is in use.
 	 */
-	if (adjusted_mode->crtc_clock > dev_priv->max_cdclk_freq) {
+	if (adjusted_mode->crtc_clock > dev_priv->max_cdclk_freq ||
+	    pipe_config->bigjoiner_mode != NONE) {
 		if (pipe_config->dsc_params.slice_count > 1) {
 			pipe_config->dsc_params.dsc_split = true;
 		} else {
