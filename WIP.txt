@@ -1,0 +1,31 @@
+Work in Progress / Notes:
+
+ * I've reversed my previous stance on whether we should allow userspace to
+   request big modes on both pipes B and C or just on pipe B.  Hardware
+   always considers pipe B to be the master/left side, so for an initial
+   implementation it's easiest to also make it the master from the uapi
+   perspective.  We can always go back and relax the restriction in the
+   future if we decide it's worth the extra complexity, but let's keep the
+   initial implementation as simple and easy to review as possible.
+
+ * We now program PIPE_DSS_CTL1 with the proper bits when the big joiner is
+   in use.
+
+ * CRTC iteration order when programming CRTCs should be correct now (and
+   consider slave+master as a single unit programmed together without a
+   vblank in between).
+
+ * Vblank evasion should skip the end/beginning for slave/master so that the
+   evasion will extend to cover the programming of both CRTCs.
+
+ * Still need *lots* of work to make various code look at the master's state
+   when programming the slave.
+
+ * Open:  How should we handle pipe CRC's (a single value) requested by
+   userspace when we're actually using two pipes internally?
+
+ * debugfs i915_display_info probably needs an update/clarification in general;
+   the information today is a mix of how we're going to program the hardware
+   (pipe stuff) and how userspace asked us to program the hardware (plane
+   stuff).  HW state and UAPI state are already pretty different (e.g., NV12
+   plane usage on gen11) and big joiner just breaks this further.
