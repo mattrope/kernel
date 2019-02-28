@@ -2010,6 +2010,59 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 }
 
 static int
+intel_dp_bigjoiner_compute_config(struct intel_dp *intel_dp,
+				  struct intel_crtc_state *master_state,
+				  struct drm_connector_state *conn_state,
+				  struct link_config_limits *limits)
+{
+	struct drm_atomic_state *state = master_state->base.state;
+	struct intel_crtc *slave;
+	struct intel_crtc_state *slave_state;
+	int ret;
+
+	if (!intel_bigjoiner_possible(master_state))
+		return -EINVAL;
+
+	/* Big joiner can only be used with DSC */
+	if (!intel_dp_supports_dsc(intel_dp, master_state))
+		return -EINVAL;
+
+	/* Bring the slave CRTC into the transaction */
+	slave = intel_bigjoiner_slave(to_intel_crtc(master_state->base.crtc));
+	slave_state = intel_atomic_get_crtc_state(state, slave);
+	if (IS_ERR(slave_state))
+		return PTR_ERR(slave_state);
+
+	/*
+	 * If the slave CRTC is already used by userspace, we can't
+	 * double-book it.
+	 */
+	if (slave_state->base.enable) {
+		DRM_DEBUG_KMS("Can't enable big joiner mode; slave CRTC already in use.\n");
+		return -EINVAL;
+	}
+
+	/* Each pipe drives half of the userspace mode */
+	master_state->base.adjusted_mode.hdisplay /= 2;
+	master_state->base.adjusted_mode.clock /= 2;
+	master_state->base.adjusted_mode.crtc_clock /= 2;
+	slave_state->base.adjusted_mode = master_state->base.adjusted_mode;
+
+	master_state->bigjoiner_mode = I915_BIGJOINER_MASTER;
+	slave_state->bigjoiner_mode = I915_BIGJOINER_SLAVE;
+
+	/* Setup DSC on both pipes */
+	ret = intel_dp_dsc_compute_config(intel_dp, master_state,
+					  conn_state, limits);
+	if (ret)
+		return ret;
+	ret = intel_dp_dsc_compute_config(intel_dp, slave_state,
+					  conn_state, limits);
+
+	return ret;
+}
+
+static int
 intel_dp_compute_link_config(struct intel_encoder *encoder,
 			     struct intel_crtc_state *pipe_config,
 			     struct drm_connector_state *conn_state)
@@ -2076,12 +2129,21 @@ intel_dp_compute_link_config(struct intel_encoder *encoder,
 
 	/* enable compression if the mode doesn't fit available BW */
 	DRM_DEBUG_KMS("Force DSC en = %d\n", intel_dp->force_dsc_en);
-	if (ret || intel_dp->force_dsc_en) {
+	if (ret || intel_dp->force_dsc_en)
 		ret = intel_dp_dsc_compute_config(intel_dp, pipe_config,
 						  conn_state, &limits);
-		if (ret < 0)
-			return ret;
+
+	/*
+	 * Compression wasn't enough to make the mode fit.  Our last resort is
+	 * big joiner + compression if the platform/crtc supports it.
+	 */
+	if (ret) {
+		ret = intel_dp_bigjoiner_compute_config(intel_dp, pipe_config,
+							conn_state, &limits);
 	}
+
+	if (ret < 0)
+		return ret;
 
 	if (pipe_config->dsc_params.compression_enable) {
 		DRM_DEBUG_KMS("DP lane count %d clock %d Input bpp %d Compressed bpp %d\n",
