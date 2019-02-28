@@ -2005,6 +2005,49 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 	return 0;
 }
 
+static bool
+has_bigjoiner(struct intel_dp *intel_dp,
+	      struct intel_crtc_state *crtc_state)
+{
+	struct drm_i915_private *dev_priv = to_i915(crtc_state->base.crtc->dev);
+	enum pipe pipe = to_intel_crtc(crtc_state->base.crtc)->pipe;
+
+	/* Big joiner can only be used when DSC is active. */
+	if (!intel_dp_supports_dsc(intel_dp, crtc_state))
+	    return false;
+
+	/*
+	 * Current hardware is pretty simple; the only possible setup is
+	 * pipes B(master) + C(slave).
+	 *
+	 * For simplicity, we'll only allow big-joiner modes when userspace
+	 * requests them on pipe B (the master).  We could potentially allow
+	 * userspace to make these requests on pipe C as well (assuming pipe B
+	 * is inactive), but that would require more internal logic shuffling
+	 * so let's just keep things simple for now.  We can revisit this
+	 * decision in the future once we're sure the basic logic and
+	 * functionality is working as expected.
+	 */
+	return INTEL_GEN(dev_priv) >= 11 && pipe == PIPE_B;
+}
+
+static struct intel_crtc_state *
+bigjoiner_grab_slave(struct intel_crtc_state *master_state)
+{
+	struct drm_i915_private *dev_priv =
+		to_i915(master_state->base.crtc->dev);
+	struct drm_atomic_state *state = master_state->base.state;
+	struct intel_crtc *slave;
+
+	/*
+	 * If we start allowing userspace to request big-joiner modes on
+	 * CRTC C, we'd need to handle that here.  But for now, pipe C is
+	 * the only valid slave CRTC.
+	 */
+	slave = dev_priv->pipe_to_crtc_mapping[PIPE_C];
+	return intel_atomic_get_crtc_state(state, slave);
+}
+
 static int
 intel_dp_compute_link_config(struct intel_encoder *encoder,
 			     struct intel_crtc_state *pipe_config,

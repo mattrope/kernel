@@ -1068,6 +1068,17 @@ struct intel_crtc_state {
 
 	/* Forward Error correction State */
 	bool fec_enable;
+
+	/*
+	 * Is this pipe part of a ganged big joiner configuration?  If set
+	 * to SLAVE, all UAPI-visible fields (active, gamma/csc, etc.) should
+	 * be pulled from the master CRTC instead.
+	 */
+	enum {
+		I915_BIGJOINER_NONE,
+		I915_BIGJOINER_MASTER,
+		I915_BIGJOINER_SLAVE
+	} bigjoiner_mode;
 };
 
 struct intel_crtc {
