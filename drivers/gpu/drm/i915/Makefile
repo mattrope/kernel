@@ -115,6 +115,7 @@ i915-y += intel_renderstate_gen6.o \
 i915-y += intel_audio.o \
 	  intel_atomic.o \
 	  intel_atomic_plane.o \
+	  intel_bigjoiner.o \
 	  intel_bios.o \
 	  intel_cdclk.o \
 	  intel_color.o \

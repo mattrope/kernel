@@ -1068,6 +1068,17 @@ struct intel_crtc_state {
 
 	/* Forward Error correction State */
 	bool fec_enable;
+
+	/*
+	 * Is this pipe part of a ganged big joiner configuration?  If set
+	 * to SLAVE, all UAPI-visible fields (active, gamma/csc, etc.) should
+	 * be pulled from the master CRTC instead.
+	 */
+	enum {
+		I915_BIGJOINER_NONE,
+		I915_BIGJOINER_MASTER,
+		I915_BIGJOINER_SLAVE
+	} bigjoiner_mode;
 };
 
 struct intel_crtc {
@@ -1670,6 +1681,11 @@ void i915_audio_component_init(struct drm_i915_private *dev_priv);
 void i915_audio_component_cleanup(struct drm_i915_private *dev_priv);
 void intel_audio_init(struct drm_i915_private *dev_priv);
 void intel_audio_deinit(struct drm_i915_private *dev_priv);
+
+/* intel_bigjoiner.c */
+bool intel_bigjoiner_possible(struct intel_crtc_state *crtc_state);
+struct intel_crtc *intel_bigjoiner_master(struct intel_crtc *slave);
+struct intel_crtc *intel_bigjoiner_slave(struct intel_crtc *master);
 
 /* intel_cdclk.c */
 int intel_crtc_compute_min_cdclk(const struct intel_crtc_state *crtc_state);
