@@ -1047,6 +1047,10 @@ void intel_dsc_enable(struct intel_encoder *encoder,
 		dss_ctl2_val |= RIGHT_BRANCH_VDSC_ENABLE;
 		dss_ctl1_val |= JOINER_ENABLE;
 	}
+	if (crtc_state->bigjoiner_mode == I915_BIGJOINER_MASTER)
+		dss_ctl1_val |= BIG_JOINER_ENABLE | MASTER_BIG_JOINER_ENABLE;
+	else if (crtc_state->bigjoiner_mode == I915_BIGJOINER_SLAVE)
+		dss_ctl1_val |= BIG_JOINER_ENABLE;
 	I915_WRITE(dss_ctl1_reg, dss_ctl1_val);
 	I915_WRITE(dss_ctl2_reg, dss_ctl2_val);
 }
@@ -1070,8 +1074,8 @@ void intel_dsc_disable(const struct intel_crtc_state *old_crtc_state)
 		dss_ctl2_reg = ICL_PIPE_DSS_CTL2(pipe);
 	}
 	dss_ctl1_val = I915_READ(dss_ctl1_reg);
-	if (dss_ctl1_val & JOINER_ENABLE)
-		dss_ctl1_val &= ~JOINER_ENABLE;
+	dss_ctl1_val &= ~(JOINER_ENABLE | BIG_JOINER_ENABLE |
+			  MASTER_BIG_JOINER_ENABLE);
 	I915_WRITE(dss_ctl1_reg, dss_ctl1_val);
 
 	dss_ctl2_val = I915_READ(dss_ctl2_reg);
