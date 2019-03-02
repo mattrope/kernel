@@ -14013,8 +14013,13 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 		intel_atomic_get_new_crtc_state(old_intel_state, intel_crtc);
 	bool modeset = needs_modeset(&intel_cstate->base);
 
-	/* Perform vblank evasion around commit operation */
-	intel_pipe_update_start(intel_cstate);
+	/*
+	 * Perform vblank evasion around commit operation *unless* we're
+	 * the big joiner master.  In that case, we're already under the
+	 * evasion that was started by the slave CRTC's commit.
+	 */
+	if (intel_cstate->bigjoiner_mode != I915_BIGJOINER_MASTER)
+		intel_pipe_update_start(intel_cstate);
 
 	if (modeset)
 		goto out;
@@ -14059,7 +14064,13 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 	struct intel_crtc_state *new_crtc_state =
 		intel_atomic_get_new_crtc_state(old_intel_state, intel_crtc);
 
-	intel_pipe_update_end(new_crtc_state);
+	/*
+	 * Perform vblank evasion around commit operation *unless* we're
+	 * the big joiner slave.  In that case, we want to continue the
+	 * evasion while we program the master CRTC.
+	 */
+	if (new_crtc_state->bigjoiner_mode != I915_BIGJOINER_SLAVE)
+		intel_pipe_update_end(new_crtc_state);
 
 	if (new_crtc_state->update_pipe &&
 	    !needs_modeset(&new_crtc_state->base) &&
