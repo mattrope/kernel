@@ -479,9 +479,23 @@ skl_wa_clkgate(struct drm_i915_private *dev_priv, int pipe, bool enable)
 }
 
 static bool
-needs_modeset(const struct drm_crtc_state *state)
+needs_modeset(const struct drm_crtc_state *crtc_state)
 {
-	return drm_atomic_crtc_needs_modeset(state);
+	struct drm_atomic_state *state = crtc_state->state;
+	struct intel_crtc_state *intel_crtc_state =
+		to_intel_crtc_state(crtc_state);
+	struct intel_crtc *master, *slave;
+
+	if (intel_crtc_state->bigjoiner_mode == I915_BIGJOINER_SLAVE) {
+		slave = to_intel_crtc(crtc_state->crtc);
+		master = intel_bigjoiner_master(master);
+		crtc_state = drm_atomic_get_new_crtc_state(state,
+							   &master->base);
+		if (WARN_ON(!crtc_state))
+			return false;
+	}
+
+	return drm_atomic_crtc_needs_modeset(crtc_state);
 }
 
 /*
