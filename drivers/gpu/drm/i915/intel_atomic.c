@@ -249,8 +249,8 @@ static void intel_atomic_setup_scaler(struct intel_crtc_scaler_state *scaler_sta
 		} else {
 			mode = PS_SCALER_MODE_PLANAR;
 
-			if (plane_state->linked_plane)
-				mode |= PS_PLANE_Y_SEL(plane_state->linked_plane->id);
+			if (plane_state->hw.linked_plane)
+				mode |= PS_PLANE_Y_SEL(plane_state->hw.linked_plane->id);
 		}
 	} else if (INTEL_GEN(dev_priv) > 9 || IS_GEMINILAKE(dev_priv)) {
 		mode = PS_SCALER_MODE_NORMAL;
@@ -379,7 +379,7 @@ int intel_atomic_setup_scalers(struct drm_i915_private *dev_priv,
 
 			plane_state = intel_atomic_get_new_plane_state(intel_state,
 								       intel_plane);
-			scaler_id = &plane_state->scaler_id;
+			scaler_id = &plane_state->hw.scaler_id;
 		}
 
 		intel_atomic_setup_scaler(scaler_state, num_scalers_need,

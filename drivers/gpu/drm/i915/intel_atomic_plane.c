@@ -53,7 +53,7 @@ struct intel_plane *intel_plane_alloc(void)
 	}
 
 	__drm_atomic_helper_plane_reset(&plane->base, &plane_state->base);
-	plane_state->scaler_id = -1;
+	plane_state->hw.scaler_id = -1;
 
 	return plane;
 }
@@ -88,8 +88,8 @@ intel_plane_duplicate_state(struct drm_plane *plane)
 
 	__drm_atomic_helper_plane_duplicate_state(plane, state);
 
-	intel_state->vma = NULL;
-	intel_state->flags = 0;
+	intel_state->hw.vma = NULL;
+	intel_state->hw.flags = 0;
 
 	return state;
 }
@@ -106,7 +106,7 @@ void
 intel_plane_destroy_state(struct drm_plane *plane,
 			  struct drm_plane_state *state)
 {
-	WARN_ON(to_intel_plane_state(state)->vma);
+	WARN_ON(to_intel_plane_state(state)->hw.vma);
 
 	drm_atomic_helper_plane_destroy_state(plane, state);
 }
@@ -273,9 +273,9 @@ void skl_update_planes_on_crtc(struct intel_atomic_state *state,
 
 		if (new_plane_state->base.visible) {
 			intel_update_plane(plane, new_crtc_state, new_plane_state);
-		} else if (new_plane_state->slave) {
+		} else if (new_plane_state->hw.slave) {
 			struct intel_plane *master =
-				new_plane_state->linked_plane;
+				new_plane_state->hw.linked_plane;
 
 			/*
 			 * We update the slave plane from this function because

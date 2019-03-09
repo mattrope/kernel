@@ -4269,7 +4269,7 @@ icl_get_total_relative_data_rate(struct intel_crtc_state *intel_cstate,
 		enum plane_id plane_id = to_intel_plane(plane)->id;
 		u64 rate;
 
-		if (!intel_pstate->linked_plane) {
+		if (!intel_pstate->hw.linked_plane) {
 			rate = skl_plane_relative_data_rate(intel_cstate,
 							    intel_pstate, 0);
 			plane_data_rate[plane_id] = rate;
@@ -4284,13 +4284,13 @@ icl_get_total_relative_data_rate(struct intel_crtc_state *intel_cstate,
 			 * NULL if we try get_new_plane_state(), so we
 			 * always calculate from the master.
 			 */
-			if (intel_pstate->slave)
+			if (intel_pstate->hw.slave)
 				continue;
 
 			/* Y plane rate is calculated on the slave */
 			rate = skl_plane_relative_data_rate(intel_cstate,
 							    intel_pstate, 0);
-			y_plane_id = intel_pstate->linked_plane->id;
+			y_plane_id = intel_pstate->hw.linked_plane->id;
 			plane_data_rate[y_plane_id] = rate;
 			total_data_rate += rate;
 
@@ -4992,12 +4992,12 @@ static int icl_build_plane_wm(struct skl_pipe_wm *pipe_wm,
 	int ret;
 
 	/* Watermarks calculated in master */
-	if (plane_state->slave)
+	if (plane_state->hw.slave)
 		return 0;
 
-	if (plane_state->linked_plane) {
+	if (plane_state->hw.linked_plane) {
 		const struct drm_framebuffer *fb = plane_state->base.fb;
-		enum plane_id y_plane_id = plane_state->linked_plane->id;
+		enum plane_id y_plane_id = plane_state->hw.linked_plane->id;
 
 		WARN_ON(!intel_wm_plane_visible(crtc_state, plane_state));
 		WARN_ON(!fb->format->is_yuv ||

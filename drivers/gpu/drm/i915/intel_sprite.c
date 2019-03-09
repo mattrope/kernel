@@ -251,7 +251,7 @@ int intel_plane_check_stride(const struct intel_plane_state *plane_state)
 	u32 stride, max_stride;
 
 	/* FIXME other color planes? */
-	stride = plane_state->color_plane[0].stride;
+	stride = plane_state->hw.color_plane[0].stride;
 	max_stride = plane->max_stride(plane, fb->format->format,
 				       fb->modifier, rotation);
 
@@ -329,7 +329,7 @@ skl_program_scaler(struct intel_plane *plane,
 {
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum pipe pipe = plane->pipe;
-	int scaler_id = plane_state->scaler_id;
+	int scaler_id = plane_state->hw.scaler_id;
 	const struct intel_scaler *scaler =
 		&crtc_state->scaler_state.scalers[scaler_id];
 	int crtc_x = plane_state->base.dst.x1;
@@ -484,17 +484,17 @@ skl_program_plane(struct intel_plane *plane,
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum plane_id plane_id = plane->id;
 	enum pipe pipe = plane->pipe;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
-	u32 surf_addr = plane_state->color_plane[color_plane].offset;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
+	u32 surf_addr = plane_state->hw.color_plane[color_plane].offset;
 	u32 stride = skl_plane_stride(plane_state, color_plane);
 	u32 aux_stride = skl_plane_stride(plane_state, 1);
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_y = plane_state->base.dst.y1;
-	u32 x = plane_state->color_plane[color_plane].x;
-	u32 y = plane_state->color_plane[color_plane].y;
+	u32 x = plane_state->hw.color_plane[color_plane].x;
+	u32 y = plane_state->hw.color_plane[color_plane].y;
 	u32 src_w = drm_rect_width(&plane_state->base.src) >> 16;
 	u32 src_h = drm_rect_height(&plane_state->base.src) >> 16;
-	struct intel_plane *linked = plane_state->linked_plane;
+	struct intel_plane *linked = plane_state->hw.linked_plane;
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	u8 alpha = plane_state->base.alpha >> 8;
 	u32 plane_color_ctl = 0;
@@ -504,7 +504,7 @@ skl_program_plane(struct intel_plane *plane,
 	plane_ctl |= skl_plane_ctl_crtc(crtc_state);
 
 	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
-		plane_color_ctl = plane_state->color_ctl |
+		plane_color_ctl = plane_state->hw.color_ctl |
 			glk_plane_color_ctl_crtc(crtc_state);
 
 	/* Sizes are 0 based */
@@ -518,7 +518,7 @@ skl_program_plane(struct intel_plane *plane,
 		keymsk |= PLANE_KEYMSK_ALPHA_ENABLE;
 
 	/* The scaler will handle the output position */
-	if (plane_state->scaler_id >= 0) {
+	if (plane_state->hw.scaler_id >= 0) {
 		crtc_x = 0;
 		crtc_y = 0;
 	}
@@ -529,7 +529,7 @@ skl_program_plane(struct intel_plane *plane,
 	I915_WRITE_FW(PLANE_POS(pipe, plane_id), (crtc_y << 16) | crtc_x);
 	I915_WRITE_FW(PLANE_SIZE(pipe, plane_id), (src_h << 16) | src_w);
 	I915_WRITE_FW(PLANE_AUX_DIST(pipe, plane_id),
-		      (plane_state->color_plane[1].offset - surf_addr) | aux_stride);
+		      (plane_state->hw.color_plane[1].offset - surf_addr) | aux_stride);
 
 	if (icl_is_hdr_plane(dev_priv, plane_id)) {
 		u32 cus_ctl = 0;
@@ -568,8 +568,8 @@ skl_program_plane(struct intel_plane *plane,
 
 	if (INTEL_GEN(dev_priv) < 11)
 		I915_WRITE_FW(PLANE_AUX_OFFSET(pipe, plane_id),
-			      (plane_state->color_plane[1].y << 16) |
-			      plane_state->color_plane[1].x);
+			      (plane_state->hw.color_plane[1].y << 16) |
+			      plane_state->hw.color_plane[1].x);
 
 	/*
 	 * The control register self-arms if the plane was previously
@@ -580,7 +580,7 @@ skl_program_plane(struct intel_plane *plane,
 	I915_WRITE_FW(PLANE_SURF(pipe, plane_id),
 		      intel_plane_ggtt_offset(plane_state) + surf_addr);
 
-	if (!slave && plane_state->scaler_id >= 0)
+	if (!slave && plane_state->hw.scaler_id >= 0)
 		skl_program_scaler(plane, crtc_state, plane_state);
 
 	spin_unlock_irqrestore(&dev_priv->uncore.lock, irqflags);
@@ -593,13 +593,13 @@ skl_update_plane(struct intel_plane *plane,
 {
 	int color_plane = 0;
 
-	if (plane_state->linked_plane) {
+	if (plane_state->hw.linked_plane) {
 		/* Program the UV plane */
 		color_plane = 1;
 	}
 
 	skl_program_plane(plane, crtc_state, plane_state,
-			  color_plane, false, plane_state->ctl);
+			  color_plane, false, plane_state->hw.ctl);
 }
 
 static void
@@ -608,7 +608,7 @@ icl_update_slave(struct intel_plane *plane,
 		 const struct intel_plane_state *plane_state)
 {
 	skl_program_plane(plane, crtc_state, plane_state, 0, true,
-			  plane_state->ctl | PLANE_CTL_YUV420_Y_PLANE);
+			  plane_state->hw.ctl | PLANE_CTL_YUV420_Y_PLANE);
 }
 
 static void
@@ -767,7 +767,7 @@ static u32 vlv_sprite_ctl(const struct intel_crtc_state *crtc_state,
 {
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	u32 sprctl;
 
 	sprctl = SP_ENABLE;
@@ -837,19 +837,19 @@ vlv_update_plane(struct intel_plane *plane,
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum pipe pipe = plane->pipe;
 	enum plane_id plane_id = plane->id;
-	u32 sprsurf_offset = plane_state->color_plane[0].offset;
+	u32 sprsurf_offset = plane_state->hw.color_plane[0].offset;
 	u32 linear_offset;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_y = plane_state->base.dst.y1;
 	u32 crtc_w = drm_rect_width(&plane_state->base.dst);
 	u32 crtc_h = drm_rect_height(&plane_state->base.dst);
-	u32 x = plane_state->color_plane[0].x;
-	u32 y = plane_state->color_plane[0].y;
+	u32 x = plane_state->hw.color_plane[0].x;
+	u32 y = plane_state->hw.color_plane[0].y;
 	unsigned long irqflags;
 	u32 sprctl;
 
-	sprctl = plane_state->ctl | vlv_sprite_ctl_crtc(crtc_state);
+	sprctl = plane_state->hw.ctl | vlv_sprite_ctl_crtc(crtc_state);
 
 	/* Sizes are 0 based */
 	crtc_w--;
@@ -860,7 +860,7 @@ vlv_update_plane(struct intel_plane *plane,
 	spin_lock_irqsave(&dev_priv->uncore.lock, irqflags);
 
 	I915_WRITE_FW(SPSTRIDE(pipe, plane_id),
-		      plane_state->color_plane[0].stride);
+		      plane_state->hw.color_plane[0].stride);
 	I915_WRITE_FW(SPPOS(pipe, plane_id), (crtc_y << 16) | crtc_x);
 	I915_WRITE_FW(SPSIZE(pipe, plane_id), (crtc_h << 16) | crtc_w);
 	I915_WRITE_FW(SPCONSTALPHA(pipe, plane_id), 0);
@@ -952,7 +952,7 @@ static u32 ivb_sprite_ctl(const struct intel_crtc_state *crtc_state,
 		to_i915(plane_state->base.plane->dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	u32 sprctl;
 
 	sprctl = SPRITE_ENABLE;
@@ -1011,21 +1011,21 @@ ivb_update_plane(struct intel_plane *plane,
 {
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum pipe pipe = plane->pipe;
-	u32 sprsurf_offset = plane_state->color_plane[0].offset;
+	u32 sprsurf_offset = plane_state->hw.color_plane[0].offset;
 	u32 linear_offset;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_y = plane_state->base.dst.y1;
 	u32 crtc_w = drm_rect_width(&plane_state->base.dst);
 	u32 crtc_h = drm_rect_height(&plane_state->base.dst);
-	u32 x = plane_state->color_plane[0].x;
-	u32 y = plane_state->color_plane[0].y;
+	u32 x = plane_state->hw.color_plane[0].x;
+	u32 y = plane_state->hw.color_plane[0].y;
 	u32 src_w = drm_rect_width(&plane_state->base.src) >> 16;
 	u32 src_h = drm_rect_height(&plane_state->base.src) >> 16;
 	u32 sprctl, sprscale = 0;
 	unsigned long irqflags;
 
-	sprctl = plane_state->ctl | ivb_sprite_ctl_crtc(crtc_state);
+	sprctl = plane_state->hw.ctl | ivb_sprite_ctl_crtc(crtc_state);
 
 	/* Sizes are 0 based */
 	src_w--;
@@ -1040,7 +1040,7 @@ ivb_update_plane(struct intel_plane *plane,
 
 	spin_lock_irqsave(&dev_priv->uncore.lock, irqflags);
 
-	I915_WRITE_FW(SPRSTRIDE(pipe), plane_state->color_plane[0].stride);
+	I915_WRITE_FW(SPRSTRIDE(pipe), plane_state->hw.color_plane[0].stride);
 	I915_WRITE_FW(SPRPOS(pipe), (crtc_y << 16) | crtc_x);
 	I915_WRITE_FW(SPRSIZE(pipe), (crtc_h << 16) | crtc_w);
 	if (IS_IVYBRIDGE(dev_priv))
@@ -1143,7 +1143,7 @@ static u32 g4x_sprite_ctl(const struct intel_crtc_state *crtc_state,
 		to_i915(plane_state->base.plane->dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	u32 dvscntr;
 
 	dvscntr = DVS_ENABLE;
@@ -1202,21 +1202,21 @@ g4x_update_plane(struct intel_plane *plane,
 {
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum pipe pipe = plane->pipe;
-	u32 dvssurf_offset = plane_state->color_plane[0].offset;
+	u32 dvssurf_offset = plane_state->hw.color_plane[0].offset;
 	u32 linear_offset;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_y = plane_state->base.dst.y1;
 	u32 crtc_w = drm_rect_width(&plane_state->base.dst);
 	u32 crtc_h = drm_rect_height(&plane_state->base.dst);
-	u32 x = plane_state->color_plane[0].x;
-	u32 y = plane_state->color_plane[0].y;
+	u32 x = plane_state->hw.color_plane[0].x;
+	u32 y = plane_state->hw.color_plane[0].y;
 	u32 src_w = drm_rect_width(&plane_state->base.src) >> 16;
 	u32 src_h = drm_rect_height(&plane_state->base.src) >> 16;
 	u32 dvscntr, dvsscale = 0;
 	unsigned long irqflags;
 
-	dvscntr = plane_state->ctl | g4x_sprite_ctl_crtc(crtc_state);
+	dvscntr = plane_state->hw.ctl | g4x_sprite_ctl_crtc(crtc_state);
 
 	/* Sizes are 0 based */
 	src_w--;
@@ -1231,7 +1231,7 @@ g4x_update_plane(struct intel_plane *plane,
 
 	spin_lock_irqsave(&dev_priv->uncore.lock, irqflags);
 
-	I915_WRITE_FW(DVSSTRIDE(pipe), plane_state->color_plane[0].stride);
+	I915_WRITE_FW(DVSSTRIDE(pipe), plane_state->hw.color_plane[0].stride);
 	I915_WRITE_FW(DVSPOS(pipe), (crtc_y << 16) | crtc_x);
 	I915_WRITE_FW(DVSSIZE(pipe), (crtc_h << 16) | crtc_w);
 	I915_WRITE_FW(DVSSCALE(pipe), dvsscale);
@@ -1415,9 +1415,9 @@ g4x_sprite_check(struct intel_crtc_state *crtc_state,
 		return ret;
 
 	if (INTEL_GEN(dev_priv) >= 7)
-		plane_state->ctl = ivb_sprite_ctl(crtc_state, plane_state);
+		plane_state->hw.ctl = ivb_sprite_ctl(crtc_state, plane_state);
 	else
-		plane_state->ctl = g4x_sprite_ctl(crtc_state, plane_state);
+		plane_state->hw.ctl = g4x_sprite_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -1468,7 +1468,7 @@ vlv_sprite_check(struct intel_crtc_state *crtc_state,
 	if (ret)
 		return ret;
 
-	plane_state->ctl = vlv_sprite_ctl(crtc_state, plane_state);
+	plane_state->hw.ctl = vlv_sprite_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -1604,7 +1604,7 @@ static int skl_plane_check(struct intel_crtc_state *crtc_state,
 		return ret;
 
 	/* use scaler when colorkey is not required */
-	if (!plane_state->ckey.flags && intel_fb_scalable(fb)) {
+	if (!plane_state->hw.ckey.flags && intel_fb_scalable(fb)) {
 		min_scale = 1;
 		max_scale = skl_max_scale(crtc_state, fb->format->format);
 	}
@@ -1639,10 +1639,10 @@ static int skl_plane_check(struct intel_crtc_state *crtc_state,
 	if (!(plane_state->base.alpha >> 8))
 		plane_state->base.visible = false;
 
-	plane_state->ctl = skl_plane_ctl(crtc_state, plane_state);
+	plane_state->hw.ctl = skl_plane_ctl(crtc_state, plane_state);
 
 	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
-		plane_state->color_ctl = glk_plane_color_ctl(crtc_state,
+		plane_state->hw.color_ctl = glk_plane_color_ctl(crtc_state,
 							     plane_state);
 
 	return 0;
@@ -1658,7 +1658,7 @@ static void intel_plane_set_ckey(struct intel_plane_state *plane_state,
 {
 	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
-	struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 
 	*key = *set;
 

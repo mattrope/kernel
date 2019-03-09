@@ -613,27 +613,6 @@ struct intel_atomic_state {
 struct intel_plane_hw_state {
 	/** @core: copy of DRM core plane state */
 	struct drm_plane_state core;
-};
-
-struct intel_plane_state {
-	/**
-	 * @base:
-	 *
-	 * DRM core plane state.
-	 */
-	struct drm_plane_state base;
-
-	/**
-	 * @hw:
-	 *
-	 * State that will be used to program the hardware for this plane.
-	 * Although hardware is usually programmed with a slightly-massaged
-	 * version of the userspace state, newer hardware platforms introduce
-	 * cases where we need to program the hardware in a way that is
-	 * completely unrelated to the userspace-facing state of the plane (see
-	 * gen11+ NV12 or gen11+ "big joiner" support).
-	 */
-	struct intel_plane_hw_state hw;
 
 	struct i915_ggtt_view view;
 	struct i915_vma *vma;
@@ -698,6 +677,34 @@ struct intel_plane_state {
 	u32 slave;
 
 	struct drm_intel_sprite_colorkey ckey;
+};
+
+struct intel_plane_state {
+	/**
+	 * @base:
+	 *
+	 * DRM core plane state.
+	 */
+	struct drm_plane_state base;
+
+	/**
+	 * @hw:
+	 *
+	 * State that will be used to program the hardware for this plane.
+	 * Although hardware is usually programmed with a slightly-massaged
+	 * version of the userspace state, newer hardware platforms introduce
+	 * cases where we need to program the hardware in a way that is
+	 * completely unrelated to the userspace-facing state of the plane (see
+	 * gen11+ NV12 or gen11+ "big joiner" support).
+	 */
+	struct intel_plane_hw_state hw;
+
+	/*
+	 * Any values that are directly exposed to userspace (e.g., as
+	 * DRM properties) should go here.  intel_plane_hw_state will generally
+	 * also need to be updated with fields to hold the derived values that
+	 * will be written to the hardware.
+	 */
 };
 
 struct intel_initial_plane_config {
@@ -1936,7 +1943,7 @@ int skl_max_scale(const struct intel_crtc_state *crtc_state,
 
 static inline u32 intel_plane_ggtt_offset(const struct intel_plane_state *state)
 {
-	return i915_ggtt_offset(state->vma);
+	return i915_ggtt_offset(state->hw.vma);
 }
 
 u32 glk_plane_color_ctl(const struct intel_crtc_state *crtc_state,

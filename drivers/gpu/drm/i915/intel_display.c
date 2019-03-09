@@ -2147,7 +2147,7 @@ u32 intel_fb_xy_to_linear(int x, int y,
 {
 	const struct drm_framebuffer *fb = state->base.fb;
 	unsigned int cpp = fb->format->cpp[color_plane];
-	unsigned int pitch = state->color_plane[color_plane].stride;
+	unsigned int pitch = state->hw.color_plane[color_plane].stride;
 
 	return y * pitch + x * cpp;
 }
@@ -2256,7 +2256,7 @@ static u32 intel_plane_adjust_aligned_offset(int *x, int *y,
 {
 	return intel_adjust_aligned_offset(x, y, state->base.fb, color_plane,
 					   state->base.rotation,
-					   state->color_plane[color_plane].stride,
+					   state->hw.color_plane[color_plane].stride,
 					   old_offset, new_offset);
 }
 
@@ -2333,7 +2333,7 @@ static u32 intel_plane_compute_aligned_offset(int *x, int *y,
 	struct drm_i915_private *dev_priv = to_i915(intel_plane->base.dev);
 	const struct drm_framebuffer *fb = state->base.fb;
 	unsigned int rotation = state->base.rotation;
-	int pitch = state->color_plane[color_plane].stride;
+	int pitch = state->hw.color_plane[color_plane].stride;
 	u32 alignment;
 
 	if (intel_plane->id == PLANE_CURSOR)
@@ -2864,7 +2864,7 @@ intel_find_initial_plane_obj(struct intel_crtc *intel_crtc,
 			continue;
 
 		state = to_intel_plane_state(c->primary->state);
-		if (!state->vma)
+		if (!state->hw.vma)
 			continue;
 
 		if (intel_plane_ggtt_offset(state) == plane_config->base) {
@@ -2887,23 +2887,23 @@ intel_find_initial_plane_obj(struct intel_crtc *intel_crtc,
 
 valid_fb:
 	intel_state->base.rotation = plane_config->rotation;
-	intel_fill_fb_ggtt_view(&intel_state->view, fb,
+	intel_fill_fb_ggtt_view(&intel_state->hw.view, fb,
 				intel_state->base.rotation);
-	intel_state->color_plane[0].stride =
+	intel_state->hw.color_plane[0].stride =
 		intel_fb_pitch(fb, 0, intel_state->base.rotation);
 
 	mutex_lock(&dev->struct_mutex);
-	intel_state->vma =
+	intel_state->hw.vma =
 		intel_pin_and_fence_fb_obj(fb,
-					   &intel_state->view,
+					   &intel_state->hw.view,
 					   intel_plane_uses_fence(intel_state),
-					   &intel_state->flags);
+					   &intel_state->hw.flags);
 	mutex_unlock(&dev->struct_mutex);
-	if (IS_ERR(intel_state->vma)) {
+	if (IS_ERR(intel_state->hw.vma)) {
 		DRM_ERROR("failed to pin boot fb on pipe %d: %li\n",
-			  intel_crtc->pipe, PTR_ERR(intel_state->vma));
+			  intel_crtc->pipe, PTR_ERR(intel_state->hw.vma));
 
-		intel_state->vma = NULL;
+		intel_state->hw.vma = NULL;
 		drm_framebuffer_put(fb);
 		return;
 	}
@@ -2986,9 +2986,9 @@ static bool skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	int hsub = fb->format->hsub;
 	int vsub = fb->format->vsub;
-	int aux_x = plane_state->color_plane[1].x;
-	int aux_y = plane_state->color_plane[1].y;
-	u32 aux_offset = plane_state->color_plane[1].offset;
+	int aux_x = plane_state->hw.color_plane[1].x;
+	int aux_y = plane_state->hw.color_plane[1].y;
+	u32 aux_offset = plane_state->hw.color_plane[1].offset;
 	u32 alignment = intel_surf_alignment(fb, 1);
 
 	while (aux_offset >= main_offset && aux_y <= main_y) {
@@ -3011,9 +3011,9 @@ static bool skl_check_main_ccs_coordinates(struct intel_plane_state *plane_state
 	if (aux_x != main_x || aux_y != main_y)
 		return false;
 
-	plane_state->color_plane[1].offset = aux_offset;
-	plane_state->color_plane[1].x = aux_x;
-	plane_state->color_plane[1].y = aux_y;
+	plane_state->hw.color_plane[1].offset = aux_offset;
+	plane_state->hw.color_plane[1].x = aux_x;
+	plane_state->hw.color_plane[1].y = aux_y;
 
 	return true;
 }
@@ -3028,7 +3028,7 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 	int h = drm_rect_height(&plane_state->base.src) >> 16;
 	int max_width = skl_max_plane_width(fb, 0, rotation);
 	int max_height = 4096;
-	u32 alignment, offset, aux_offset = plane_state->color_plane[1].offset;
+	u32 alignment, offset, aux_offset = plane_state->hw.color_plane[1].offset;
 
 	if (w > max_width || h > max_height) {
 		DRM_DEBUG_KMS("requested Y/RGB source size %dx%d too big (limit %dx%d)\n",
@@ -3058,7 +3058,7 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 	if (fb->modifier == I915_FORMAT_MOD_X_TILED) {
 		int cpp = fb->format->cpp[0];
 
-		while ((x + w) * cpp > plane_state->color_plane[0].stride) {
+		while ((x + w) * cpp > plane_state->hw.color_plane[0].stride) {
 			if (offset == 0) {
 				DRM_DEBUG_KMS("Unable to find suitable display surface offset due to X-tiling\n");
 				return -EINVAL;
@@ -3082,15 +3082,15 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 								   offset, offset - alignment);
 		}
 
-		if (x != plane_state->color_plane[1].x || y != plane_state->color_plane[1].y) {
+		if (x != plane_state->hw.color_plane[1].x || y != plane_state->hw.color_plane[1].y) {
 			DRM_DEBUG_KMS("Unable to find suitable display surface offset due to CCS\n");
 			return -EINVAL;
 		}
 	}
 
-	plane_state->color_plane[0].offset = offset;
-	plane_state->color_plane[0].x = x;
-	plane_state->color_plane[0].y = y;
+	plane_state->hw.color_plane[0].offset = offset;
+	plane_state->hw.color_plane[0].x = x;
+	plane_state->hw.color_plane[0].y = y;
 
 	return 0;
 }
@@ -3117,9 +3117,9 @@ static int skl_check_nv12_aux_surface(struct intel_plane_state *plane_state)
 		return -EINVAL;
 	}
 
-	plane_state->color_plane[1].offset = offset;
-	plane_state->color_plane[1].x = x;
-	plane_state->color_plane[1].y = y;
+	plane_state->hw.color_plane[1].offset = offset;
+	plane_state->hw.color_plane[1].x = x;
+	plane_state->hw.color_plane[1].y = y;
 
 	return 0;
 }
@@ -3138,9 +3138,9 @@ static int skl_check_ccs_aux_surface(struct intel_plane_state *plane_state)
 	intel_add_fb_offsets(&x, &y, plane_state, 1);
 	offset = intel_plane_compute_aligned_offset(&x, &y, plane_state, 1);
 
-	plane_state->color_plane[1].offset = offset;
-	plane_state->color_plane[1].x = x * hsub + src_x % hsub;
-	plane_state->color_plane[1].y = y * vsub + src_y % vsub;
+	plane_state->hw.color_plane[1].offset = offset;
+	plane_state->hw.color_plane[1].x = x * hsub + src_x % hsub;
+	plane_state->hw.color_plane[1].y = y * vsub + src_y % vsub;
 
 	return 0;
 }
@@ -3151,9 +3151,9 @@ int skl_check_plane_surface(struct intel_plane_state *plane_state)
 	unsigned int rotation = plane_state->base.rotation;
 	int ret;
 
-	intel_fill_fb_ggtt_view(&plane_state->view, fb, rotation);
-	plane_state->color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
-	plane_state->color_plane[1].stride = intel_fb_pitch(fb, 1, rotation);
+	intel_fill_fb_ggtt_view(&plane_state->hw.view, fb, rotation);
+	plane_state->hw.color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
+	plane_state->hw.color_plane[1].stride = intel_fb_pitch(fb, 1, rotation);
 
 	ret = intel_plane_check_stride(plane_state);
 	if (ret)
@@ -3181,9 +3181,9 @@ int skl_check_plane_surface(struct intel_plane_state *plane_state)
 		if (ret)
 			return ret;
 	} else {
-		plane_state->color_plane[1].offset = ~0xfff;
-		plane_state->color_plane[1].x = 0;
-		plane_state->color_plane[1].y = 0;
+		plane_state->hw.color_plane[1].offset = ~0xfff;
+		plane_state->hw.color_plane[1].x = 0;
+		plane_state->hw.color_plane[1].y = 0;
 	}
 
 	ret = skl_check_main_surface(plane_state);
@@ -3304,8 +3304,8 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	u32 offset;
 	int ret;
 
-	intel_fill_fb_ggtt_view(&plane_state->view, fb, rotation);
-	plane_state->color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
+	intel_fill_fb_ggtt_view(&plane_state->hw.view, fb, rotation);
+	plane_state->hw.color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
 
 	ret = intel_plane_check_stride(plane_state);
 	if (ret)
@@ -3332,9 +3332,9 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 		}
 	}
 
-	plane_state->color_plane[0].offset = offset;
-	plane_state->color_plane[0].x = src_x;
-	plane_state->color_plane[0].y = src_y;
+	plane_state->hw.color_plane[0].offset = offset;
+	plane_state->hw.color_plane[0].x = src_x;
+	plane_state->hw.color_plane[0].y = src_y;
 
 	return 0;
 }
@@ -3368,7 +3368,7 @@ i9xx_plane_check(struct intel_crtc_state *crtc_state,
 	if (ret)
 		return ret;
 
-	plane_state->ctl = i9xx_plane_ctl(crtc_state, plane_state);
+	plane_state->hw.ctl = i9xx_plane_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -3380,24 +3380,25 @@ static void i9xx_update_plane(struct intel_plane *plane,
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	enum i9xx_plane_id i9xx_plane = plane->i9xx_plane;
 	u32 linear_offset;
-	int x = plane_state->color_plane[0].x;
-	int y = plane_state->color_plane[0].y;
+	int x = plane_state->hw.color_plane[0].x;
+	int y = plane_state->hw.color_plane[0].y;
 	unsigned long irqflags;
 	u32 dspaddr_offset;
 	u32 dspcntr;
 
-	dspcntr = plane_state->ctl | i9xx_plane_ctl_crtc(crtc_state);
+	dspcntr = plane_state->hw.ctl | i9xx_plane_ctl_crtc(crtc_state);
 
 	linear_offset = intel_fb_xy_to_linear(x, y, plane_state, 0);
 
 	if (INTEL_GEN(dev_priv) >= 4)
-		dspaddr_offset = plane_state->color_plane[0].offset;
+		dspaddr_offset = plane_state->hw.color_plane[0].offset;
 	else
 		dspaddr_offset = linear_offset;
 
 	spin_lock_irqsave(&dev_priv->uncore.lock, irqflags);
 
-	I915_WRITE_FW(DSPSTRIDE(i9xx_plane), plane_state->color_plane[0].stride);
+	I915_WRITE_FW(DSPSTRIDE(i9xx_plane),
+		      plane_state->hw.color_plane[0].stride);
 
 	if (INTEL_GEN(dev_priv) < 4) {
 		/* pipesrc and dspsize control the size that is scaled from,
@@ -3562,7 +3563,7 @@ u32 skl_plane_stride(const struct intel_plane_state *plane_state,
 {
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
-	u32 stride = plane_state->color_plane[color_plane].stride;
+	u32 stride = plane_state->hw.color_plane[color_plane].stride;
 
 	if (color_plane >= fb->format->num_planes)
 		return 0;
@@ -3747,7 +3748,7 @@ u32 skl_plane_ctl(const struct intel_crtc_state *crtc_state,
 		to_i915(plane_state->base.plane->dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
-	const struct drm_intel_sprite_colorkey *key = &plane_state->ckey;
+	const struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 	u32 plane_ctl;
 
 	plane_ctl = PLANE_CTL_ENABLE;
@@ -5134,18 +5135,18 @@ static int skl_update_scaler_plane(struct intel_crtc_state *crtc_state,
 
 	ret = skl_update_scaler(crtc_state, force_detach,
 				drm_plane_index(&intel_plane->base),
-				&plane_state->scaler_id,
+				&plane_state->hw.scaler_id,
 				drm_rect_width(&plane_state->base.src) >> 16,
 				drm_rect_height(&plane_state->base.src) >> 16,
 				drm_rect_width(&plane_state->base.dst),
 				drm_rect_height(&plane_state->base.dst),
 				fb ? fb->format : NULL, need_scaler);
 
-	if (ret || plane_state->scaler_id < 0)
+	if (ret || plane_state->hw.scaler_id < 0)
 		return ret;
 
 	/* check colorkey */
-	if (plane_state->ckey.flags) {
+	if (plane_state->hw.ckey.flags) {
 		DRM_DEBUG_KMS("[PLANE:%d:%s] scaling with color key not allowed",
 			      intel_plane->base.base.id,
 			      intel_plane->base.name);
@@ -10015,7 +10016,7 @@ static u32 intel_cursor_base(const struct intel_plane_state *plane_state)
 	else
 		base = intel_plane_ggtt_offset(plane_state);
 
-	base += plane_state->color_plane[0].offset;
+	base += plane_state->hw.color_plane[0].offset;
 
 	/* ILK+ do this automagically */
 	if (HAS_GMCH(dev_priv) &&
@@ -10066,8 +10067,8 @@ static int intel_cursor_check_surface(struct intel_plane_state *plane_state)
 	u32 offset;
 	int ret;
 
-	intel_fill_fb_ggtt_view(&plane_state->view, fb, rotation);
-	plane_state->color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
+	intel_fill_fb_ggtt_view(&plane_state->hw.view, fb, rotation);
+	plane_state->hw.color_plane[0].stride = intel_fb_pitch(fb, 0, rotation);
 
 	ret = intel_plane_check_stride(plane_state);
 	if (ret)
@@ -10085,7 +10086,7 @@ static int intel_cursor_check_surface(struct intel_plane_state *plane_state)
 		return -EINVAL;
 	}
 
-	plane_state->color_plane[0].offset = offset;
+	plane_state->hw.color_plane[0].offset = offset;
 
 	return 0;
 }
@@ -10146,7 +10147,7 @@ static u32 i845_cursor_ctl(const struct intel_crtc_state *crtc_state,
 {
 	return CURSOR_ENABLE |
 		CURSOR_FORMAT_ARGB |
-		CURSOR_STRIDE(plane_state->color_plane[0].stride);
+		CURSOR_STRIDE(plane_state->hw.color_plane[0].stride);
 }
 
 static bool i845_cursor_size_ok(const struct intel_plane_state *plane_state)
@@ -10183,7 +10184,7 @@ static int i845_check_cursor(struct intel_crtc_state *crtc_state,
 	}
 
 	WARN_ON(plane_state->base.visible &&
-		plane_state->color_plane[0].stride != fb->pitches[0]);
+		plane_state->hw.color_plane[0].stride != fb->pitches[0]);
 
 	switch (fb->pitches[0]) {
 	case 256:
@@ -10197,7 +10198,7 @@ static int i845_check_cursor(struct intel_crtc_state *crtc_state,
 		return -EINVAL;
 	}
 
-	plane_state->ctl = i845_cursor_ctl(crtc_state, plane_state);
+	plane_state->hw.ctl = i845_cursor_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -10214,7 +10215,7 @@ static void i845_update_cursor(struct intel_plane *plane,
 		unsigned int width = plane_state->base.crtc_w;
 		unsigned int height = plane_state->base.crtc_h;
 
-		cntl = plane_state->ctl |
+		cntl = plane_state->hw.ctl |
 			i845_cursor_ctl_crtc(crtc_state);
 
 		size = (height << 12) | width;
@@ -10399,7 +10400,7 @@ static int i9xx_check_cursor(struct intel_crtc_state *crtc_state,
 	}
 
 	WARN_ON(plane_state->base.visible &&
-		plane_state->color_plane[0].stride != fb->pitches[0]);
+		plane_state->hw.color_plane[0].stride != fb->pitches[0]);
 
 	if (fb->pitches[0] != plane_state->base.crtc_w * fb->format->cpp[0]) {
 		DRM_DEBUG_KMS("Invalid cursor stride (%u) (cursor width %d)\n",
@@ -10423,7 +10424,7 @@ static int i9xx_check_cursor(struct intel_crtc_state *crtc_state,
 		return -EINVAL;
 	}
 
-	plane_state->ctl = i9xx_cursor_ctl(crtc_state, plane_state);
+	plane_state->hw.ctl = i9xx_cursor_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -10438,7 +10439,7 @@ static void i9xx_update_cursor(struct intel_plane *plane,
 	unsigned long irqflags;
 
 	if (plane_state && plane_state->base.visible) {
-		cntl = plane_state->ctl |
+		cntl = plane_state->hw.ctl |
 			i9xx_cursor_ctl_crtc(crtc_state);
 
 		if (plane_state->base.crtc_h != plane_state->base.crtc_w)
@@ -11173,7 +11174,7 @@ static int icl_add_linked_planes(struct intel_atomic_state *state)
 	int i;
 
 	for_each_new_intel_plane_in_state(state, plane, plane_state, i) {
-		linked = plane_state->linked_plane;
+		linked = plane_state->hw.linked_plane;
 
 		if (!linked)
 			continue;
@@ -11182,8 +11183,8 @@ static int icl_add_linked_planes(struct intel_atomic_state *state)
 		if (IS_ERR(linked_plane_state))
 			return PTR_ERR(linked_plane_state);
 
-		WARN_ON(linked_plane_state->linked_plane != plane);
-		WARN_ON(linked_plane_state->slave == plane_state->slave);
+		WARN_ON(linked_plane_state->hw.linked_plane != plane);
+		WARN_ON(linked_plane_state->hw.slave == plane_state->hw.slave);
 	}
 
 	return 0;
@@ -11206,16 +11207,16 @@ static int icl_check_nv12_planes(struct intel_crtc_state *crtc_state)
 	 * in the crtc_state->active_planes mask.
 	 */
 	for_each_new_intel_plane_in_state(state, plane, plane_state, i) {
-		if (plane->pipe != crtc->pipe || !plane_state->linked_plane)
+		if (plane->pipe != crtc->pipe || !plane_state->hw.linked_plane)
 			continue;
 
-		plane_state->linked_plane = NULL;
-		if (plane_state->slave && !plane_state->base.visible) {
+		plane_state->hw.linked_plane = NULL;
+		if (plane_state->hw.slave && !plane_state->base.visible) {
 			crtc_state->active_planes &= ~BIT(plane->id);
 			crtc_state->update_planes |= BIT(plane->id);
 		}
 
-		plane_state->slave = false;
+		plane_state->hw.slave = false;
 	}
 
 	if (!crtc_state->nv12_planes)
@@ -11249,10 +11250,10 @@ static int icl_check_nv12_planes(struct intel_crtc_state *crtc_state)
 			return -EINVAL;
 		}
 
-		plane_state->linked_plane = linked;
+		plane_state->hw.linked_plane = linked;
 
-		linked_state->slave = true;
-		linked_state->linked_plane = plane;
+		linked_state->hw.slave = true;
+		linked_state->hw.linked_plane = plane;
 		crtc_state->active_planes |= BIT(linked->id);
 		crtc_state->update_planes |= BIT(linked->id);
 		DRM_DEBUG_KMS("Using %s as Y plane for %s\n", linked->base.name, plane->base.name);
@@ -11631,7 +11632,8 @@ static void intel_dump_pipe_config(struct intel_crtc *crtc,
 		fb = state->base.fb;
 		if (!fb) {
 			DRM_DEBUG_KMS("[PLANE:%d:%s] disabled, scaler_id = %d\n",
-				      plane->base.id, plane->name, state->scaler_id);
+				      plane->base.id, plane->name,
+				      state->hw.scaler_id);
 			continue;
 		}
 
@@ -11641,7 +11643,7 @@ static void intel_dump_pipe_config(struct intel_crtc *crtc,
 			      drm_get_format_name(fb->format->format, &format_name));
 		if (INTEL_GEN(dev_priv) >= 9)
 			DRM_DEBUG_KMS("\tscaler:%d src %dx%d+%d+%d dst %dx%d+%d+%d\n",
-				      state->scaler_id,
+				      state->hw.scaler_id,
 				      state->base.src.x1 >> 16,
 				      state->base.src.y1 >> 16,
 				      drm_rect_width(&state->base.src) >> 16,
@@ -12642,7 +12644,7 @@ intel_verify_planes(struct intel_atomic_state *state)
 
 	for_each_new_intel_plane_in_state(state, plane,
 					  plane_state, i)
-		assert_plane(plane, plane_state->slave ||
+		assert_plane(plane, plane_state->hw.slave ||
 			     plane_state->base.visible);
 }
 
@@ -13760,13 +13762,13 @@ static int intel_plane_pin_fb(struct intel_plane_state *plane_state)
 	}
 
 	vma = intel_pin_and_fence_fb_obj(fb,
-					 &plane_state->view,
+					 &plane_state->hw.view,
 					 intel_plane_uses_fence(plane_state),
-					 &plane_state->flags);
+					 &plane_state->hw.flags);
 	if (IS_ERR(vma))
 		return PTR_ERR(vma);
 
-	plane_state->vma = vma;
+	plane_state->hw.vma = vma;
 
 	return 0;
 }
@@ -13775,9 +13777,9 @@ static void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state)
 {
 	struct i915_vma *vma;
 
-	vma = fetch_and_zero(&old_plane_state->vma);
+	vma = fetch_and_zero(&old_plane_state->hw.vma);
 	if (vma)
-		intel_unpin_fb_vma(vma, old_plane_state->flags);
+		intel_unpin_fb_vma(vma, old_plane_state->hw.flags);
 }
 
 static void fb_obj_bump_render_priority(struct drm_i915_gem_object *obj)
