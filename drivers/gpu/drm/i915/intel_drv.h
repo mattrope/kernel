@@ -2574,6 +2574,7 @@ intel_atomic_get_crtc_state(struct drm_atomic_state *state,
 int intel_atomic_setup_scalers(struct drm_i915_private *dev_priv,
 			       struct intel_crtc *intel_crtc,
 			       struct intel_crtc_state *crtc_state);
+void intel_crtc_copy_uapi_state(struct intel_crtc_state *crtc_state);
 
 /* intel_atomic_plane.c */
 void intel_update_plane(struct intel_plane *plane,
@@ -2598,6 +2599,7 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 					struct intel_crtc_state *crtc_state,
 					const struct intel_plane_state *old_plane_state,
 					struct intel_plane_state *intel_state);
+void intel_plane_copy_uapi_state(struct intel_plane_state *plane_state);
 
 /* intel_color.c */
 void intel_color_init(struct intel_crtc *crtc);

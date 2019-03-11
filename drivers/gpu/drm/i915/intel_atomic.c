@@ -409,3 +409,23 @@ void intel_atomic_state_clear(struct drm_atomic_state *s)
 	drm_atomic_state_default_clear(&state->base);
 	state->dpll_set = state->modeset = false;
 }
+
+/**
+ * intel_crtc_copy_uapi_state - copy uapi state into hw state
+ * @crtc_state: CRTC state
+ *
+ * Copies the userspace-facing state for a CRTC into the hardware state.
+ */
+void
+intel_crtc_copy_uapi_state(struct intel_crtc_state *crtc_state)
+{
+	struct drm_crtc_state *core_uapi = &crtc_state->base;
+	struct drm_crtc_state *core_hw = &crtc_state->hw.core;
+
+	/*
+	 * Copy the entire DRM core structure.  There are a few things in
+	 * there that aren't technically uapi state (e.g., adjusted_mode),
+	 * but it's easiest to just treat the whole structure as uapi.
+	 */
+	memcpy(core_hw, core_uapi, sizeof(*core_hw));
+}

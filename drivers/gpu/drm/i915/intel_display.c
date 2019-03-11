@@ -11182,6 +11182,10 @@ static int icl_add_linked_planes(struct intel_atomic_state *state)
 	struct intel_plane_state *plane_state, *linked_plane_state;
 	int i;
 
+	/*
+	 * Ensure that if one plane of a master/slave pair is being updated
+	 * that the other plane is also part of the transaction.
+	 */
 	for_each_new_intel_plane_in_state(state, plane, plane_state, i) {
 		linked = plane_state->hw.linked_plane;
 
@@ -13068,6 +13072,37 @@ static int calc_watermark_data(struct intel_atomic_state *state)
 }
 
 /**
+ * copy_uapi_state - copy uapi state into hardware state
+ * @state: atomic state
+ *
+ * At the beginning of an atomic commit we make the assumption that the state
+ * we program into the hardware for each plane and CRTC will be based on their
+ * uapi-facing state.  Specific features that break this assumption (e.g.,
+ * gen11-style NV12) will take care of copy over uapi state from the object
+ * that we're actually basing the hardware programming on.
+ *
+ * Note that this function only overwrites fields that exist in both the
+ * uapi and hardware state.  All hardware-only fields (which is most of the
+ * fields we have in intel_plane_state / intel_crtc_state) remain untouched
+ * at their previously-committed state.
+ */
+static void
+copy_uapi_state(struct intel_atomic_state *state)
+{
+	struct intel_crtc *crtc;
+	struct intel_crtc_state *crtc_state;
+	struct intel_plane *plane;
+	struct intel_plane_state *plane_state;
+	int i;
+
+	for_each_new_intel_crtc_in_state(state, crtc, crtc_state, i)
+		intel_crtc_copy_uapi_state(crtc_state);
+
+	for_each_new_intel_plane_in_state(state, plane, plane_state, i)
+		intel_plane_copy_uapi_state(plane_state);
+}
+
+/**
  * intel_atomic_check - validate state object
  * @dev: drm device
  * @state: state to validate
@@ -13093,6 +13128,8 @@ static int intel_atomic_check(struct drm_device *dev,
 	ret = drm_atomic_helper_check_modeset(dev, state);
 	if (ret)
 		return ret;
+
+	copy_uapi_state(intel_state);
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, crtc_state, i) {
 		struct intel_crtc_state *pipe_config =

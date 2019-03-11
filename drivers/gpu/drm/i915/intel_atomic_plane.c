@@ -368,3 +368,25 @@ intel_plane_atomic_set_property(struct drm_plane *plane,
 		      property->base.id, property->name);
 	return -EINVAL;
 }
+
+/**
+ * intel_plane_copy_uapi_state - copy uapi state into hw state
+ * @plane_state: plane state
+ *
+ * Copies the userspace-facing state for a plane into the hardware state.
+ */
+void
+intel_plane_copy_uapi_state(struct intel_plane_state *plane_state)
+{
+	struct drm_plane_state *core_uapi = &plane_state->base;
+	struct drm_plane_state *core_hw = &plane_state->hw.core;
+
+	/*
+	 * Copy the entire DRM core structure.  There are a few fields that
+	 * aren't technically uapi (e.g., src/dst), but it's easiest to just
+	 * treat the whole structure as uapi-relevant.
+	 */
+	memcpy(core_hw, core_uapi, sizeof(*core_hw));
+	if (core_hw->fb)
+		drm_framebuffer_get(core_hw->fb);
+}
