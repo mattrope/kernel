@@ -594,8 +594,47 @@ struct intel_atomic_state {
 	struct llist_node freed;
 };
 
+/**
+ * struct intel_plane_hw_state - hardware-level plane state
+ *
+ * This structure reflects the state that will be used to actually program the
+ * hardware for a plane (which may or may not be related to the uapi state of
+ * the plane).
+ *
+ * Several of the fields here are also present in intel_plane_state or
+ * drm_plane_state; in most cases the main plane state fields will simply have
+ * their values copied here and used as it.  However a few special-case
+ * hardware features require that we internally program hardware planes without
+ * userspace's knowledge; in those cases, *only* the fields in this structure
+ * should be modified and the intel_plane_state/drm_plane_state fields should
+ * be left untouched to prevent our internal plane usage from leaking into
+ * the userspace-visible plane state.
+ */
+struct intel_plane_hw_state {
+	/** @core: copy of DRM core plane state */
+	struct drm_plane_state core;
+};
+
 struct intel_plane_state {
+	/**
+	 * @base:
+	 *
+	 * DRM core plane state.
+	 */
 	struct drm_plane_state base;
+
+	/**
+	 * @hw:
+	 *
+	 * State that will be used to program the hardware for this plane.
+	 * Although hardware is usually programmed with a slightly-massaged
+	 * version of the userspace state, newer hardware platforms introduce
+	 * cases where we need to program the hardware in a way that is
+	 * completely unrelated to the userspace-facing state of the plane (see
+	 * gen11+ NV12 or gen11+ "big joiner" support).
+	 */
+	struct intel_plane_hw_state hw;
+
 	struct i915_ggtt_view view;
 	struct i915_vma *vma;
 	unsigned long flags;
@@ -843,8 +882,46 @@ enum intel_output_format {
 	INTEL_OUTPUT_FORMAT_YCBCR444,
 };
 
+/**
+ * struct intel_crtc_hw_state - hardware-level crtc state
+ *
+ * This structure reflects the state that will be used to actually program the
+ * hardware for a crtc (which may or may not be related to the uapi state of
+ * the crtc).
+ *
+ * Several of the fields here are also present in intel_crtc_state or
+ * drm_crtc_state; in most cases the main crtc state fields will simply have
+ * their values copied here and used as it.  However a few special-case
+ * hardware features require that we internally program hardware crtcs without
+ * userspace's knowledge; in those cases, *only* the fields in this structure
+ * should be modified and the intel_crtc_state/drm_crtc_state fields should
+ * be left untouched to prevent our internal crtc usage from leaking into
+ * the userspace-visible crtc state.
+ */
+struct intel_crtc_hw_state {
+	/** @core: copy of DRM core CRTC state */
+	struct drm_crtc_state core;
+};
+
 struct intel_crtc_state {
+	/**
+	 * @base:
+	 *
+	 * DRM core CRTC state.
+	 */
 	struct drm_crtc_state base;
+
+	/**
+	 * @hw:
+	 *
+	 * State that will be used to program the hardware for this CRTC.
+	 * Although hardware is usually programmed with a slightly-massaged
+	 * version of the userspace state, newer hardware platforms introduce
+	 * cases where we need to program the hardware in a way that is
+	 * completely unrelated to the userspace-facing state of the CRTC (see
+	 * gen11+ "big joiner" support).
+	 */
+	struct intel_crtc_hw_state hw;
 
 	/**
 	 * quirks - bitfield with hw state readout quirks
