@@ -154,7 +154,7 @@ static void intel_dvo_get_config(struct intel_encoder *encoder,
 	struct intel_dvo *intel_dvo = enc_to_dvo(encoder);
 	u32 tmp, flags = 0;
 
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_DVO);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_DVO);
 
 	tmp = I915_READ(intel_dvo->dev.dvo_reg);
 	if (tmp & DVO_HSYNC_ACTIVE_HIGH)
@@ -168,7 +168,7 @@ static void intel_dvo_get_config(struct intel_encoder *encoder,
 
 	pipe_config->base.adjusted_mode.flags |= flags;
 
-	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->port_clock;
+	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->hw.port_clock;
 }
 
 static void intel_disable_dvo(struct intel_encoder *encoder,
@@ -255,7 +255,7 @@ static int intel_dvo_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	return 0;
 }

@@ -331,7 +331,7 @@ skl_program_scaler(struct intel_plane *plane,
 	enum pipe pipe = plane->pipe;
 	int scaler_id = plane_state->hw.scaler_id;
 	const struct intel_scaler *scaler =
-		&crtc_state->scaler_state.scalers[scaler_id];
+		&crtc_state->hw.scaler_state.scalers[scaler_id];
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_y = plane_state->base.dst.y1;
 	u32 crtc_w = drm_rect_width(&plane_state->base.dst);
@@ -756,7 +756,7 @@ static u32 vlv_sprite_ctl_crtc(const struct intel_crtc_state *crtc_state)
 {
 	u32 sprctl = 0;
 
-	if (crtc_state->gamma_enable)
+	if (crtc_state->hw.gamma_enable)
 		sprctl |= SP_GAMMA_ENABLE;
 
 	return sprctl;
@@ -936,10 +936,10 @@ static u32 ivb_sprite_ctl_crtc(const struct intel_crtc_state *crtc_state)
 {
 	u32 sprctl = 0;
 
-	if (crtc_state->gamma_enable)
+	if (crtc_state->hw.gamma_enable)
 		sprctl |= SPRITE_GAMMA_ENABLE;
 
-	if (crtc_state->csc_enable)
+	if (crtc_state->hw.csc_enable)
 		sprctl |= SPRITE_PIPE_CSC_ENABLE;
 
 	return sprctl;
@@ -1127,10 +1127,10 @@ static u32 g4x_sprite_ctl_crtc(const struct intel_crtc_state *crtc_state)
 {
 	u32 dvscntr = 0;
 
-	if (crtc_state->gamma_enable)
+	if (crtc_state->hw.gamma_enable)
 		dvscntr |= DVS_GAMMA_ENABLE;
 
-	if (crtc_state->csc_enable)
+	if (crtc_state->hw.csc_enable)
 		dvscntr |= DVS_PIPE_CSC_ENABLE;
 
 	return dvscntr;
@@ -1549,7 +1549,7 @@ static int skl_plane_check_dst_coordinates(const struct intel_crtc_state *crtc_s
 		to_i915(plane_state->base.plane->dev);
 	int crtc_x = plane_state->base.dst.x1;
 	int crtc_w = drm_rect_width(&plane_state->base.dst);
-	int pipe_src_w = crtc_state->pipe_src_w;
+	int pipe_src_w = crtc_state->hw.pipe_src_w;
 
 	/*
 	 * Display WA #1175: cnl,glk

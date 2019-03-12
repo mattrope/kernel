@@ -73,15 +73,15 @@ static bool intel_psr2_enabled(struct drm_i915_private *dev_priv,
 			       const struct intel_crtc_state *crtc_state)
 {
 	/* Cannot enable DSC and PSR2 simultaneously */
-	WARN_ON(crtc_state->dsc_params.compression_enable &&
-		crtc_state->has_psr2);
+	WARN_ON(crtc_state->hw.dsc_params.compression_enable &&
+		crtc_state->hw.has_psr2);
 
 	switch (dev_priv->psr.debug & I915_PSR_DEBUG_MODE_MASK) {
 	case I915_PSR_DEBUG_DISABLE:
 	case I915_PSR_DEBUG_FORCE_PSR1:
 		return false;
 	default:
-		return crtc_state->has_psr2;
+		return crtc_state->hw.has_psr2;
 	}
 }
 
@@ -550,7 +550,7 @@ static bool intel_psr2_config_valid(struct intel_dp *intel_dp,
 	 * resolution requires DSC to be enabled, priority is given to DSC
 	 * over PSR2.
 	 */
-	if (crtc_state->dsc_params.compression_enable) {
+	if (crtc_state->hw.dsc_params.compression_enable) {
 		DRM_DEBUG_KMS("PSR2 cannot be enabled since DSC is enabled\n");
 		return false;
 	}
@@ -582,7 +582,7 @@ static bool intel_psr2_config_valid(struct intel_dp *intel_dp,
 		return false;
 	}
 
-	if (crtc_state->crc_enabled) {
+	if (crtc_state->hw.crc_enabled) {
 		DRM_DEBUG_KMS("PSR2 not enabled because it would inhibit pipe CRC calculation\n");
 		return false;
 	}
@@ -642,8 +642,8 @@ void intel_psr_compute_config(struct intel_dp *intel_dp,
 		return;
 	}
 
-	crtc_state->has_psr = true;
-	crtc_state->has_psr2 = intel_psr2_config_valid(intel_dp, crtc_state);
+	crtc_state->hw.has_psr = true;
+	crtc_state->hw.has_psr2 = intel_psr2_config_valid(intel_dp, crtc_state);
 }
 
 static void intel_psr_activate(struct intel_dp *intel_dp)
@@ -688,7 +688,7 @@ static void intel_psr_enable_source(struct intel_dp *intel_dp,
 				    const struct intel_crtc_state *crtc_state)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
-	enum transcoder cpu_transcoder = crtc_state->cpu_transcoder;
+	enum transcoder cpu_transcoder = crtc_state->hw.cpu_transcoder;
 	u32 mask;
 
 	/* Only HSW and BDW have PSR AUX registers that need to be setup. SKL+
@@ -758,7 +758,7 @@ void intel_psr_enable(struct intel_dp *intel_dp,
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
-	if (!crtc_state->has_psr)
+	if (!crtc_state->hw.has_psr)
 		return;
 
 	if (WARN_ON(!CAN_PSR(dev_priv)))
@@ -849,7 +849,7 @@ void intel_psr_disable(struct intel_dp *intel_dp,
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
-	if (!old_crtc_state->has_psr)
+	if (!old_crtc_state->hw.has_psr)
 		return;
 
 	if (WARN_ON(!CAN_PSR(dev_priv)))
@@ -898,12 +898,12 @@ void intel_psr_update(struct intel_dp *intel_dp,
 
 	mutex_lock(&dev_priv->psr.lock);
 
-	enable = crtc_state->has_psr && psr_global_enabled(psr->debug);
+	enable = crtc_state->hw.has_psr && psr_global_enabled(psr->debug);
 	psr2_enable = intel_psr2_enabled(dev_priv, crtc_state);
 
 	if (enable == psr->enabled && psr2_enable == psr->psr2_enabled) {
 		/* Force a PSR exit when enabling CRC to avoid CRC timeouts */
-		if (crtc_state->crc_enabled && psr->enabled)
+		if (crtc_state->hw.crc_enabled && psr->enabled)
 			psr_force_hw_tracking_exit(dev_priv);
 
 		goto unlock;
@@ -935,7 +935,7 @@ int intel_psr_wait_for_idle(const struct intel_crtc_state *new_crtc_state,
 	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->base.crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 
-	if (!dev_priv->psr.enabled || !new_crtc_state->has_psr)
+	if (!dev_priv->psr.enabled || !new_crtc_state->hw.has_psr)
 		return 0;
 
 	/* FIXME: Update this for PSR2 if we need to wait for idle */
@@ -1011,7 +1011,7 @@ retry:
 
 		intel_crtc_state = to_intel_crtc_state(crtc_state);
 
-		if (crtc_state->active && intel_crtc_state->has_psr) {
+		if (crtc_state->active && intel_crtc_state->hw.has_psr) {
 			/* Mark mode as changed to trigger a pipe->update() */
 			crtc_state->mode_changed = true;
 			break;

@@ -2996,12 +2996,12 @@ static void intel_scaler_info(struct seq_file *m, struct intel_crtc *intel_crtc)
 	if (num_scalers) {
 		seq_printf(m, "\tnum_scalers=%d, scaler_users=%x scaler_id=%d",
 			   num_scalers,
-			   pipe_config->scaler_state.scaler_users,
-			   pipe_config->scaler_state.scaler_id);
+			   pipe_config->hw.scaler_state.scaler_users,
+			   pipe_config->hw.scaler_state.scaler_id);
 
 		for (i = 0; i < num_scalers; i++) {
 			struct intel_scaler *sc =
-					&pipe_config->scaler_state.scalers[i];
+					&pipe_config->hw.scaler_state.scalers[i];
 
 			seq_printf(m, ", scalers[%d]: use=%s, mode=%x",
 				   i, yesno(sc->in_use), sc->mode);
@@ -3034,8 +3034,10 @@ static int i915_display_info(struct seq_file *m, void *unused)
 		seq_printf(m, "CRTC %d: pipe: %c, active=%s, (size=%dx%d), dither=%s, bpp=%d\n",
 			   crtc->base.base.id, pipe_name(crtc->pipe),
 			   yesno(pipe_config->base.active),
-			   pipe_config->pipe_src_w, pipe_config->pipe_src_h,
-			   yesno(pipe_config->dither), pipe_config->pipe_bpp);
+			   pipe_config->hw.pipe_src_w,
+			   pipe_config->hw.pipe_src_h,
+			   yesno(pipe_config->hw.dither),
+			   pipe_config->hw.pipe_bpp);
 
 		if (pipe_config->base.active) {
 			struct intel_plane *cursor =
@@ -3259,13 +3261,13 @@ static int i915_ddb_info(struct seq_file *m, void *unused)
 		seq_printf(m, "Pipe %c\n", pipe_name(pipe));
 
 		for_each_plane_id_on_crtc(crtc, plane_id) {
-			entry = &crtc_state->wm.skl.plane_ddb_y[plane_id];
+			entry = &crtc_state->hw.wm.skl.plane_ddb_y[plane_id];
 			seq_printf(m, "  Plane%-8d%8u%8u%8u\n", plane_id + 1,
 				   entry->start, entry->end,
 				   skl_ddb_entry_size(entry));
 		}
 
-		entry = &crtc_state->wm.skl.plane_ddb_y[PLANE_CURSOR];
+		entry = &crtc_state->hw.wm.skl.plane_ddb_y[PLANE_CURSOR];
 		seq_printf(m, "  %-13s%8u%8u%8u\n", "Cursor", entry->start,
 			   entry->end, skl_ddb_entry_size(entry));
 	}
@@ -3305,7 +3307,7 @@ static void drrs_status_per_crtc(struct seq_file *m,
 
 	seq_puts(m, "\n\n");
 
-	if (to_intel_crtc_state(intel_crtc->base.state)->has_drrs) {
+	if (to_intel_crtc_state(intel_crtc->base.state)->hw.has_drrs) {
 		struct intel_panel *panel;
 
 		mutex_lock(&drrs->mutex);
@@ -4457,7 +4459,7 @@ static int i915_drrs_ctl_set(void *data, u64 val)
 		crtc_state = to_intel_crtc_state(crtc->base.state);
 
 		if (!crtc_state->base.active ||
-		    !crtc_state->has_drrs)
+		    !crtc_state->hw.has_drrs)
 			goto out;
 
 		commit = crtc_state->base.commit;
@@ -4813,7 +4815,7 @@ static int i915_dsc_fec_support_show(struct seq_file *m, void *data)
 		intel_dp = enc_to_intel_dp(&intel_attached_encoder(connector)->base);
 		crtc_state = to_intel_crtc_state(crtc->state);
 		seq_printf(m, "DSC_Enabled: %s\n",
-			   yesno(crtc_state->dsc_params.compression_enable));
+			   yesno(crtc_state->hw.dsc_params.compression_enable));
 		seq_printf(m, "DSC_Sink_Support: %s\n",
 			   yesno(drm_dp_sink_supports_dsc(intel_dp->dsc_dpcd)));
 		if (!intel_dp_is_edp(intel_dp))

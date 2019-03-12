@@ -908,27 +908,6 @@ enum intel_output_format {
 struct intel_crtc_hw_state {
 	/** @core: copy of DRM core CRTC state */
 	struct drm_crtc_state core;
-};
-
-struct intel_crtc_state {
-	/**
-	 * @base:
-	 *
-	 * DRM core CRTC state.
-	 */
-	struct drm_crtc_state base;
-
-	/**
-	 * @hw:
-	 *
-	 * State that will be used to program the hardware for this CRTC.
-	 * Although hardware is usually programmed with a slightly-massaged
-	 * version of the userspace state, newer hardware platforms introduce
-	 * cases where we need to program the hardware in a way that is
-	 * completely unrelated to the userspace-facing state of the CRTC (see
-	 * gen11+ "big joiner" support).
-	 */
-	struct intel_crtc_hw_state hw;
 
 	/**
 	 * quirks - bitfield with hw state readout quirks
@@ -1153,6 +1132,34 @@ struct intel_crtc_state {
 
 	/* Forward Error correction State */
 	bool fec_enable;
+};
+
+struct intel_crtc_state {
+	/**
+	 * @base:
+	 *
+	 * DRM core CRTC state.
+	 */
+	struct drm_crtc_state base;
+
+	/**
+	 * @hw:
+	 *
+	 * State that will be used to program the hardware for this CRTC.
+	 * Although hardware is usually programmed with a slightly-massaged
+	 * version of the userspace state, newer hardware platforms introduce
+	 * cases where we need to program the hardware in a way that is
+	 * completely unrelated to the userspace-facing state of the CRTC (see
+	 * gen11+ "big joiner" support).
+	 */
+	struct intel_crtc_hw_state hw;
+
+	/*
+	 * Any values that are directly exposed to userspace (e.g., as
+	 * DRM properties) should go here.  intel_crtc_hw_state will generally
+	 * also need to be updated with fields to hold the derived values that
+	 * will be written to the hardware.
+	 */
 };
 
 struct intel_crtc {
@@ -1817,12 +1824,12 @@ static inline bool
 intel_crtc_has_type(const struct intel_crtc_state *crtc_state,
 		    enum intel_output_type type)
 {
-	return crtc_state->output_types & (1 << type);
+	return crtc_state->hw.output_types & (1 << type);
 }
 static inline bool
 intel_crtc_has_dp_encoder(const struct intel_crtc_state *crtc_state)
 {
-	return crtc_state->output_types &
+	return crtc_state->hw.output_types &
 		((1 << INTEL_OUTPUT_DP) |
 		 (1 << INTEL_OUTPUT_DP_MST) |
 		 (1 << INTEL_OUTPUT_EDP));

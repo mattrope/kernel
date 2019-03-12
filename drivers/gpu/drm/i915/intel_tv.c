@@ -1090,7 +1090,7 @@ intel_tv_get_config(struct intel_encoder *encoder,
 	int vdisplay = adjusted_mode->crtc_vdisplay;
 	int xsize, ysize, xpos, ypos;
 
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_TVOUT);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_TVOUT);
 
 	tv_ctl = I915_READ(TV_CTL);
 	hctl1 = I915_READ(TV_H_CTL_1);
@@ -1112,7 +1112,7 @@ intel_tv_get_config(struct intel_encoder *encoder,
 	tv_mode.vsync_start_f1 = (vctl2 & TV_VSYNC_START_F1_MASK) >> TV_VSYNC_START_F1_SHIFT;
 	tv_mode.vsync_start_f2 = (vctl2 & TV_VSYNC_START_F2_MASK) >> TV_VSYNC_START_F2_SHIFT;
 
-	tv_mode.clock = pipe_config->port_clock;
+	tv_mode.clock = pipe_config->hw.port_clock;
 
 	tv_mode.progressive = tv_ctl & TV_PROGRESSIVE;
 
@@ -1195,12 +1195,12 @@ intel_tv_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	DRM_DEBUG_KMS("forcing bpc to 8 for TV\n");
-	pipe_config->pipe_bpp = 8*3;
+	pipe_config->hw.pipe_bpp = 8*3;
 
-	pipe_config->port_clock = tv_mode->clock;
+	pipe_config->hw.port_clock = tv_mode->clock;
 
 	intel_tv_mode_to_mode(adjusted_mode, tv_mode);
 	drm_mode_set_crtcinfo(adjusted_mode, 0);

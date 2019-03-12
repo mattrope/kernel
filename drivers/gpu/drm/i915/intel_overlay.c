@@ -882,7 +882,7 @@ static int check_overlay_possible_on_crtc(struct intel_overlay *overlay,
 		return -EINVAL;
 
 	/* can't use the overlay with double wide pipe */
-	if (crtc->config->double_wide)
+	if (crtc->config->hw.double_wide)
 		return -EINVAL;
 
 	return 0;
@@ -917,10 +917,10 @@ static int check_overlay_dst(struct intel_overlay *overlay,
 	const struct intel_crtc_state *pipe_config =
 		overlay->crtc->config;
 
-	if (rec->dst_x < pipe_config->pipe_src_w &&
-	    rec->dst_x + rec->dst_width <= pipe_config->pipe_src_w &&
-	    rec->dst_y < pipe_config->pipe_src_h &&
-	    rec->dst_y + rec->dst_height <= pipe_config->pipe_src_h)
+	if (rec->dst_x < pipe_config->hw.pipe_src_w &&
+	    rec->dst_x + rec->dst_width <= pipe_config->hw.pipe_src_w &&
+	    rec->dst_y < pipe_config->hw.pipe_src_h &&
+	    rec->dst_y + rec->dst_height <= pipe_config->hw.pipe_src_h)
 		return 0;
 	else
 		return -EINVAL;
@@ -1117,8 +1117,8 @@ int intel_overlay_put_image_ioctl(struct drm_device *dev, void *data,
 		crtc->overlay = overlay;
 
 		/* line too wide, i.e. one-line-mode */
-		if (crtc->config->pipe_src_w > 1024 &&
-		    crtc->config->gmch_pfit.control & PFIT_ENABLE) {
+		if (crtc->config->hw.pipe_src_w > 1024 &&
+		    crtc->config->hw.gmch_pfit.control & PFIT_ENABLE) {
 			overlay->pfit_active = true;
 			update_pfit_vscale_ratio(overlay);
 		} else

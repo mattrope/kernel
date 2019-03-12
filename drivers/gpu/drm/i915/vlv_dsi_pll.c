@@ -99,8 +99,8 @@ static int dsi_calc_mnp(struct drm_i915_private *dev_priv,
 	}
 
 	/* register has log2(N1), this works fine for powers of two */
-	config->dsi_pll.ctrl = 1 << (DSI_PLL_P1_POST_DIV_SHIFT + calc_p - 2);
-	config->dsi_pll.div =
+	config->hw.dsi_pll.ctrl = 1 << (DSI_PLL_P1_POST_DIV_SHIFT + calc_p - 2);
+	config->hw.dsi_pll.div =
 		(ffs(n) - 1) << DSI_PLL_N1_DIV_SHIFT |
 		(u32)lfsr_converts[calc_m - 62] << DSI_PLL_M1_DIV_SHIFT;
 
@@ -129,15 +129,15 @@ int vlv_dsi_pll_compute(struct intel_encoder *encoder,
 	}
 
 	if (intel_dsi->ports & (1 << PORT_A))
-		config->dsi_pll.ctrl |= DSI_PLL_CLK_GATE_DSI0_DSIPLL;
+		config->hw.dsi_pll.ctrl |= DSI_PLL_CLK_GATE_DSI0_DSIPLL;
 
 	if (intel_dsi->ports & (1 << PORT_C))
-		config->dsi_pll.ctrl |= DSI_PLL_CLK_GATE_DSI1_DSIPLL;
+		config->hw.dsi_pll.ctrl |= DSI_PLL_CLK_GATE_DSI1_DSIPLL;
 
-	config->dsi_pll.ctrl |= DSI_PLL_VCO_EN;
+	config->hw.dsi_pll.ctrl |= DSI_PLL_VCO_EN;
 
 	DRM_DEBUG_KMS("dsi pll div %08x, ctrl %08x\n",
-		      config->dsi_pll.div, config->dsi_pll.ctrl);
+		      config->hw.dsi_pll.div, config->hw.dsi_pll.ctrl);
 
 	return 0;
 }
@@ -152,16 +152,18 @@ void vlv_dsi_pll_enable(struct intel_encoder *encoder,
 	mutex_lock(&dev_priv->sb_lock);
 
 	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_CONTROL, 0);
-	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_DIVIDER, config->dsi_pll.div);
+	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_DIVIDER,
+		      config->hw.dsi_pll.div);
 	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_CONTROL,
-		      config->dsi_pll.ctrl & ~DSI_PLL_VCO_EN);
+		      config->hw.dsi_pll.ctrl & ~DSI_PLL_VCO_EN);
 
 	/* wait at least 0.5 us after ungating before enabling VCO,
 	 * allow hrtimer subsystem optimization by relaxing timing
 	 */
 	usleep_range(10, 50);
 
-	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_CONTROL, config->dsi_pll.ctrl);
+	vlv_cck_write(dev_priv, CCK_REG_DSI_PLL_CONTROL,
+		      config->hw.dsi_pll.ctrl);
 
 	if (wait_for(vlv_cck_read(dev_priv, CCK_REG_DSI_PLL_CONTROL) &
 						DSI_PLL_LOCK, 20)) {
@@ -271,8 +273,8 @@ u32 vlv_dsi_get_pclk(struct intel_encoder *encoder,
 	pll_div = vlv_cck_read(dev_priv, CCK_REG_DSI_PLL_DIVIDER);
 	mutex_unlock(&dev_priv->sb_lock);
 
-	config->dsi_pll.ctrl = pll_ctl & ~DSI_PLL_LOCK;
-	config->dsi_pll.div = pll_div;
+	config->hw.dsi_pll.ctrl = pll_ctl & ~DSI_PLL_LOCK;
+	config->hw.dsi_pll.div = pll_div;
 
 	/* mask out other bits and extract the P1 divisor */
 	pll_ctl &= DSI_PLL_P1_POST_DIV_MASK;
@@ -326,9 +328,9 @@ u32 bxt_dsi_get_pclk(struct intel_encoder *encoder,
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	int bpp = mipi_dsi_pixel_format_to_bpp(intel_dsi->pixel_format);
 
-	config->dsi_pll.ctrl = I915_READ(BXT_DSI_PLL_CTL);
+	config->hw.dsi_pll.ctrl = I915_READ(BXT_DSI_PLL_CTL);
 
-	dsi_ratio = config->dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
+	dsi_ratio = config->hw.dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
 
 	dsi_clk = (dsi_ratio * BXT_REF_CLOCK_KHZ) / 2;
 
@@ -363,7 +365,7 @@ static void glk_dsi_program_esc_clock(struct drm_device *dev,
 	u32 txesc1_div = 0;
 	u32 txesc2_div = 0;
 
-	pll_ratio = config->dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
+	pll_ratio = config->hw.dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
 
 	dsi_rate = (BXT_REF_CLOCK_KHZ * pll_ratio) / 2;
 
@@ -420,7 +422,7 @@ static void bxt_dsi_program_clocks(struct drm_device *dev, enum port port,
 	tmp &= ~(BXT_MIPI_RX_ESCLK_LOWER_FIXDIV_MASK(port));
 
 	/* Get the current DSI rate(actual) */
-	pll_ratio = config->dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
+	pll_ratio = config->hw.dsi_pll.ctrl & BXT_DSI_PLL_RATIO_MASK;
 	dsi_rate = (BXT_REF_CLOCK_KHZ * pll_ratio) / 2;
 
 	/*
@@ -489,13 +491,13 @@ int bxt_dsi_pll_compute(struct intel_encoder *encoder,
 	 * Spec says both have to be programmed, even if one is not getting
 	 * used. Configure MIPI_CLOCK_CTL dividers in modeset
 	 */
-	config->dsi_pll.ctrl = dsi_ratio | BXT_DSIA_16X_BY2 | BXT_DSIC_16X_BY2;
+	config->hw.dsi_pll.ctrl = dsi_ratio | BXT_DSIA_16X_BY2 | BXT_DSIC_16X_BY2;
 
 	/* As per recommendation from hardware team,
 	 * Prog PVD ratio =1 if dsi ratio <= 50
 	 */
 	if (IS_BROXTON(dev_priv) && dsi_ratio <= 50)
-		config->dsi_pll.ctrl |= BXT_DSI_PLL_PVD_RATIO_1;
+		config->hw.dsi_pll.ctrl |= BXT_DSI_PLL_PVD_RATIO_1;
 
 	return 0;
 }
@@ -511,7 +513,7 @@ void bxt_dsi_pll_enable(struct intel_encoder *encoder,
 	DRM_DEBUG_KMS("\n");
 
 	/* Configure PLL vales */
-	I915_WRITE(BXT_DSI_PLL_CTL, config->dsi_pll.ctrl);
+	I915_WRITE(BXT_DSI_PLL_CTL, config->hw.dsi_pll.ctrl);
 	POSTING_READ(BXT_DSI_PLL_CTL);
 
 	/* Program TX, RX, Dphy clocks */

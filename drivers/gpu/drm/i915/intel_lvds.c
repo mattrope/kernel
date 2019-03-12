@@ -116,7 +116,7 @@ static void intel_lvds_get_config(struct intel_encoder *encoder,
 	struct intel_lvds_encoder *lvds_encoder = to_lvds_encoder(&encoder->base);
 	u32 tmp, flags = 0;
 
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_LVDS);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_LVDS);
 
 	tmp = I915_READ(lvds_encoder->reg);
 	if (tmp & LVDS_HSYNC_POLARITY)
@@ -131,17 +131,17 @@ static void intel_lvds_get_config(struct intel_encoder *encoder,
 	pipe_config->base.adjusted_mode.flags |= flags;
 
 	if (INTEL_GEN(dev_priv) < 5)
-		pipe_config->gmch_pfit.lvds_border_bits =
+		pipe_config->hw.gmch_pfit.lvds_border_bits =
 			tmp & LVDS_BORDER_ENABLE;
 
 	/* gen2/3 store dither state in pfit control, needs to match */
 	if (INTEL_GEN(dev_priv) < 4) {
 		tmp = I915_READ(PFIT_CONTROL);
 
-		pipe_config->gmch_pfit.control |= tmp & PANEL_8TO6_DITHER_ENABLE;
+		pipe_config->hw.gmch_pfit.control |= tmp & PANEL_8TO6_DITHER_ENABLE;
 	}
 
-	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->port_clock;
+	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->hw.port_clock;
 }
 
 static void intel_lvds_pps_get_hw_state(struct drm_i915_private *dev_priv,
@@ -235,7 +235,7 @@ static void intel_pre_enable_lvds(struct intel_encoder *encoder,
 	if (HAS_PCH_SPLIT(dev_priv)) {
 		assert_fdi_rx_pll_disabled(dev_priv, pipe);
 		assert_shared_dpll_disabled(dev_priv,
-					    pipe_config->shared_dpll);
+					    pipe_config->hw.shared_dpll);
 	} else {
 		assert_pll_disabled(dev_priv, pipe);
 	}
@@ -255,7 +255,7 @@ static void intel_pre_enable_lvds(struct intel_encoder *encoder,
 
 	/* set the corresponsding LVDS_BORDER bit */
 	temp &= ~LVDS_BORDER_ENABLE;
-	temp |= pipe_config->gmch_pfit.lvds_border_bits;
+	temp |= pipe_config->hw.gmch_pfit.lvds_border_bits;
 
 	/*
 	 * Set the B0-B3 data pairs corresponding to whether we're going to
@@ -285,7 +285,7 @@ static void intel_pre_enable_lvds(struct intel_encoder *encoder,
 		 * Bspec wording suggests that LVDS port dithering only exists
 		 * for 18bpp panels.
 		 */
-		if (pipe_config->dither && pipe_config->pipe_bpp == 18)
+		if (pipe_config->hw.dither && pipe_config->hw.pipe_bpp == 18)
 			temp |= LVDS_ENABLE_DITHER;
 		else
 			temp &= ~LVDS_ENABLE_DITHER;
@@ -404,13 +404,13 @@ static int intel_lvds_compute_config(struct intel_encoder *intel_encoder,
 	else
 		lvds_bpp = 6*3;
 
-	if (lvds_bpp != pipe_config->pipe_bpp && !pipe_config->bw_constrained) {
+	if (lvds_bpp != pipe_config->hw.pipe_bpp && !pipe_config->hw.bw_constrained) {
 		DRM_DEBUG_KMS("forcing display bpp (was %d) to LVDS (%d)\n",
-			      pipe_config->pipe_bpp, lvds_bpp);
-		pipe_config->pipe_bpp = lvds_bpp;
+			      pipe_config->hw.pipe_bpp, lvds_bpp);
+		pipe_config->hw.pipe_bpp = lvds_bpp;
 	}
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	/*
 	 * We have timings from the BIOS for the panel, put them in
@@ -425,7 +425,7 @@ static int intel_lvds_compute_config(struct intel_encoder *intel_encoder,
 		return -EINVAL;
 
 	if (HAS_PCH_SPLIT(dev_priv)) {
-		pipe_config->has_pch_encoder = true;
+		pipe_config->hw.has_pch_encoder = true;
 
 		intel_pch_panel_fitting(intel_crtc, pipe_config,
 					conn_state->scaling_mode);

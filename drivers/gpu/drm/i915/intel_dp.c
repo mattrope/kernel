@@ -1641,9 +1641,9 @@ intel_dp_set_clock(struct intel_encoder *encoder,
 
 	if (divisor && count) {
 		for (i = 0; i < count; i++) {
-			if (pipe_config->port_clock == divisor[i].clock) {
-				pipe_config->dpll = divisor[i].dpll;
-				pipe_config->clock_set = true;
+			if (pipe_config->hw.port_clock == divisor[i].clock) {
+				pipe_config->hw.dpll = divisor[i].dpll;
+				pipe_config->hw.clock_set = true;
 				break;
 			}
 		}
@@ -1735,7 +1735,7 @@ static bool intel_dp_source_supports_fec(struct intel_dp *intel_dp,
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
 	return INTEL_GEN(dev_priv) >= 11 &&
-		pipe_config->cpu_transcoder != TRANSCODER_A;
+		pipe_config->hw.cpu_transcoder != TRANSCODER_A;
 }
 
 static bool intel_dp_supports_fec(struct intel_dp *intel_dp,
@@ -1751,13 +1751,13 @@ static bool intel_dp_source_supports_dsc(struct intel_dp *intel_dp,
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
 	return INTEL_GEN(dev_priv) >= 10 &&
-		pipe_config->cpu_transcoder != TRANSCODER_A;
+		pipe_config->hw.cpu_transcoder != TRANSCODER_A;
 }
 
 static bool intel_dp_supports_dsc(struct intel_dp *intel_dp,
 				  const struct intel_crtc_state *pipe_config)
 {
-	if (!intel_dp_is_edp(intel_dp) && !pipe_config->fec_enable)
+	if (!intel_dp_is_edp(intel_dp) && !pipe_config->hw.fec_enable)
 		return false;
 
 	return intel_dp_source_supports_dsc(intel_dp, pipe_config) &&
@@ -1771,7 +1771,7 @@ static int intel_dp_compute_bpp(struct intel_dp *intel_dp,
 	struct intel_connector *intel_connector = intel_dp->attached_connector;
 	int bpp, bpc;
 
-	bpp = pipe_config->pipe_bpp;
+	bpp = pipe_config->hw.pipe_bpp;
 	bpc = drm_dp_downstream_max_bpc(intel_dp->dpcd, intel_dp->downstream_ports);
 
 	if (bpc > 0)
@@ -1801,7 +1801,7 @@ intel_dp_adjust_compliance_config(struct intel_dp *intel_dp,
 		int bpp = 3 * intel_dp->compliance.test_data.bpc;
 
 		limits->min_bpp = limits->max_bpp = bpp;
-		pipe_config->dither_force_disable = bpp == 6 * 3;
+		pipe_config->hw.dither_force_disable = bpp == 6 * 3;
 
 		DRM_DEBUG_KMS("Setting pipe_bpp to %d\n", bpp);
 	}
@@ -1849,9 +1849,9 @@ intel_dp_compute_link_config_wide(struct intel_dp *intel_dp,
 								    lane_count);
 
 				if (mode_rate <= link_avail) {
-					pipe_config->lane_count = lane_count;
-					pipe_config->pipe_bpp = bpp;
-					pipe_config->port_clock = link_clock;
+					pipe_config->hw.lane_count = lane_count;
+					pipe_config->hw.pipe_bpp = bpp;
+					pipe_config->hw.port_clock = link_clock;
 
 					return 0;
 				}
@@ -1885,9 +1885,9 @@ intel_dp_compute_link_config_fast(struct intel_dp *intel_dp,
 								    lane_count);
 
 				if (mode_rate <= link_avail) {
-					pipe_config->lane_count = lane_count;
-					pipe_config->pipe_bpp = bpp;
-					pipe_config->port_clock = link_clock;
+					pipe_config->hw.lane_count = lane_count;
+					pipe_config->hw.pipe_bpp = bpp;
+					pipe_config->hw.port_clock = link_clock;
 
 					return 0;
 				}
@@ -1942,15 +1942,15 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 	 * Optimize this later for the minimum possible link rate/lane count
 	 * with DSC enabled for the requested mode.
 	 */
-	pipe_config->pipe_bpp = pipe_bpp;
-	pipe_config->port_clock = intel_dp->common_rates[limits->max_clock];
-	pipe_config->lane_count = limits->max_lane_count;
+	pipe_config->hw.pipe_bpp = pipe_bpp;
+	pipe_config->hw.port_clock = intel_dp->common_rates[limits->max_clock];
+	pipe_config->hw.lane_count = limits->max_lane_count;
 
 	if (intel_dp_is_edp(intel_dp)) {
-		pipe_config->dsc_params.compressed_bpp =
+		pipe_config->hw.dsc_params.compressed_bpp =
 			min_t(u16, drm_edp_dsc_sink_output_bpp(intel_dp->dsc_dpcd) >> 4,
-			      pipe_config->pipe_bpp);
-		pipe_config->dsc_params.slice_count =
+			      pipe_config->hw.pipe_bpp);
+		pipe_config->hw.dsc_params.slice_count =
 			drm_dp_dsc_sink_max_slice_count(intel_dp->dsc_dpcd,
 							true);
 	} else {
@@ -1958,8 +1958,8 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 		u8 dsc_dp_slice_count;
 
 		dsc_max_output_bpp =
-			intel_dp_dsc_get_output_bpp(pipe_config->port_clock,
-						    pipe_config->lane_count,
+			intel_dp_dsc_get_output_bpp(pipe_config->hw.port_clock,
+						    pipe_config->hw.lane_count,
 						    adjusted_mode->crtc_clock,
 						    adjusted_mode->crtc_hdisplay);
 		dsc_dp_slice_count =
@@ -1970,10 +1970,10 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 			DRM_DEBUG_KMS("Compressed BPP/Slice Count not supported\n");
 			return -EINVAL;
 		}
-		pipe_config->dsc_params.compressed_bpp = min_t(u16,
+		pipe_config->hw.dsc_params.compressed_bpp = min_t(u16,
 							       dsc_max_output_bpp >> 4,
-							       pipe_config->pipe_bpp);
-		pipe_config->dsc_params.slice_count = dsc_dp_slice_count;
+							       pipe_config->hw.pipe_bpp);
+		pipe_config->hw.dsc_params.slice_count = dsc_dp_slice_count;
 	}
 	/*
 	 * VDSC engine operates at 1 Pixel per clock, so if peak pixel rate
@@ -1981,8 +1981,8 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 	 * then we need to use 2 VDSC instances.
 	 */
 	if (adjusted_mode->crtc_clock > dev_priv->max_cdclk_freq) {
-		if (pipe_config->dsc_params.slice_count > 1) {
-			pipe_config->dsc_params.dsc_split = true;
+		if (pipe_config->hw.dsc_params.slice_count > 1) {
+			pipe_config->hw.dsc_params.dsc_split = true;
 		} else {
 			DRM_DEBUG_KMS("Cannot split stream to use 2 VDSC instances\n");
 			return -EINVAL;
@@ -1993,17 +1993,17 @@ static int intel_dp_dsc_compute_config(struct intel_dp *intel_dp,
 	if (ret < 0) {
 		DRM_DEBUG_KMS("Cannot compute valid DSC parameters for Input Bpp = %d "
 			      "Compressed BPP = %d\n",
-			      pipe_config->pipe_bpp,
-			      pipe_config->dsc_params.compressed_bpp);
+			      pipe_config->hw.pipe_bpp,
+			      pipe_config->hw.dsc_params.compressed_bpp);
 		return ret;
 	}
 
-	pipe_config->dsc_params.compression_enable = true;
+	pipe_config->hw.dsc_params.compression_enable = true;
 	DRM_DEBUG_KMS("DP DSC computed with Input Bpp = %d "
 		      "Compressed Bpp = %d Slice Count = %d\n",
-		      pipe_config->pipe_bpp,
-		      pipe_config->dsc_params.compressed_bpp,
-		      pipe_config->dsc_params.slice_count);
+		      pipe_config->hw.pipe_bpp,
+		      pipe_config->hw.dsc_params.compressed_bpp,
+		      pipe_config->hw.dsc_params.slice_count);
 
 	return 0;
 }
@@ -2082,27 +2082,29 @@ intel_dp_compute_link_config(struct intel_encoder *encoder,
 			return ret;
 	}
 
-	if (pipe_config->dsc_params.compression_enable) {
+	if (pipe_config->hw.dsc_params.compression_enable) {
 		DRM_DEBUG_KMS("DP lane count %d clock %d Input bpp %d Compressed bpp %d\n",
-			      pipe_config->lane_count, pipe_config->port_clock,
-			      pipe_config->pipe_bpp,
-			      pipe_config->dsc_params.compressed_bpp);
+			      pipe_config->hw.lane_count,
+			      pipe_config->hw.port_clock,
+			      pipe_config->hw.pipe_bpp,
+			      pipe_config->hw.dsc_params.compressed_bpp);
 
 		DRM_DEBUG_KMS("DP link rate required %i available %i\n",
 			      intel_dp_link_required(adjusted_mode->crtc_clock,
-						     pipe_config->dsc_params.compressed_bpp),
-			      intel_dp_max_data_rate(pipe_config->port_clock,
-						     pipe_config->lane_count));
+						     pipe_config->hw.dsc_params.compressed_bpp),
+			      intel_dp_max_data_rate(pipe_config->hw.port_clock,
+						     pipe_config->hw.lane_count));
 	} else {
 		DRM_DEBUG_KMS("DP lane count %d clock %d bpp %d\n",
-			      pipe_config->lane_count, pipe_config->port_clock,
-			      pipe_config->pipe_bpp);
+			      pipe_config->hw.lane_count,
+			      pipe_config->hw.port_clock,
+			      pipe_config->hw.pipe_bpp);
 
 		DRM_DEBUG_KMS("DP link rate required %i available %i\n",
 			      intel_dp_link_required(adjusted_mode->crtc_clock,
-						     pipe_config->pipe_bpp),
-			      intel_dp_max_data_rate(pipe_config->port_clock,
-						     pipe_config->lane_count));
+						     pipe_config->hw.pipe_bpp),
+			      intel_dp_max_data_rate(pipe_config->hw.port_clock,
+						     pipe_config->hw.lane_count));
 	}
 	return 0;
 }
@@ -2126,19 +2128,19 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 	int ret;
 
 	if (HAS_PCH_SPLIT(dev_priv) && !HAS_DDI(dev_priv) && port != PORT_A)
-		pipe_config->has_pch_encoder = true;
+		pipe_config->hw.has_pch_encoder = true;
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 	if (lspcon->active)
 		lspcon_ycbcr420_config(&intel_connector->base, pipe_config);
 
-	pipe_config->has_drrs = false;
+	pipe_config->hw.has_drrs = false;
 	if (IS_G4X(dev_priv) || port == PORT_A)
-		pipe_config->has_audio = false;
+		pipe_config->hw.has_audio = false;
 	else if (intel_conn_state->force_audio == HDMI_AUDIO_AUTO)
-		pipe_config->has_audio = intel_dp->has_audio;
+		pipe_config->hw.has_audio = intel_dp->has_audio;
 	else
-		pipe_config->has_audio = intel_conn_state->force_audio == HDMI_AUDIO_ON;
+		pipe_config->hw.has_audio = intel_conn_state->force_audio == HDMI_AUDIO_ON;
 
 	if (intel_dp_is_edp(intel_dp) && intel_connector->panel.fixed_mode) {
 		intel_fixed_panel_mode(intel_connector->panel.fixed_mode,
@@ -2168,7 +2170,7 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLCLK)
 		return -EINVAL;
 
-	pipe_config->fec_enable = !intel_dp_is_edp(intel_dp) &&
+	pipe_config->hw.fec_enable = !intel_dp_is_edp(intel_dp) &&
 				  intel_dp_supports_fec(intel_dp, pipe_config);
 
 	ret = intel_dp_compute_link_config(encoder, pipe_config, conn_state);
@@ -2181,38 +2183,38 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 		 * CEA-861-E - 5.1 Default Encoding Parameters
 		 * VESA DisplayPort Ver.1.2a - 5.1.1.1 Video Colorimetry
 		 */
-		pipe_config->limited_color_range =
-			pipe_config->pipe_bpp != 18 &&
+		pipe_config->hw.limited_color_range =
+			pipe_config->hw.pipe_bpp != 18 &&
 			drm_default_rgb_quant_range(adjusted_mode) ==
 			HDMI_QUANTIZATION_RANGE_LIMITED;
 	} else {
-		pipe_config->limited_color_range =
+		pipe_config->hw.limited_color_range =
 			intel_conn_state->broadcast_rgb == INTEL_BROADCAST_RGB_LIMITED;
 	}
 
-	if (!pipe_config->dsc_params.compression_enable)
-		intel_link_compute_m_n(pipe_config->pipe_bpp,
-				       pipe_config->lane_count,
+	if (!pipe_config->hw.dsc_params.compression_enable)
+		intel_link_compute_m_n(pipe_config->hw.pipe_bpp,
+				       pipe_config->hw.lane_count,
 				       adjusted_mode->crtc_clock,
-				       pipe_config->port_clock,
-				       &pipe_config->dp_m_n,
+				       pipe_config->hw.port_clock,
+				       &pipe_config->hw.dp_m_n,
 				       constant_n);
 	else
-		intel_link_compute_m_n(pipe_config->dsc_params.compressed_bpp,
-				       pipe_config->lane_count,
+		intel_link_compute_m_n(pipe_config->hw.dsc_params.compressed_bpp,
+				       pipe_config->hw.lane_count,
 				       adjusted_mode->crtc_clock,
-				       pipe_config->port_clock,
-				       &pipe_config->dp_m_n,
+				       pipe_config->hw.port_clock,
+				       &pipe_config->hw.dp_m_n,
 				       constant_n);
 
 	if (intel_connector->panel.downclock_mode != NULL &&
 		dev_priv->drrs.type == SEAMLESS_DRRS_SUPPORT) {
-			pipe_config->has_drrs = true;
-			intel_link_compute_m_n(pipe_config->pipe_bpp,
-					       pipe_config->lane_count,
+			pipe_config->hw.has_drrs = true;
+			intel_link_compute_m_n(pipe_config->hw.pipe_bpp,
+					       pipe_config->hw.lane_count,
 					       intel_connector->panel.downclock_mode->clock,
-					       pipe_config->port_clock,
-					       &pipe_config->dp_m2_n2,
+					       pipe_config->hw.port_clock,
+					       &pipe_config->hw.dp_m2_n2,
 					       constant_n);
 	}
 
@@ -2243,8 +2245,8 @@ static void intel_dp_prepare(struct intel_encoder *encoder,
 	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
 	const struct drm_display_mode *adjusted_mode = &pipe_config->base.adjusted_mode;
 
-	intel_dp_set_link_params(intel_dp, pipe_config->port_clock,
-				 pipe_config->lane_count,
+	intel_dp_set_link_params(intel_dp, pipe_config->hw.port_clock,
+				 pipe_config->hw.lane_count,
 				 intel_crtc_has_type(pipe_config,
 						     INTEL_OUTPUT_DP_MST));
 
@@ -2272,7 +2274,7 @@ static void intel_dp_prepare(struct intel_encoder *encoder,
 
 	/* Handle DP bits in common between all three register formats */
 	intel_dp->DP |= DP_VOLTAGE_0_4 | DP_PRE_EMPHASIS_0;
-	intel_dp->DP |= DP_PORT_WIDTH(pipe_config->lane_count);
+	intel_dp->DP |= DP_PORT_WIDTH(pipe_config->hw.lane_count);
 
 	/* Split out the IBX/CPU vs CPT settings */
 
@@ -2299,7 +2301,7 @@ static void intel_dp_prepare(struct intel_encoder *encoder,
 			trans_dp &= ~TRANS_DP_ENH_FRAMING;
 		I915_WRITE(TRANS_DP_CTL(crtc->pipe), trans_dp);
 	} else {
-		if (IS_G4X(dev_priv) && pipe_config->limited_color_range)
+		if (IS_G4X(dev_priv) && pipe_config->hw.limited_color_range)
 			intel_dp->DP |= DP_COLOR_RANGE_16_235;
 
 		if (adjusted_mode->flags & DRM_MODE_FLAG_PHSYNC)
@@ -2837,11 +2839,11 @@ static void ironlake_edp_pll_on(struct intel_dp *intel_dp,
 	assert_edp_pll_disabled(dev_priv);
 
 	DRM_DEBUG_KMS("enabling eDP PLL for clock %d\n",
-		      pipe_config->port_clock);
+		      pipe_config->hw.port_clock);
 
 	intel_dp->DP &= ~DP_PLL_FREQ_MASK;
 
-	if (pipe_config->port_clock == 162000)
+	if (pipe_config->hw.port_clock == 162000)
 		intel_dp->DP |= DP_PLL_FREQ_162MHZ;
 	else
 		intel_dp->DP |= DP_PLL_FREQ_270MHZ;
@@ -2906,7 +2908,7 @@ void intel_dp_sink_set_decompression_state(struct intel_dp *intel_dp,
 {
 	int ret;
 
-	if (!crtc_state->dsc_params.compression_enable)
+	if (!crtc_state->hw.dsc_params.compression_enable)
 		return;
 
 	ret = drm_dp_dpcd_writeb(&intel_dp->aux, DP_DSC_ENABLE,
@@ -3032,13 +3034,13 @@ static void intel_dp_get_config(struct intel_encoder *encoder,
 	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
 
 	if (encoder->type == INTEL_OUTPUT_EDP)
-		pipe_config->output_types |= BIT(INTEL_OUTPUT_EDP);
+		pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_EDP);
 	else
-		pipe_config->output_types |= BIT(INTEL_OUTPUT_DP);
+		pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_DP);
 
 	tmp = I915_READ(intel_dp->output_reg);
 
-	pipe_config->has_audio = tmp & DP_AUDIO_OUTPUT_ENABLE && port != PORT_A;
+	pipe_config->hw.has_audio = tmp & DP_AUDIO_OUTPUT_ENABLE && port != PORT_A;
 
 	if (HAS_PCH_CPT(dev_priv) && port != PORT_A) {
 		u32 trans_dp = I915_READ(TRANS_DP_CTL(crtc->pipe));
@@ -3067,26 +3069,26 @@ static void intel_dp_get_config(struct intel_encoder *encoder,
 	pipe_config->base.adjusted_mode.flags |= flags;
 
 	if (IS_G4X(dev_priv) && tmp & DP_COLOR_RANGE_16_235)
-		pipe_config->limited_color_range = true;
+		pipe_config->hw.limited_color_range = true;
 
-	pipe_config->lane_count =
+	pipe_config->hw.lane_count =
 		((tmp & DP_PORT_WIDTH_MASK) >> DP_PORT_WIDTH_SHIFT) + 1;
 
 	intel_dp_get_m_n(crtc, pipe_config);
 
 	if (port == PORT_A) {
 		if ((I915_READ(DP_A) & DP_PLL_FREQ_MASK) == DP_PLL_FREQ_162MHZ)
-			pipe_config->port_clock = 162000;
+			pipe_config->hw.port_clock = 162000;
 		else
-			pipe_config->port_clock = 270000;
+			pipe_config->hw.port_clock = 270000;
 	}
 
 	pipe_config->base.adjusted_mode.crtc_clock =
-		intel_dotclock_calculate(pipe_config->port_clock,
-					 &pipe_config->dp_m_n);
+		intel_dotclock_calculate(pipe_config->hw.port_clock,
+					 &pipe_config->hw.dp_m_n);
 
 	if (intel_dp_is_edp(intel_dp) && dev_priv->vbt.edp.bpp &&
-	    pipe_config->pipe_bpp > dev_priv->vbt.edp.bpp) {
+	    pipe_config->hw.pipe_bpp > dev_priv->vbt.edp.bpp) {
 		/*
 		 * This is a big fat ugly hack.
 		 *
@@ -3101,8 +3103,8 @@ static void intel_dp_get_config(struct intel_encoder *encoder,
 		 * load.
 		 */
 		DRM_DEBUG_KMS("pipe has %d bpp for eDP panel, overriding BIOS-provided max %d bpp\n",
-			      pipe_config->pipe_bpp, dev_priv->vbt.edp.bpp);
-		dev_priv->vbt.edp.bpp = pipe_config->pipe_bpp;
+			      pipe_config->hw.pipe_bpp, dev_priv->vbt.edp.bpp);
+		dev_priv->vbt.edp.bpp = pipe_config->hw.pipe_bpp;
 	}
 }
 
@@ -3114,7 +3116,7 @@ static void intel_disable_dp(struct intel_encoder *encoder,
 
 	intel_dp->link_trained = false;
 
-	if (old_crtc_state->has_audio)
+	if (old_crtc_state->hw.has_audio)
 		intel_audio_codec_disable(encoder,
 					  old_crtc_state, old_conn_state);
 
@@ -3283,7 +3285,7 @@ static void intel_dp_enable_port(struct intel_dp *intel_dp,
 	 * fail when the power sequencer is freshly used for this port.
 	 */
 	intel_dp->DP |= DP_PORT_EN;
-	if (old_crtc_state->has_audio)
+	if (old_crtc_state->hw.has_audio)
 		intel_dp->DP |= DP_AUDIO_OUTPUT_ENABLE;
 
 	I915_WRITE(intel_dp->output_reg, intel_dp->DP);
@@ -3319,7 +3321,7 @@ static void intel_enable_dp(struct intel_encoder *encoder,
 		unsigned int lane_mask = 0x0;
 
 		if (IS_CHERRYVIEW(dev_priv))
-			lane_mask = intel_dp_unused_lane_mask(pipe_config->lane_count);
+			lane_mask = intel_dp_unused_lane_mask(pipe_config->hw.lane_count);
 
 		vlv_wait_port_ready(dev_priv, dp_to_dig_port(intel_dp),
 				    lane_mask);
@@ -3329,7 +3331,7 @@ static void intel_enable_dp(struct intel_encoder *encoder,
 	intel_dp_start_link_train(intel_dp);
 	intel_dp_stop_link_train(intel_dp);
 
-	if (pipe_config->has_audio) {
+	if (pipe_config->hw.has_audio) {
 		DRM_DEBUG_DRIVER("Enabling DP audio on pipe %c\n",
 				 pipe_name(pipe));
 		intel_audio_codec_enable(encoder, pipe_config, conn_state);
@@ -4707,7 +4709,7 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 
 	/* Suppress underruns caused by re-training */
 	intel_set_cpu_fifo_underrun_reporting(dev_priv, crtc->pipe, false);
-	if (crtc_state->has_pch_encoder)
+	if (crtc_state->hw.has_pch_encoder)
 		intel_set_pch_fifo_underrun_reporting(dev_priv,
 						      intel_crtc_pch_transcoder(crtc), false);
 
@@ -4718,7 +4720,7 @@ int intel_dp_retrain_link(struct intel_encoder *encoder,
 	intel_wait_for_vblank(dev_priv, crtc->pipe);
 
 	intel_set_cpu_fifo_underrun_reporting(dev_priv, crtc->pipe, true);
-	if (crtc_state->has_pch_encoder)
+	if (crtc_state->hw.has_pch_encoder)
 		intel_set_pch_fifo_underrun_reporting(dev_priv,
 						      intel_crtc_pch_transcoder(crtc), true);
 
@@ -6765,7 +6767,7 @@ static void intel_dp_set_drrs_state(struct drm_i915_private *dev_priv,
 			DRM_ERROR("Unsupported refreshrate type\n");
 		}
 	} else if (INTEL_GEN(dev_priv) > 6) {
-		i915_reg_t reg = PIPECONF(crtc_state->cpu_transcoder);
+		i915_reg_t reg = PIPECONF(crtc_state->hw.cpu_transcoder);
 		u32 val;
 
 		val = I915_READ(reg);
@@ -6800,7 +6802,7 @@ void intel_edp_drrs_enable(struct intel_dp *intel_dp,
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
-	if (!crtc_state->has_drrs) {
+	if (!crtc_state->hw.has_drrs) {
 		DRM_DEBUG_KMS("Panel doesn't support DRRS\n");
 		return;
 	}
@@ -6835,7 +6837,7 @@ void intel_edp_drrs_disable(struct intel_dp *intel_dp,
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
 
-	if (!old_crtc_state->has_drrs)
+	if (!old_crtc_state->hw.has_drrs)
 		return;
 
 	mutex_lock(&dev_priv->drrs.mutex);

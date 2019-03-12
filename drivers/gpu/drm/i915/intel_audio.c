@@ -117,7 +117,7 @@ audio_config_dp_get_n_m(const struct intel_crtc_state *crtc_state, int rate)
 
 	for (i = 0; i < ARRAY_SIZE(dp_aud_n_m); i++) {
 		if (rate == dp_aud_n_m[i].sample_rate &&
-		    crtc_state->port_clock == dp_aud_n_m[i].clock)
+		    crtc_state->hw.port_clock == dp_aud_n_m[i].clock)
 			return &dp_aud_n_m[i];
 	}
 
@@ -675,7 +675,7 @@ void intel_audio_codec_enable(struct intel_encoder *encoder,
 	}
 
 	intel_lpe_audio_notify(dev_priv, pipe, port, connector->eld,
-			       crtc_state->port_clock,
+			       crtc_state->hw.port_clock,
 			       intel_crtc_has_dp_encoder(crtc_state));
 }
 

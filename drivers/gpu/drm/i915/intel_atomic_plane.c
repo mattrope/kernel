@@ -119,9 +119,9 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 	struct intel_plane *plane = to_intel_plane(new_plane_state->base.plane);
 	int ret;
 
-	new_crtc_state->active_planes &= ~BIT(plane->id);
-	new_crtc_state->nv12_planes &= ~BIT(plane->id);
-	new_crtc_state->c8_planes &= ~BIT(plane->id);
+	new_crtc_state->hw.active_planes &= ~BIT(plane->id);
+	new_crtc_state->hw.nv12_planes &= ~BIT(plane->id);
+	new_crtc_state->hw.c8_planes &= ~BIT(plane->id);
 	new_plane_state->base.visible = false;
 
 	if (!new_plane_state->base.crtc && !old_plane_state->base.crtc)
@@ -133,18 +133,18 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 
 	/* FIXME pre-g4x don't work like this */
 	if (new_plane_state->base.visible)
-		new_crtc_state->active_planes |= BIT(plane->id);
+		new_crtc_state->hw.active_planes |= BIT(plane->id);
 
 	if (new_plane_state->base.visible &&
 	    is_planar_yuv_format(new_plane_state->base.fb->format->format))
-		new_crtc_state->nv12_planes |= BIT(plane->id);
+		new_crtc_state->hw.nv12_planes |= BIT(plane->id);
 
 	if (new_plane_state->base.visible &&
 	    new_plane_state->base.fb->format->format == DRM_FORMAT_C8)
-		new_crtc_state->c8_planes |= BIT(plane->id);
+		new_crtc_state->hw.c8_planes |= BIT(plane->id);
 
 	if (new_plane_state->base.visible || old_plane_state->base.visible)
-		new_crtc_state->update_planes |= BIT(plane->id);
+		new_crtc_state->hw.update_planes |= BIT(plane->id);
 
 	return intel_plane_atomic_calc_changes(old_crtc_state,
 					       &new_crtc_state->base,
@@ -198,17 +198,17 @@ skl_next_plane_to_commit(struct intel_atomic_state *state,
 		    !(*update_mask & BIT(plane_id)))
 			continue;
 
-		if (skl_ddb_allocation_overlaps(&crtc_state->wm.skl.plane_ddb_y[plane_id],
+		if (skl_ddb_allocation_overlaps(&crtc_state->hw.wm.skl.plane_ddb_y[plane_id],
 						entries_y,
 						I915_MAX_PLANES, plane_id) ||
-		    skl_ddb_allocation_overlaps(&crtc_state->wm.skl.plane_ddb_uv[plane_id],
+		    skl_ddb_allocation_overlaps(&crtc_state->hw.wm.skl.plane_ddb_uv[plane_id],
 						entries_uv,
 						I915_MAX_PLANES, plane_id))
 			continue;
 
 		*update_mask &= ~BIT(plane_id);
-		entries_y[plane_id] = crtc_state->wm.skl.plane_ddb_y[plane_id];
-		entries_uv[plane_id] = crtc_state->wm.skl.plane_ddb_uv[plane_id];
+		entries_y[plane_id] = crtc_state->hw.wm.skl.plane_ddb_y[plane_id];
+		entries_uv[plane_id] = crtc_state->hw.wm.skl.plane_ddb_uv[plane_id];
 
 		return plane;
 	}
@@ -257,13 +257,13 @@ void skl_update_planes_on_crtc(struct intel_atomic_state *state,
 		intel_atomic_get_new_crtc_state(state, crtc);
 	struct skl_ddb_entry entries_y[I915_MAX_PLANES];
 	struct skl_ddb_entry entries_uv[I915_MAX_PLANES];
-	u32 update_mask = new_crtc_state->update_planes;
+	u32 update_mask = new_crtc_state->hw.update_planes;
 	struct intel_plane *plane;
 
-	memcpy(entries_y, old_crtc_state->wm.skl.plane_ddb_y,
-	       sizeof(old_crtc_state->wm.skl.plane_ddb_y));
-	memcpy(entries_uv, old_crtc_state->wm.skl.plane_ddb_uv,
-	       sizeof(old_crtc_state->wm.skl.plane_ddb_uv));
+	memcpy(entries_y, old_crtc_state->hw.wm.skl.plane_ddb_y,
+	       sizeof(old_crtc_state->hw.wm.skl.plane_ddb_y));
+	memcpy(entries_uv, old_crtc_state->hw.wm.skl.plane_ddb_uv,
+	       sizeof(old_crtc_state->hw.wm.skl.plane_ddb_uv));
 
 	while ((plane = skl_next_plane_to_commit(state, crtc,
 						 entries_y, entries_uv,
@@ -301,7 +301,7 @@ void i9xx_update_planes_on_crtc(struct intel_atomic_state *state,
 {
 	struct intel_crtc_state *new_crtc_state =
 		intel_atomic_get_new_crtc_state(state, crtc);
-	u32 update_mask = new_crtc_state->update_planes;
+	u32 update_mask = new_crtc_state->hw.update_planes;
 	struct intel_plane_state *new_plane_state;
 	struct intel_plane *plane;
 	int i;

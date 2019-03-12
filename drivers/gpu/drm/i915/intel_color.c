@@ -175,12 +175,12 @@ static void ilk_load_csc_matrix(const struct intel_crtc_state *crtc_state)
 	 * do the range compression using the gamma LUT instead.
 	 */
 	if (INTEL_GEN(dev_priv) >= 8 || IS_HASWELL(dev_priv))
-		limited_color_range = crtc_state->limited_color_range;
+		limited_color_range = crtc_state->hw.limited_color_range;
 
-	if (crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR420 ||
-	    crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR444) {
+	if (crtc_state->hw.output_format == INTEL_OUTPUT_FORMAT_YCBCR420 ||
+	    crtc_state->hw.output_format == INTEL_OUTPUT_FORMAT_YCBCR444) {
 		ilk_load_ycbcr_conversion_matrix(crtc);
-		I915_WRITE(PIPE_CSC_MODE(pipe), crtc_state->csc_mode);
+		I915_WRITE(PIPE_CSC_MODE(pipe), crtc_state->hw.csc_mode);
 		/*
 		 * On pre GEN11 output CSC is not there, so with 1 pipe CSC
 		 * RGB to YUV conversion can be done. No need to go further
@@ -275,7 +275,7 @@ static void ilk_load_csc_matrix(const struct intel_crtc_state *crtc_state)
 		I915_WRITE(PIPE_CSC_POSTOFF_ME(pipe), postoff);
 		I915_WRITE(PIPE_CSC_POSTOFF_LO(pipe), postoff);
 
-		I915_WRITE(PIPE_CSC_MODE(pipe), crtc_state->csc_mode);
+		I915_WRITE(PIPE_CSC_MODE(pipe), crtc_state->hw.csc_mode);
 	} else {
 		u32 mode = CSC_MODE_YUV_TO_RGB;
 
@@ -392,7 +392,7 @@ static void i9xx_color_commit(const struct intel_crtc_state *crtc_state)
 
 	val = I915_READ(PIPECONF(pipe));
 	val &= ~PIPECONF_GAMMA_MODE_MASK_I9XX;
-	val |= PIPECONF_GAMMA_MODE(crtc_state->gamma_mode);
+	val |= PIPECONF_GAMMA_MODE(crtc_state->hw.gamma_mode);
 	I915_WRITE(PIPECONF(pipe), val);
 }
 
@@ -405,7 +405,7 @@ static void ilk_color_commit(const struct intel_crtc_state *crtc_state)
 
 	val = I915_READ(PIPECONF(pipe));
 	val &= ~PIPECONF_GAMMA_MODE_MASK_ILK;
-	val |= PIPECONF_GAMMA_MODE(crtc_state->gamma_mode);
+	val |= PIPECONF_GAMMA_MODE(crtc_state->hw.gamma_mode);
 	I915_WRITE(PIPECONF(pipe), val);
 }
 
@@ -414,7 +414,7 @@ static void hsw_color_commit(const struct intel_crtc_state *crtc_state)
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 
-	I915_WRITE(GAMMA_MODE(crtc->pipe), crtc_state->gamma_mode);
+	I915_WRITE(GAMMA_MODE(crtc->pipe), crtc_state->hw.gamma_mode);
 
 	ilk_load_csc_matrix(crtc_state);
 }
@@ -431,13 +431,13 @@ static void skl_color_commit(const struct intel_crtc_state *crtc_state)
 	 * so force it to black, but apply pipe gamma and CSC appropriately
 	 * so that its handling will match how we program our planes.
 	 */
-	if (crtc_state->gamma_enable)
+	if (crtc_state->hw.gamma_enable)
 		val |= SKL_BOTTOM_COLOR_GAMMA_ENABLE;
-	if (crtc_state->csc_enable)
+	if (crtc_state->hw.csc_enable)
 		val |= SKL_BOTTOM_COLOR_CSC_ENABLE;
 	I915_WRITE(SKL_BOTTOM_COLOR(pipe), val);
 
-	I915_WRITE(GAMMA_MODE(crtc->pipe), crtc_state->gamma_mode);
+	I915_WRITE(GAMMA_MODE(crtc->pipe), crtc_state->hw.gamma_mode);
 
 	ilk_load_csc_matrix(crtc_state);
 }
@@ -696,7 +696,7 @@ static bool need_plane_update(struct intel_plane *plane,
 	 * the pipe bottom color are configured via the primary plane.
 	 * We have to reconfigure that even if the plane is inactive.
 	 */
-	return crtc_state->active_planes & BIT(plane->id) ||
+	return crtc_state->hw.active_planes & BIT(plane->id) ||
 		(INTEL_GEN(dev_priv) < 9 &&
 		 plane->id == PLANE_PRIMARY);
 }
@@ -716,8 +716,8 @@ intel_color_add_affected_planes(struct intel_crtc_state *new_crtc_state)
 	    drm_atomic_crtc_needs_modeset(&new_crtc_state->base))
 		return 0;
 
-	if (new_crtc_state->gamma_enable == old_crtc_state->gamma_enable &&
-	    new_crtc_state->csc_enable == old_crtc_state->csc_enable)
+	if (new_crtc_state->hw.gamma_enable == old_crtc_state->hw.gamma_enable &&
+	    new_crtc_state->hw.csc_enable == old_crtc_state->hw.csc_enable)
 		return 0;
 
 	for_each_intel_plane_on_crtc(&dev_priv->drm, crtc, plane) {
@@ -730,7 +730,7 @@ intel_color_add_affected_planes(struct intel_crtc_state *new_crtc_state)
 		if (IS_ERR(plane_state))
 			return PTR_ERR(plane_state);
 
-		new_crtc_state->update_planes |= BIT(plane->id);
+		new_crtc_state->hw.update_planes |= BIT(plane->id);
 	}
 
 	return 0;
@@ -769,19 +769,19 @@ int intel_color_check(struct intel_crtc_state *crtc_state)
 	gamma_tests = INTEL_INFO(dev_priv)->color.gamma_lut_tests;
 
 	/* C8 needs the legacy LUT all to itself */
-	if (crtc_state->c8_planes &&
+	if (crtc_state->hw.c8_planes &&
 	    !crtc_state_is_legacy_gamma(crtc_state))
 		return -EINVAL;
 
-	crtc_state->gamma_enable = (gamma_lut || degamma_lut) &&
-		!crtc_state->c8_planes;
+	crtc_state->hw.gamma_enable = (gamma_lut || degamma_lut) &&
+		!crtc_state->hw.c8_planes;
 
 	if (INTEL_GEN(dev_priv) >= 9 ||
 	    IS_BROADWELL(dev_priv) || IS_HASWELL(dev_priv))
-		limited_color_range = crtc_state->limited_color_range;
+		limited_color_range = crtc_state->hw.limited_color_range;
 
-	crtc_state->csc_enable =
-		crtc_state->output_format != INTEL_OUTPUT_FORMAT_RGB ||
+	crtc_state->hw.csc_enable =
+		crtc_state->hw.output_format != INTEL_OUTPUT_FORMAT_RGB ||
 		crtc_state->base.ctm || limited_color_range;
 
 	ret = intel_color_add_affected_planes(crtc_state);
@@ -789,9 +789,9 @@ int intel_color_check(struct intel_crtc_state *crtc_state)
 		return ret;
 
 	/* Always allow legacy gamma LUT with no further checking. */
-	if (!crtc_state->gamma_enable ||
+	if (!crtc_state->hw.gamma_enable ||
 	    crtc_state_is_legacy_gamma(crtc_state)) {
-		crtc_state->gamma_mode = GAMMA_MODE_MODE_8BIT;
+		crtc_state->hw.gamma_mode = GAMMA_MODE_MODE_8BIT;
 		return 0;
 	}
 
@@ -804,24 +804,24 @@ int intel_color_check(struct intel_crtc_state *crtc_state)
 		return -EINVAL;
 
 	if (INTEL_GEN(dev_priv) >= 11)
-		crtc_state->gamma_mode = GAMMA_MODE_MODE_10BIT |
+		crtc_state->hw.gamma_mode = GAMMA_MODE_MODE_10BIT |
 					 PRE_CSC_GAMMA_ENABLE |
 					 POST_CSC_GAMMA_ENABLE;
 	else if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
-		crtc_state->gamma_mode = GAMMA_MODE_MODE_10BIT;
+		crtc_state->hw.gamma_mode = GAMMA_MODE_MODE_10BIT;
 	else if (INTEL_GEN(dev_priv) >= 9 || IS_BROADWELL(dev_priv))
-		crtc_state->gamma_mode = GAMMA_MODE_MODE_SPLIT;
+		crtc_state->hw.gamma_mode = GAMMA_MODE_MODE_SPLIT;
 	else
-		crtc_state->gamma_mode = GAMMA_MODE_MODE_8BIT;
+		crtc_state->hw.gamma_mode = GAMMA_MODE_MODE_8BIT;
 
-	crtc_state->csc_mode = 0;
+	crtc_state->hw.csc_mode = 0;
 
 	if (INTEL_GEN(dev_priv) >= 11) {
-		if (crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR420 ||
-		    crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR444)
-			crtc_state->csc_mode |= ICL_OUTPUT_CSC_ENABLE;
+		if (crtc_state->hw.output_format == INTEL_OUTPUT_FORMAT_YCBCR420 ||
+		    crtc_state->hw.output_format == INTEL_OUTPUT_FORMAT_YCBCR444)
+			crtc_state->hw.csc_mode |= ICL_OUTPUT_CSC_ENABLE;
 
-		crtc_state->csc_mode |= ICL_CSC_ENABLE;
+		crtc_state->hw.csc_mode |= ICL_CSC_ENABLE;
 	}
 
 	return 0;

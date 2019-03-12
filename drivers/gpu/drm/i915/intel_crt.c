@@ -122,11 +122,11 @@ static unsigned int intel_crt_get_flags(struct intel_encoder *encoder)
 static void intel_crt_get_config(struct intel_encoder *encoder,
 				 struct intel_crtc_state *pipe_config)
 {
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_ANALOG);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_ANALOG);
 
 	pipe_config->base.adjusted_mode.flags |= intel_crt_get_flags(encoder);
 
-	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->port_clock;
+	pipe_config->base.adjusted_mode.crtc_clock = pipe_config->hw.port_clock;
 }
 
 static void hsw_crt_get_config(struct intel_encoder *encoder,
@@ -222,7 +222,7 @@ static void hsw_disable_crt(struct intel_encoder *encoder,
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 
-	WARN_ON(!old_crtc_state->has_pch_encoder);
+	WARN_ON(!old_crtc_state->hw.has_pch_encoder);
 
 	intel_set_pch_fifo_underrun_reporting(dev_priv, PIPE_A, false);
 }
@@ -242,7 +242,7 @@ static void hsw_post_disable_crt(struct intel_encoder *encoder,
 
 	intel_ddi_fdi_post_disable(encoder, old_crtc_state, old_conn_state);
 
-	WARN_ON(!old_crtc_state->has_pch_encoder);
+	WARN_ON(!old_crtc_state->hw.has_pch_encoder);
 
 	intel_set_pch_fifo_underrun_reporting(dev_priv, PIPE_A, true);
 }
@@ -253,7 +253,7 @@ static void hsw_pre_pll_enable_crt(struct intel_encoder *encoder,
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 
-	WARN_ON(!crtc_state->has_pch_encoder);
+	WARN_ON(!crtc_state->hw.has_pch_encoder);
 
 	intel_set_pch_fifo_underrun_reporting(dev_priv, PIPE_A, false);
 }
@@ -266,7 +266,7 @@ static void hsw_pre_enable_crt(struct intel_encoder *encoder,
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
 	enum pipe pipe = crtc->pipe;
 
-	WARN_ON(!crtc_state->has_pch_encoder);
+	WARN_ON(!crtc_state->hw.has_pch_encoder);
 
 	intel_set_cpu_fifo_underrun_reporting(dev_priv, pipe, false);
 
@@ -283,7 +283,7 @@ static void hsw_enable_crt(struct intel_encoder *encoder,
 	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
 	enum pipe pipe = crtc->pipe;
 
-	WARN_ON(!crtc_state->has_pch_encoder);
+	WARN_ON(!crtc_state->hw.has_pch_encoder);
 
 	intel_crt_set_dpms(encoder, crtc_state, DRM_MODE_DPMS_ON);
 
@@ -355,7 +355,7 @@ static int intel_crt_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	return 0;
 }
@@ -370,8 +370,8 @@ static int pch_crt_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
-	pipe_config->has_pch_encoder = true;
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.has_pch_encoder = true;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	return 0;
 }
@@ -392,21 +392,21 @@ static int hsw_crt_compute_config(struct intel_encoder *encoder,
 	    adjusted_mode->crtc_hblank_start > 4096)
 		return -EINVAL;
 
-	pipe_config->has_pch_encoder = true;
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.has_pch_encoder = true;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	/* LPT FDI RX only supports 8bpc. */
 	if (HAS_PCH_LPT(dev_priv)) {
-		if (pipe_config->bw_constrained && pipe_config->pipe_bpp < 24) {
+		if (pipe_config->hw.bw_constrained && pipe_config->hw.pipe_bpp < 24) {
 			DRM_DEBUG_KMS("LPT only supports 24bpp\n");
 			return -EINVAL;
 		}
 
-		pipe_config->pipe_bpp = 24;
+		pipe_config->hw.pipe_bpp = 24;
 	}
 
 	/* FDI must always be 2.7 GHz */
-	pipe_config->port_clock = 135000 * 2;
+	pipe_config->hw.port_clock = 135000 * 2;
 
 	return 0;
 }

@@ -189,9 +189,9 @@ void lspcon_ycbcr420_config(struct drm_connector *connector,
 
 	if (drm_mode_is_420_only(info, adjusted_mode) &&
 	    connector->ycbcr_420_allowed) {
-		crtc_state->port_clock /= 2;
-		crtc_state->output_format = INTEL_OUTPUT_FORMAT_YCBCR444;
-		crtc_state->lspcon_downsampling = true;
+		crtc_state->hw.port_clock /= 2;
+		crtc_state->hw.output_format = INTEL_OUTPUT_FORMAT_YCBCR444;
+		crtc_state->hw.lspcon_downsampling = true;
 	}
 }
 
@@ -488,8 +488,8 @@ void lspcon_set_infoframes(struct intel_encoder *encoder,
 		return;
 	}
 
-	if (crtc_state->output_format == INTEL_OUTPUT_FORMAT_YCBCR444) {
-		if (crtc_state->lspcon_downsampling)
+	if (crtc_state->hw.output_format == INTEL_OUTPUT_FORMAT_YCBCR444) {
+		if (crtc_state->hw.lspcon_downsampling)
 			frame.avi.colorspace = HDMI_COLORSPACE_YUV420;
 		else
 			frame.avi.colorspace = HDMI_COLORSPACE_YUV444;
@@ -500,7 +500,7 @@ void lspcon_set_infoframes(struct intel_encoder *encoder,
 	drm_hdmi_avi_infoframe_quant_range(&frame.avi,
 					   conn_state->connector,
 					   adjusted_mode,
-					   crtc_state->limited_color_range ?
+					   crtc_state->hw.limited_color_range ?
 					   HDMI_QUANTIZATION_RANGE_LIMITED :
 					   HDMI_QUANTIZATION_RANGE_FULL);
 

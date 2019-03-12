@@ -45,7 +45,7 @@ static int intel_dp_mst_compute_config(struct intel_encoder *encoder,
 		drm_atomic_get_old_crtc_state(state, crtc);
 	int bpp;
 	int lane_count, slots =
-		to_intel_crtc_state(old_crtc_state)->dp_m_n.tu;
+		to_intel_crtc_state(old_crtc_state)->hw.dp_m_n.tu;
 	const struct drm_display_mode *adjusted_mode = &pipe_config->base.adjusted_mode;
 	int mst_pbn;
 	bool constant_n = drm_dp_has_quirk(&intel_dp->desc,
@@ -54,8 +54,8 @@ static int intel_dp_mst_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return -EINVAL;
 
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
-	pipe_config->has_pch_encoder = false;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.has_pch_encoder = false;
 	bpp = 24;
 	if (intel_dp->compliance.test_data.bpc) {
 		bpp = intel_dp->compliance.test_data.bpc * 3;
@@ -68,17 +68,17 @@ static int intel_dp_mst_compute_config(struct intel_encoder *encoder,
 	 */
 	lane_count = intel_dp_max_lane_count(intel_dp);
 
-	pipe_config->lane_count = lane_count;
+	pipe_config->hw.lane_count = lane_count;
 
-	pipe_config->pipe_bpp = bpp;
+	pipe_config->hw.pipe_bpp = bpp;
 
-	pipe_config->port_clock = intel_dp_max_link_rate(intel_dp);
+	pipe_config->hw.port_clock = intel_dp_max_link_rate(intel_dp);
 
 	if (drm_dp_mst_port_has_audio(&intel_dp->mst_mgr, port))
-		pipe_config->has_audio = true;
+		pipe_config->hw.has_audio = true;
 
 	mst_pbn = drm_dp_calc_pbn_mode(adjusted_mode->crtc_clock, bpp);
-	pipe_config->pbn = mst_pbn;
+	pipe_config->hw.pbn = mst_pbn;
 
 	slots = drm_dp_atomic_find_vcpi_slots(state, &intel_dp->mst_mgr, port,
 					      mst_pbn);
@@ -90,15 +90,15 @@ static int intel_dp_mst_compute_config(struct intel_encoder *encoder,
 
 	intel_link_compute_m_n(bpp, lane_count,
 			       adjusted_mode->crtc_clock,
-			       pipe_config->port_clock,
-			       &pipe_config->dp_m_n,
+			       pipe_config->hw.port_clock,
+			       &pipe_config->hw.dp_m_n,
 			       constant_n);
 
-	pipe_config->dp_m_n.tu = slots;
+	pipe_config->hw.dp_m_n.tu = slots;
 
 	if (IS_GEN9_LP(dev_priv))
-		pipe_config->lane_lat_optim_mask =
-			bxt_ddi_phy_calc_lane_lat_optim_mask(pipe_config->lane_count);
+		pipe_config->hw.lane_lat_optim_mask =
+			bxt_ddi_phy_calc_lane_lat_optim_mask(pipe_config->hw.lane_count);
 
 	intel_ddi_compute_min_voltage_level(dev_priv, pipe_config);
 
@@ -160,7 +160,7 @@ static void intel_mst_disable_dp(struct intel_encoder *encoder,
 	if (ret) {
 		DRM_ERROR("failed to update payload %d\n", ret);
 	}
-	if (old_crtc_state->has_audio)
+	if (old_crtc_state->hw.has_audio)
 		intel_audio_codec_disable(encoder,
 					  old_crtc_state, old_conn_state);
 }
@@ -263,8 +263,8 @@ static void intel_mst_pre_enable_dp(struct intel_encoder *encoder,
 
 	ret = drm_dp_mst_allocate_vcpi(&intel_dp->mst_mgr,
 				       connector->port,
-				       pipe_config->pbn,
-				       pipe_config->dp_m_n.tu);
+				       pipe_config->hw.pbn,
+				       pipe_config->hw.dp_m_n.tu);
 	if (!ret)
 		DRM_ERROR("failed to allocate vcpi\n");
 
@@ -299,7 +299,7 @@ static void intel_mst_enable_dp(struct intel_encoder *encoder,
 	drm_dp_check_act_status(&intel_dp->mst_mgr);
 
 	drm_dp_update_payload_part2(&intel_dp->mst_mgr);
-	if (pipe_config->has_audio)
+	if (pipe_config->hw.has_audio)
 		intel_audio_codec_enable(encoder, pipe_config, conn_state);
 }
 

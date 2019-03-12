@@ -577,7 +577,7 @@ static void gen11_dsi_map_pll(struct intel_encoder *encoder,
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
-	struct intel_shared_dpll *pll = crtc_state->shared_dpll;
+	struct intel_shared_dpll *pll = crtc_state->hw.shared_dpll;
 	enum port port;
 	u32 val;
 
@@ -1182,10 +1182,11 @@ static void gen11_dsi_get_config(struct intel_encoder *encoder,
 	u32 pll_id;
 
 	/* FIXME: adapt icl_ddi_clock_get() for DSI and use that? */
-	pll_id = intel_get_shared_dpll_id(dev_priv, pipe_config->shared_dpll);
-	pipe_config->port_clock = cnl_calc_wrpll_link(dev_priv, pll_id);
+	pll_id = intel_get_shared_dpll_id(dev_priv,
+					  pipe_config->hw.shared_dpll);
+	pipe_config->hw.port_clock = cnl_calc_wrpll_link(dev_priv, pll_id);
 	pipe_config->base.adjusted_mode.crtc_clock = intel_dsi->pclk;
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_DSI);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_DSI);
 }
 
 static int gen11_dsi_compute_config(struct intel_encoder *encoder,
@@ -1208,12 +1209,12 @@ static int gen11_dsi_compute_config(struct intel_encoder *encoder,
 
 	/* Dual link goes to trancoder DSI'0' */
 	if (intel_dsi->ports == BIT(PORT_B))
-		pipe_config->cpu_transcoder = TRANSCODER_DSI_1;
+		pipe_config->hw.cpu_transcoder = TRANSCODER_DSI_1;
 	else
-		pipe_config->cpu_transcoder = TRANSCODER_DSI_0;
+		pipe_config->hw.cpu_transcoder = TRANSCODER_DSI_0;
 
-	pipe_config->clock_set = true;
-	pipe_config->port_clock = intel_dsi_bitrate(intel_dsi) / 5;
+	pipe_config->hw.clock_set = true;
+	pipe_config->hw.port_clock = intel_dsi_bitrate(intel_dsi) / 5;
 
 	return 0;
 }

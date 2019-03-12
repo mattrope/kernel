@@ -664,7 +664,7 @@ static void intel_fbc_update_state_cache(struct intel_crtc *crtc,
 
 	cache->crtc.mode_flags = crtc_state->base.adjusted_mode.flags;
 	if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
-		cache->crtc.hsw_bdw_pixel_rate = crtc_state->pixel_rate;
+		cache->crtc.hsw_bdw_pixel_rate = crtc_state->hw.pixel_rate;
 
 	cache->plane.rotation = plane_state->base.rotation;
 	/*
@@ -1052,7 +1052,7 @@ void intel_fbc_choose_crtc(struct drm_i915_private *dev_priv,
 
 		crtc_state = intel_atomic_get_new_crtc_state(state, crtc);
 
-		crtc_state->enable_fbc = true;
+		crtc_state->hw.enable_fbc = true;
 		crtc_chosen = true;
 		break;
 	}
@@ -1090,13 +1090,13 @@ void intel_fbc_enable(struct intel_crtc *crtc,
 	if (fbc->enabled) {
 		WARN_ON(fbc->crtc == NULL);
 		if (fbc->crtc == crtc) {
-			WARN_ON(!crtc_state->enable_fbc);
+			WARN_ON(!crtc_state->hw.enable_fbc);
 			WARN_ON(fbc->active);
 		}
 		goto out;
 	}
 
-	if (!crtc_state->enable_fbc)
+	if (!crtc_state->hw.enable_fbc)
 		goto out;
 
 	WARN_ON(fbc->active);

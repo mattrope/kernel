@@ -2160,7 +2160,8 @@ int intel_crtc_compute_min_cdclk(const struct intel_crtc_state *crtc_state)
 	if (!crtc_state->base.enable)
 		return 0;
 
-	min_cdclk = intel_pixel_rate_to_cdclk(dev_priv, crtc_state->pixel_rate);
+	min_cdclk = intel_pixel_rate_to_cdclk(dev_priv,
+					      crtc_state->hw.pixel_rate);
 
 	/* pixel rate mustn't exceed 95% of cdclk with IPS on BDW */
 	if (IS_BROADWELL(dev_priv) && hsw_crtc_state_ips_capable(crtc_state))
@@ -2172,9 +2173,9 @@ int intel_crtc_compute_min_cdclk(const struct intel_crtc_state *crtc_state)
 	 * restriction for GLK is 316.8 MHz.
 	 */
 	if (intel_crtc_has_dp_encoder(crtc_state) &&
-	    crtc_state->has_audio &&
-	    crtc_state->port_clock >= 540000 &&
-	    crtc_state->lane_count == 4) {
+	    crtc_state->hw.has_audio &&
+	    crtc_state->hw.port_clock >= 540000 &&
+	    crtc_state->hw.lane_count == 4) {
 		if (IS_CANNONLAKE(dev_priv) || IS_GEMINILAKE(dev_priv)) {
 			/* Display WA #1145: glk,cnl */
 			min_cdclk = max(316800, min_cdclk);
@@ -2270,7 +2271,7 @@ static u8 cnl_compute_min_voltage_level(struct intel_atomic_state *state)
 	for_each_new_intel_crtc_in_state(state, crtc, crtc_state, i) {
 		if (crtc_state->base.enable)
 			state->min_voltage_level[i] =
-				crtc_state->min_voltage_level;
+				crtc_state->hw.min_voltage_level;
 		else
 			state->min_voltage_level[i] = 0;
 	}
@@ -2368,7 +2369,7 @@ static int skl_dpll0_vco(struct intel_atomic_state *intel_state)
 		 * DPLL0 VCO may need to be adjusted to get the correct
 		 * clock for eDP. This will affect cdclk as well.
 		 */
-		switch (crtc_state->port_clock / 2) {
+		switch (crtc_state->hw.port_clock / 2) {
 		case 108000:
 		case 216000:
 			vco = 8640000;

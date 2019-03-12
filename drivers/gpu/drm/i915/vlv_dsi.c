@@ -270,7 +270,7 @@ static int intel_dsi_compute_config(struct intel_encoder *encoder,
 	int ret;
 
 	DRM_DEBUG_KMS("\n");
-	pipe_config->output_format = INTEL_OUTPUT_FORMAT_RGB;
+	pipe_config->hw.output_format = INTEL_OUTPUT_FORMAT_RGB;
 
 	if (fixed_mode) {
 		intel_fixed_panel_mode(fixed_mode, adjusted_mode);
@@ -290,9 +290,9 @@ static int intel_dsi_compute_config(struct intel_encoder *encoder,
 	adjusted_mode->flags = 0;
 
 	if (intel_dsi->pixel_format == MIPI_DSI_FMT_RGB888)
-		pipe_config->pipe_bpp = 24;
+		pipe_config->hw.pipe_bpp = 24;
 	else
-		pipe_config->pipe_bpp = 18;
+		pipe_config->hw.pipe_bpp = 18;
 
 	if (IS_GEN9_LP(dev_priv)) {
 		/* Enable Frame time stamp based scanline reporting */
@@ -301,9 +301,9 @@ static int intel_dsi_compute_config(struct intel_encoder *encoder,
 
 		/* Dual link goes to DSI transcoder A. */
 		if (intel_dsi->ports == BIT(PORT_C))
-			pipe_config->cpu_transcoder = TRANSCODER_DSI_C;
+			pipe_config->hw.cpu_transcoder = TRANSCODER_DSI_C;
 		else
-			pipe_config->cpu_transcoder = TRANSCODER_DSI_A;
+			pipe_config->hw.cpu_transcoder = TRANSCODER_DSI_A;
 
 		ret = bxt_dsi_pll_compute(encoder, pipe_config);
 		if (ret)
@@ -314,7 +314,7 @@ static int intel_dsi_compute_config(struct intel_encoder *encoder,
 			return -EINVAL;
 	}
 
-	pipe_config->clock_set = true;
+	pipe_config->hw.clock_set = true;
 
 	return 0;
 }
@@ -1203,7 +1203,7 @@ static void intel_dsi_get_config(struct intel_encoder *encoder,
 	u32 pclk;
 	DRM_DEBUG_KMS("\n");
 
-	pipe_config->output_types |= BIT(INTEL_OUTPUT_DSI);
+	pipe_config->hw.output_types |= BIT(INTEL_OUTPUT_DSI);
 
 	if (IS_GEN9_LP(dev_priv)) {
 		bxt_dsi_get_pipe_config(encoder, pipe_config);
@@ -1214,7 +1214,7 @@ static void intel_dsi_get_config(struct intel_encoder *encoder,
 
 	if (pclk) {
 		pipe_config->base.adjusted_mode.crtc_clock = pclk;
-		pipe_config->port_clock = pclk;
+		pipe_config->hw.port_clock = pclk;
 	}
 }
 
