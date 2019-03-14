@@ -87,7 +87,7 @@ int intel_usecs_to_scanlines(const struct drm_display_mode *adjusted_mode,
  */
 void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(new_crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	const struct drm_display_mode *adjusted_mode = &new_crtc_state->base.adjusted_mode;
 	long timeout = msecs_to_jiffies_timeout(1);
@@ -196,7 +196,7 @@ irq_disable:
  */
 void intel_pipe_update_end(struct intel_crtc_state *new_crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(new_crtc_state);
 	enum pipe pipe = crtc->pipe;
 	int scanline_end = intel_get_crtc_scanline(crtc);
 	u32 end_vbl_count = intel_crtc_get_vblank_counter(crtc);
@@ -245,7 +245,7 @@ void intel_pipe_update_end(struct intel_crtc_state *new_crtc_state)
 
 int intel_plane_check_stride(const struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
 	u32 stride, max_stride;
@@ -657,7 +657,7 @@ skl_plane_get_hw_state(struct intel_plane *plane,
 static void
 chv_update_csc(const struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	enum plane_id plane_id = plane->id;
@@ -716,7 +716,7 @@ chv_update_csc(const struct intel_plane_state *plane_state)
 static void
 vlv_update_clrc(const struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	enum pipe pipe = plane->pipe;
@@ -1376,7 +1376,7 @@ static int
 g4x_sprite_check(struct intel_crtc_state *crtc_state,
 		 struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	int min_scale = DRM_PLANE_HELPER_NO_SCALING;
 	int max_scale = DRM_PLANE_HELPER_NO_SCALING;
@@ -1424,7 +1424,7 @@ g4x_sprite_check(struct intel_crtc_state *crtc_state,
 
 int chv_plane_check_rotation(const struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	unsigned int rotation = plane_state->base.rotation;
 
@@ -1476,7 +1476,7 @@ vlv_sprite_check(struct intel_crtc_state *crtc_state,
 static int skl_plane_check_fb(const struct intel_crtc_state *crtc_state,
 			      const struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	unsigned int rotation = plane_state->base.rotation;
@@ -1592,7 +1592,7 @@ static int skl_plane_check_nv12_rotation(const struct intel_plane_state *plane_s
 static int skl_plane_check(struct intel_crtc_state *crtc_state,
 			   struct intel_plane_state *plane_state)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	int min_scale = DRM_PLANE_HELPER_NO_SCALING;
@@ -1656,7 +1656,7 @@ static bool has_dst_key_in_primary_plane(struct drm_i915_private *dev_priv)
 static void intel_plane_set_ckey(struct intel_plane_state *plane_state,
 				 const struct drm_intel_sprite_colorkey *set)
 {
-	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
+	struct intel_plane *plane = intel_plane_state_plane(plane_state);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	struct drm_intel_sprite_colorkey *key = &plane_state->hw.ckey;
 

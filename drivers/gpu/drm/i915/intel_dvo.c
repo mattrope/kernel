@@ -265,7 +265,7 @@ static void intel_dvo_pre_enable(struct intel_encoder *encoder,
 				 const struct drm_connector_state *conn_state)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(pipe_config);
 	const struct drm_display_mode *adjusted_mode = &pipe_config->base.adjusted_mode;
 	struct intel_dvo *intel_dvo = enc_to_dvo(encoder);
 	int pipe = crtc->pipe;

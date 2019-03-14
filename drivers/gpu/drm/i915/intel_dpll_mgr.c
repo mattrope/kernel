@@ -133,7 +133,7 @@ void assert_shared_dpll(struct drm_i915_private *dev_priv,
  */
 void intel_prepare_shared_dpll(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	struct intel_shared_dpll *pll = crtc_state->hw.shared_dpll;
 
@@ -160,7 +160,7 @@ void intel_prepare_shared_dpll(const struct intel_crtc_state *crtc_state)
  */
 void intel_enable_shared_dpll(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	struct intel_shared_dpll *pll = crtc_state->hw.shared_dpll;
 	unsigned int crtc_mask = drm_crtc_mask(&crtc->base);
@@ -205,7 +205,7 @@ out:
  */
 void intel_disable_shared_dpll(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	struct intel_shared_dpll *pll = crtc_state->hw.shared_dpll;
 	unsigned int crtc_mask = drm_crtc_mask(&crtc->base);
@@ -291,7 +291,7 @@ intel_reference_shared_dpll(struct intel_shared_dpll *pll,
 			    struct intel_crtc_state *crtc_state)
 {
 	struct intel_shared_dpll_state *shared_dpll;
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	const enum intel_dpll_id id = pll->info->id;
 
 	shared_dpll = intel_atomic_get_shared_dpll_state(crtc_state->base.state);

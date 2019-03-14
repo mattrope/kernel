@@ -932,7 +932,7 @@ unlock:
 int intel_psr_wait_for_idle(const struct intel_crtc_state *new_crtc_state,
 			    u32 *out_value)
 {
-	struct intel_crtc *crtc = to_intel_crtc(new_crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(new_crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 
 	if (!dev_priv->psr.enabled || !new_crtc_state->hw.has_psr)

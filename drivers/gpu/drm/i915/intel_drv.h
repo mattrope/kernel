@@ -1267,6 +1267,8 @@ struct cxsr_latency {
 #define to_intel_plane(x) container_of(x, struct intel_plane, base)
 #define to_intel_plane_state(x) container_of(x, struct intel_plane_state, base)
 #define intel_fb_obj(x) ((x) ? to_intel_bo((x)->obj[0]) : NULL)
+#define intel_plane_state_plane(x) to_intel_plane((x)->base.plane)
+#define intel_crtc_state_crtc(x) to_intel_crtc((x)->base.crtc)
 
 struct intel_hdmi {
 	i915_reg_t hdmi_reg;

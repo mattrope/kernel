@@ -1414,7 +1414,7 @@ static void intel_tv_pre_enable(struct intel_encoder *encoder,
 				const struct drm_connector_state *conn_state)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_crtc *intel_crtc = to_intel_crtc(pipe_config->base.crtc);
+	struct intel_crtc *intel_crtc = intel_crtc_state_crtc(pipe_config);
 	struct intel_tv *intel_tv = enc_to_tv(encoder);
 	const struct intel_tv_connector_state *tv_conn_state =
 		to_intel_tv_connector_state(conn_state);

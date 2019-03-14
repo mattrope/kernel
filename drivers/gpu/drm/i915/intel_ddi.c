@@ -1695,7 +1695,7 @@ static void intel_ddi_clock_get(struct intel_encoder *encoder,
 
 void intel_ddi_set_pipe_settings(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder = crtc_state->hw.cpu_transcoder;
 	u32 temp;
@@ -1741,7 +1741,7 @@ void intel_ddi_set_pipe_settings(const struct intel_crtc_state *crtc_state)
 void intel_ddi_set_vc_payload_alloc(const struct intel_crtc_state *crtc_state,
 				    bool state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder = crtc_state->hw.cpu_transcoder;
 	u32 temp;
@@ -1756,7 +1756,7 @@ void intel_ddi_set_vc_payload_alloc(const struct intel_crtc_state *crtc_state,
 
 void intel_ddi_enable_transcoder_func(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct intel_encoder *encoder = intel_ddi_get_crtc_encoder(crtc);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum pipe pipe = crtc->pipe;
@@ -1842,7 +1842,7 @@ void intel_ddi_enable_transcoder_func(const struct intel_crtc_state *crtc_state)
 
 void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum transcoder cpu_transcoder = crtc_state->hw.cpu_transcoder;
 	i915_reg_t reg = TRANS_DDI_FUNC_CTL(cpu_transcoder);
@@ -2115,7 +2115,7 @@ static u64 intel_ddi_get_power_domains(struct intel_encoder *encoder,
 
 void intel_ddi_enable_pipe_clock(const struct intel_crtc_state *crtc_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	struct intel_encoder *encoder = intel_ddi_get_crtc_encoder(crtc);
 	enum port port = encoder->port;
@@ -3204,7 +3204,7 @@ static void intel_ddi_pre_enable(struct intel_encoder *encoder,
 				 const struct intel_crtc_state *crtc_state,
 				 const struct drm_connector_state *conn_state)
 {
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct intel_crtc *crtc = intel_crtc_state_crtc(crtc_state);
 	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	enum pipe pipe = crtc->pipe;
 
@@ -3724,7 +3724,7 @@ void intel_ddi_get_config(struct intel_encoder *encoder,
 			  struct intel_crtc_state *pipe_config)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_crtc *intel_crtc = to_intel_crtc(pipe_config->base.crtc);
+	struct intel_crtc *intel_crtc = intel_crtc_state_crtc(pipe_config);
 	enum transcoder cpu_transcoder = pipe_config->hw.cpu_transcoder;
 	struct intel_digital_port *intel_dig_port;
 	u32 temp, flags = 0;
