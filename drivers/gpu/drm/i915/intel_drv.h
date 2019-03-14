@@ -683,9 +683,15 @@ struct intel_plane_state {
 	/**
 	 * @base:
 	 *
-	 * DRM core plane state.
+	 * DRM core plane state provided via UAPI.  This base class structure
+	 * should *only* be used when we're trying to explicitly access the
+	 * UAPI-visible state for this plane.  Any case where we're trying to
+	 * access core state to determine how to program the hardware should
+	 * instead pull this data from the hw.core substructure instead.  In
+	 * other words, the atomic 'commit' should never be using this
+	 * substructure, and atomic 'check' should only be using it sparingly.
 	 */
-	struct drm_plane_state base;
+	struct drm_plane_state base_uapi;
 
 	/**
 	 * @hw:
@@ -1265,9 +1271,10 @@ struct cxsr_latency {
 #define to_intel_encoder(x) container_of(x, struct intel_encoder, base)
 #define to_intel_framebuffer(x) container_of(x, struct intel_framebuffer, base)
 #define to_intel_plane(x) container_of(x, struct intel_plane, base)
-#define to_intel_plane_state(x) container_of(x, struct intel_plane_state, base)
+#define to_intel_plane_state(x) container_of(x, struct intel_plane_state, \
+					     base_uapi)
 #define intel_fb_obj(x) ((x) ? to_intel_bo((x)->obj[0]) : NULL)
-#define intel_plane_state_plane(x) to_intel_plane((x)->base.plane)
+#define intel_plane_state_plane(x) to_intel_plane((x)->base_uapi.plane)
 #define intel_crtc_state_crtc(x) to_intel_crtc((x)->base.crtc)
 
 struct intel_hdmi {

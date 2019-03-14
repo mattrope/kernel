@@ -52,7 +52,7 @@ struct intel_plane *intel_plane_alloc(void)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	__drm_atomic_helper_plane_reset(&plane->base, &plane_state->base);
+	__drm_atomic_helper_plane_reset(&plane->base, &plane_state->base_uapi);
 	plane_state->hw.scaler_id = -1;
 
 	return plane;
@@ -84,7 +84,7 @@ intel_plane_duplicate_state(struct drm_plane *plane)
 	if (!intel_state)
 		return NULL;
 
-	state = &intel_state->base;
+	state = &intel_state->base_uapi;
 
 	__drm_atomic_helper_plane_duplicate_state(plane, state);
 
@@ -122,9 +122,9 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 	new_crtc_state->hw.active_planes &= ~BIT(plane->id);
 	new_crtc_state->hw.nv12_planes &= ~BIT(plane->id);
 	new_crtc_state->hw.c8_planes &= ~BIT(plane->id);
-	new_plane_state->base.visible = false;
+	new_plane_state->hw.core.visible = false;
 
-	if (!new_plane_state->base.crtc && !old_plane_state->base.crtc)
+	if (!new_plane_state->hw.core.crtc && !old_plane_state->hw.core.crtc)
 		return 0;
 
 	ret = plane->check_plane(new_crtc_state, new_plane_state);
@@ -132,18 +132,18 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 		return ret;
 
 	/* FIXME pre-g4x don't work like this */
-	if (new_plane_state->base.visible)
+	if (new_plane_state->hw.core.visible)
 		new_crtc_state->hw.active_planes |= BIT(plane->id);
 
-	if (new_plane_state->base.visible &&
-	    is_planar_yuv_format(new_plane_state->base.fb->format->format))
+	if (new_plane_state->hw.core.visible &&
+	    is_planar_yuv_format(new_plane_state->hw.core.fb->format->format))
 		new_crtc_state->hw.nv12_planes |= BIT(plane->id);
 
-	if (new_plane_state->base.visible &&
-	    new_plane_state->base.fb->format->format == DRM_FORMAT_C8)
+	if (new_plane_state->hw.core.visible &&
+	    new_plane_state->hw.core.fb->format->format == DRM_FORMAT_C8)
 		new_crtc_state->hw.c8_planes |= BIT(plane->id);
 
-	if (new_plane_state->base.visible || old_plane_state->base.visible)
+	if (new_plane_state->hw.core.visible || old_plane_state->hw.core.visible)
 		new_crtc_state->hw.update_planes |= BIT(plane->id);
 
 	return intel_plane_atomic_calc_changes(old_crtc_state,
@@ -271,7 +271,7 @@ void skl_update_planes_on_crtc(struct intel_atomic_state *state,
 		struct intel_plane_state *new_plane_state =
 			intel_atomic_get_new_plane_state(state, plane);
 
-		if (new_plane_state->base.visible) {
+		if (new_plane_state->hw.core.visible) {
 			intel_update_plane(plane, new_crtc_state, new_plane_state);
 		} else if (new_plane_state->hw.slave) {
 			struct intel_plane *master =
@@ -311,7 +311,7 @@ void i9xx_update_planes_on_crtc(struct intel_atomic_state *state,
 		    !(update_mask & BIT(plane->id)))
 			continue;
 
-		if (new_plane_state->base.visible)
+		if (new_plane_state->hw.core.visible)
 			intel_update_plane(plane, new_crtc_state, new_plane_state);
 		else
 			intel_disable_plane(plane, new_crtc_state);
