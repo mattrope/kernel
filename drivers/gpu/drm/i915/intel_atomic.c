@@ -171,26 +171,41 @@ intel_digital_connector_duplicate_state(struct drm_connector *connector)
 struct drm_crtc_state *
 intel_crtc_duplicate_state(struct drm_crtc *crtc)
 {
-	struct intel_crtc_state *crtc_state;
+	struct intel_crtc_full_state *crtc_state;
 
 	crtc_state = kmemdup(crtc->state, sizeof(*crtc_state), GFP_KERNEL);
 	if (!crtc_state)
 		return NULL;
 
-	__drm_atomic_helper_crtc_duplicate_state(crtc, &crtc_state->base);
+	__drm_atomic_helper_crtc_duplicate_state(crtc, &crtc_state->uapi);
 
-	crtc_state->update_pipe = false;
-	crtc_state->disable_lp_wm = false;
-	crtc_state->disable_cxsr = false;
-	crtc_state->update_wm_pre = false;
-	crtc_state->update_wm_post = false;
-	crtc_state->fb_changed = false;
-	crtc_state->fifo_changed = false;
-	crtc_state->wm.need_postvbl_update = false;
-	crtc_state->fb_bits = 0;
-	crtc_state->update_planes = 0;
+	crtc_state->hw.update_pipe = false;
+	crtc_state->hw.disable_lp_wm = false;
+	crtc_state->hw.disable_cxsr = false;
+	crtc_state->hw.update_wm_pre = false;
+	crtc_state->hw.update_wm_post = false;
+	crtc_state->hw.fb_changed = false;
+	crtc_state->hw.fifo_changed = false;
+	crtc_state->hw.wm.need_postvbl_update = false;
+	crtc_state->hw.fb_bits = 0;
+	crtc_state->hw.update_planes = 0;
 
-	return &crtc_state->base;
+	/*
+	 * TODO: We should probably just make
+	 * __drm_atomic_helper_crtc_duplicate_state take two states instead
+	 * of a crtc and a state so that we can make a second call to it
+	 * to handle hw.base.
+	 */
+	if (crtc_state->hw.base.mode_blob)
+		drm_property_blob_get(crtc_state->hw.base.mode_blob);
+	if (crtc_state->hw.base.degamma_lut)
+		drm_property_blob_get(crtc_state->hw.base.degamma_lut);
+	if (crtc_state->hw.base.ctm)
+		drm_property_blob_get(crtc_state->hw.base.ctm);
+	if (crtc_state->hw.base.gamma_lut)
+		drm_property_blob_get(crtc_state->hw.base.gamma_lut);
+
+	return &crtc_state->uapi;
 }
 
 /**
@@ -410,4 +425,29 @@ void intel_atomic_state_clear(struct drm_atomic_state *s)
 	struct intel_atomic_state *state = to_intel_atomic_state(s);
 	drm_atomic_state_default_clear(&state->base);
 	state->dpll_set = state->modeset = false;
+}
+
+/**
+ * intel_crtc_copy_uapi_state - copy uapi state into hw state
+ * @crtc_state: CRTC state
+ *
+ * Copies the userspace-facing state for a CRTC into the hardware state.
+ */
+void intel_crtc_copy_uapi_state(struct intel_crtc_full_state *crtc_state)
+{
+	struct drm_crtc_state *uapi_core = &crtc_state->uapi;
+	struct drm_crtc_state *hw_core = &crtc_state->hw.base;
+
+	/*
+	 * Copy the entire DRM core structure.  There are a few things in
+	 * there that aren't technically uapi state (e.g., adjusted_mode),
+	 * but it's easiest to just treat the whole structure as uapi.
+	 */
+	memcpy(hw_core, uapi_core, sizeof(*hw_core));
+
+	/*
+	 * We don't have any i915-specific uapi state at the moment, but
+	 * if we add some in the future, we'll need to copy that here
+	 * as well.
+	 */
 }

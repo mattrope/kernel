@@ -669,6 +669,30 @@ struct intel_plane_state {
 	struct drm_intel_sprite_colorkey ckey;
 };
 
+struct intel_plane_full_state {
+	/*
+	 * DRM core base state received via the uapi.  This will be copied to
+	 * ->hw.base early in an atomic transaction.  In special cases where
+	 * the hardware state for a plane is *not* based on the uapi state
+	 * (e.g., gen11+ NV12), the ->hw.base will then be overwritten.
+	 *
+	 * Only the high-level parts of our atomic pipeline should ever need
+	 * to use the uapi state.  All other code should work directly from
+	 * the hardware-facing code.
+	 */
+	struct drm_plane_state uapi;
+
+	/* Hardware-facing state for the CRTC. */
+	struct intel_plane_state hw;
+
+	/*
+	 * Any fields that are directly exposed via the uapi (e.g., to store
+	 * property values or directly read/written via i915 ioctl) should
+	 * be placed here *and* in intel_plane_state.  The uapi value should
+	 * be copied into @hw at the same time @uapi is copied to @hw.base.
+	 */
+};
+
 struct intel_initial_plane_config {
 	struct intel_framebuffer *fb;
 	unsigned int tiling;
@@ -1084,6 +1108,30 @@ struct intel_crtc_state {
 	bool fec_enable;
 };
 
+struct intel_crtc_full_state {
+	/*
+	 * DRM core base state received via the uapi.  This will be copied to
+	 * ->hw.base early in an atomic transaction.  In special cases where
+	 * the hardware state for a CRTC is *not* based on the uapi state
+	 * (i.e., gen11+ big joiner), the ->hw.base will then be overwritten.
+	 *
+	 * Only the high-level parts of our atomic pipeline should ever need
+	 * to use the uapi state.  All other code should work directly from
+	 * the hardware-facing code.
+	 */
+	struct drm_crtc_state uapi;
+
+	/* Hardware-facing state for the CRTC. */
+	struct intel_crtc_state hw;
+
+	/*
+	 * Any fields that are directly exposed via the uapi (e.g., to store
+	 * property values or directly read/written via i915 ioctl) should
+	 * be placed here *and* in intel_crtc_state.  The uapi value should
+	 * be copied into @hw at the same time @uapi is copied to @hw.base.
+	 */
+};
+
 struct intel_crtc {
 	struct drm_crtc base;
 	enum pipe pipe;
@@ -1182,12 +1230,16 @@ struct cxsr_latency {
 
 #define to_intel_atomic_state(x) container_of(x, struct intel_atomic_state, base)
 #define to_intel_crtc(x) container_of(x, struct intel_crtc, base)
-#define to_intel_crtc_state(x) container_of(x, struct intel_crtc_state, base)
+#define to_intel_crtc_full_state(x) \
+	container_of(x, struct intel_crtc_full_state, uapi)
+#define to_intel_crtc_state(x) (&to_intel_crtc_full_state(x)->hw)
 #define to_intel_connector(x) container_of(x, struct intel_connector, base)
 #define to_intel_encoder(x) container_of(x, struct intel_encoder, base)
 #define to_intel_framebuffer(x) container_of(x, struct intel_framebuffer, base)
 #define to_intel_plane(x) container_of(x, struct intel_plane, base)
-#define to_intel_plane_state(x) container_of(x, struct intel_plane_state, base)
+#define to_intel_plane_full_state(x) \
+	container_of(x, struct intel_plane_full_state, uapi)
+#define to_intel_plane_state(x) (&to_intel_plane_full_state(x)->hw)
 #define intel_fb_obj(x) ((x) ? to_intel_bo((x)->obj[0]) : NULL)
 
 struct intel_hdmi {
@@ -1815,6 +1867,7 @@ int skl_format_to_fourcc(int format, bool rgb_order, bool alpha);
 unsigned int i9xx_plane_max_stride(struct intel_plane *plane,
 				   u32 pixel_format, u64 modifier,
 				   unsigned int rotation);
+void intel_crtc_copy_uapi_state(struct intel_crtc_full_state *crtc_state);
 
 /* intel_dp_link_training.c */
 void intel_dp_start_link_train(struct intel_dp *intel_dp);

@@ -11320,8 +11320,9 @@ static int intel_crtc_atomic_check(struct drm_crtc *crtc,
 {
 	struct drm_i915_private *dev_priv = to_i915(crtc->dev);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct intel_crtc_state *pipe_config =
-		to_intel_crtc_state(crtc_state);
+	struct intel_crtc_full_state *full_state =
+		to_intel_crtc_full_state(crtc_state);
+	struct intel_crtc_state *pipe_config = &full_state->hw;
 	int ret;
 	bool mode_changed = needs_modeset(crtc_state);
 
@@ -13136,6 +13137,36 @@ static int calc_watermark_data(struct intel_atomic_state *state)
 }
 
 /**
+ * copy_uapi_state - copy uapi state into hardware state
+ * @state: atomic state
+ *
+ * At the beginning of an atomic commit we make the assumption that the state
+ * we program into the hardware for each plane and CRTC will be based on their
+ * uapi-facing state.  Specific features that break this assumption (e.g.,
+ * gen11-style NV12) will take care of copy over uapi state from the object
+ * that we're actually basing the hardware programming on.
+ *
+ * Note that this function only overwrites fields that exist in both the uapi
+ * and hardware state.  All hardware-only fields remain untouched at their
+ * previously-committed state.
+ */
+static void copy_uapi_state(struct drm_atomic_state *state)
+{
+       struct drm_crtc *crtc;
+       struct drm_crtc_state *crtc_state;
+       struct drm_plane *plane;
+       struct drm_plane_state *plane_state;
+       int i;
+
+       for_each_new_crtc_in_state(state, crtc, crtc_state, i)
+               intel_crtc_copy_uapi_state(to_intel_crtc_full_state(crtc_state));
+
+       for_each_new_plane_in_state(state, plane, plane_state, i)
+               intel_plane_copy_uapi_state(to_intel_plane_full_state(plane_state));
+}
+
+
+/**
  * intel_atomic_check - validate state object
  * @dev: drm device
  * @state: state to validate
@@ -13161,6 +13192,8 @@ static int intel_atomic_check(struct drm_device *dev,
 	ret = drm_atomic_helper_check_modeset(dev, state);
 	if (ret)
 		return ret;
+
+	copy_uapi_state(state);
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, crtc_state, i) {
 		struct intel_crtc_state *pipe_config =
@@ -14586,7 +14619,7 @@ static void intel_crtc_init_scalers(struct intel_crtc *crtc,
 static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 {
 	struct intel_crtc *intel_crtc;
-	struct intel_crtc_state *crtc_state = NULL;
+	struct intel_crtc_full_state *crtc_state = NULL;
 	struct intel_plane *primary = NULL;
 	struct intel_plane *cursor = NULL;
 	int sprite, ret;
@@ -14600,9 +14633,10 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 		ret = -ENOMEM;
 		goto fail;
 	}
-	intel_crtc->config = crtc_state;
-	intel_crtc->base.state = &crtc_state->base;
-	crtc_state->base.crtc = &intel_crtc->base;
+	intel_crtc->config = &crtc_state->hw;
+	intel_crtc->base.state = &crtc_state->uapi;
+	crtc_state->uapi.crtc = &intel_crtc->base;
+	intel_crtc_copy_uapi_state(crtc_state);
 
 	primary = intel_primary_plane_create(dev_priv, pipe);
 	if (IS_ERR(primary)) {
@@ -14639,7 +14673,7 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 	intel_crtc->pipe = pipe;
 
 	/* initialize shared scalers */
-	intel_crtc_init_scalers(intel_crtc, crtc_state);
+	intel_crtc_init_scalers(intel_crtc, &crtc_state->hw);
 
 	BUG_ON(pipe >= ARRAY_SIZE(dev_priv->pipe_to_crtc_mapping) ||
 	       dev_priv->pipe_to_crtc_mapping[pipe] != NULL);

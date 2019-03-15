@@ -42,7 +42,7 @@
 
 struct intel_plane *intel_plane_alloc(void)
 {
-	struct intel_plane_state *plane_state;
+	struct intel_plane_full_state *plane_state;
 	struct intel_plane *plane;
 
 	plane = kzalloc(sizeof(*plane), GFP_KERNEL);
@@ -55,8 +55,9 @@ struct intel_plane *intel_plane_alloc(void)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	__drm_atomic_helper_plane_reset(&plane->base, &plane_state->base);
-	plane_state->scaler_id = -1;
+	__drm_atomic_helper_plane_reset(&plane->base, &plane_state->uapi);
+	intel_plane_copy_uapi_state(plane_state);
+	plane_state->hw.scaler_id = -1;
 
 	return plane;
 }
@@ -80,19 +81,27 @@ struct drm_plane_state *
 intel_plane_duplicate_state(struct drm_plane *plane)
 {
 	struct drm_plane_state *state;
-	struct intel_plane_state *intel_state;
+	struct intel_plane_full_state *intel_state;
 
 	intel_state = kmemdup(plane->state, sizeof(*intel_state), GFP_KERNEL);
 
 	if (!intel_state)
 		return NULL;
 
-	state = &intel_state->base;
+	state = &intel_state->uapi;
 
 	__drm_atomic_helper_plane_duplicate_state(plane, state);
 
-	intel_state->vma = NULL;
-	intel_state->flags = 0;
+	intel_state->hw.vma = NULL;
+	intel_state->hw.flags = 0;
+
+	/*
+	 * TODO: If we make __drm_atomic_helper_plane_duplicate_state take two
+	 * states instead of a plane and a state, we can just make a second
+	 * call to that here to handle hw.base.
+	 */
+	if (intel_state->hw.base.fb)
+		drm_framebuffer_get(intel_state->hw.base.fb);
 
 	return state;
 }
@@ -109,7 +118,16 @@ void
 intel_plane_destroy_state(struct drm_plane *plane,
 			  struct drm_plane_state *state)
 {
-	WARN_ON(to_intel_plane_state(state)->vma);
+	struct intel_plane_state *hw_state = to_intel_plane_state(state);
+
+	WARN_ON(hw_state->vma);
+
+	/*
+	 * We have an extra copy of the uapi fb in our hardware state.  Drop
+	 * that reference too.
+	 */
+	if (hw_state->base.fb)
+		drm_framebuffer_put(hw_state->base.fb);
 
 	drm_atomic_helper_plane_destroy_state(plane, state);
 }
@@ -164,18 +182,27 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	struct drm_crtc *crtc = new_plane_state->crtc ?: old_plane_state->crtc;
 	const struct drm_crtc_state *old_crtc_state;
 	struct drm_crtc_state *new_crtc_state;
+	struct intel_plane_full_state *old_intel_plane_state;
+	struct intel_plane_full_state *new_intel_plane_state;
+	struct intel_crtc_full_state *old_intel_crtc_state;
+	struct intel_crtc_full_state *new_intel_crtc_state;
 
-	new_plane_state->visible = false;
+	old_intel_plane_state = to_intel_plane_full_state(old_plane_state);
+	new_intel_plane_state = to_intel_plane_full_state(new_plane_state);
+
+	new_intel_plane_state->hw.base.visible = false;
 	if (!crtc)
 		return 0;
 
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
 	new_crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+	old_intel_crtc_state = to_intel_crtc_full_state(old_crtc_state);
+	new_intel_crtc_state = to_intel_crtc_full_state(new_crtc_state);
 
-	return intel_plane_atomic_check_with_state(to_intel_crtc_state(old_crtc_state),
-						   to_intel_crtc_state(new_crtc_state),
-						   to_intel_plane_state(old_plane_state),
-						   to_intel_plane_state(new_plane_state));
+	return intel_plane_atomic_check_with_state(&old_intel_crtc_state->hw,
+						   &new_intel_crtc_state->hw,
+						   &old_intel_plane_state->hw,
+						   &new_intel_plane_state->hw);
 }
 
 static struct intel_plane *
@@ -370,4 +397,27 @@ intel_plane_atomic_set_property(struct drm_plane *plane,
 	DRM_DEBUG_KMS("Unknown property [PROP:%d:%s]\n",
 		      property->base.id, property->name);
 	return -EINVAL;
+}
+
+/**
+ * intel_plane_copy_uapi_state - copy uapi state into hw state
+ * @plane_state: plane state
+ *
+ * Copies the userspace-facing state for a plane into the hardware state.
+ */
+void intel_plane_copy_uapi_state(struct intel_plane_full_state *plane_state)
+{
+	struct drm_plane_state *core_uapi = &plane_state->uapi;
+	struct drm_plane_state *core_hw = &plane_state->hw.base;
+
+	/*
+	 * Copy the entire DRM core structure.  There are a few fields that
+	 * aren't technically uapi (e.g., src/dst), but it's easiest to just
+	 * treat the whole structure as uapi-relevant.
+	 */
+	if (core_hw->fb)
+		drm_framebuffer_put(core_hw->fb);
+	memcpy(core_hw, core_uapi, sizeof(*core_hw));
+	if (core_hw->fb)
+		drm_framebuffer_get(core_hw->fb);
 }
