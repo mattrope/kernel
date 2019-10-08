@@ -125,35 +125,35 @@ enum intel_dpll_id {
 	/**
 	 * @DPLL_ID_ICL_TBTPLL: ICL/TGL TBT PLL
 	 */
-	DPLL_ID_ICL_TBTPLL = 2,
+	DPLL_ID_ICL_TBTPLL = 3,
 	/**
 	 * @DPLL_ID_ICL_MGPLL1: ICL MG PLL 1 port 1 (C),
 	 *                      TGL TC PLL 1 port 1 (TC1)
 	 */
-	DPLL_ID_ICL_MGPLL1 = 3,
+	DPLL_ID_ICL_MGPLL1,
 	/**
 	 * @DPLL_ID_ICL_MGPLL2: ICL MG PLL 1 port 2 (D)
 	 *                      TGL TC PLL 1 port 2 (TC2)
 	 */
-	DPLL_ID_ICL_MGPLL2 = 4,
+	DPLL_ID_ICL_MGPLL2,
 	/**
 	 * @DPLL_ID_ICL_MGPLL3: ICL MG PLL 1 port 3 (E)
 	 *                      TGL TC PLL 1 port 3 (TC3)
 	 */
-	DPLL_ID_ICL_MGPLL3 = 5,
+	DPLL_ID_ICL_MGPLL3,
 	/**
 	 * @DPLL_ID_ICL_MGPLL4: ICL MG PLL 1 port 4 (F)
 	 *                      TGL TC PLL 1 port 4 (TC4)
 	 */
-	DPLL_ID_ICL_MGPLL4 = 6,
+	DPLL_ID_ICL_MGPLL4,
 	/**
 	 * @DPLL_ID_TGL_MGPLL5: TGL TC PLL port 5 (TC5)
 	 */
-	DPLL_ID_TGL_MGPLL5 = 7,
+	DPLL_ID_TGL_MGPLL5,
 	/**
 	 * @DPLL_ID_TGL_MGPLL6: TGL TC PLL port 6 (TC6)
 	 */
-	DPLL_ID_TGL_MGPLL6 = 8,
+	DPLL_ID_TGL_MGPLL6,
 };
 
 #define I915_NUM_PLLS 9
