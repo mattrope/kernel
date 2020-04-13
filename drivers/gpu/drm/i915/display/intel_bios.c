@@ -1649,7 +1649,7 @@ static u8 map_ddc_pin(struct drm_i915_private *dev_priv, u8 vbt_pin)
 	const u8 *ddc_pin_map;
 	int n_entries;
 
-	if (HAS_PCH_ADP(dev_priv)) {
+	if (IS_ALDERLAKE_S(dev_priv)) {
 		ddc_pin_map = adls_ddc_pin_map;
 		n_entries = ARRAY_SIZE(adls_ddc_pin_map);
 	} else if (INTEL_PCH_TYPE(dev_priv) >= PCH_DG1) {
