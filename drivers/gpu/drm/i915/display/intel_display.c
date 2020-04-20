@@ -10904,18 +10904,12 @@ static bool hsw_get_transcoder_state(struct intel_crtc *crtc,
 	struct drm_device *dev = crtc->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	enum intel_display_power_domain power_domain;
-	unsigned long panel_transcoder_mask = 0;
+	unsigned long panel_transcoder_mask = BIT(TRANSCODER_EDP) |
+		BIT(TRANSCODER_DSI_0) | BIT(TRANSCODER_DSI_1);
 	unsigned long enabled_panel_transcoders = 0;
 	enum transcoder panel_transcoder;
 	intel_wakeref_t wf;
 	u32 tmp;
-
-	if (INTEL_GEN(dev_priv) >= 11)
-		panel_transcoder_mask |=
-			BIT(TRANSCODER_DSI_0) | BIT(TRANSCODER_DSI_1);
-
-	if (HAS_TRANSCODER(dev_priv, TRANSCODER_EDP))
-		panel_transcoder_mask |= BIT(TRANSCODER_EDP);
 
 	/*
 	 * The pipe->transcoder mapping is fixed with the exception of the eDP
@@ -10927,6 +10921,7 @@ static bool hsw_get_transcoder_state(struct intel_crtc *crtc,
 	 * XXX: Do intel_display_power_get_if_enabled before reading this (for
 	 * consistency and less surprising code; it's in always on power).
 	 */
+	panel_transcoder_mask &= INTEL_INFO(dev_priv)->cpu_transcoder_mask;
 	for_each_set_bit(panel_transcoder,
 			 &panel_transcoder_mask,
 			 ARRAY_SIZE(INTEL_INFO(dev_priv)->trans_offsets)) {
