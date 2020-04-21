@@ -5254,7 +5254,7 @@ static void tgl_bw_buddy_init(struct drm_i915_private *dev_priv)
 	enum intel_dram_type type = dev_priv->dram_info.type;
 	u8 num_channels = dev_priv->dram_info.num_channels;
 	const struct buddy_page_mask *table;
-	int i;
+	int config, min_buddy, max_buddy, i;
 
 	if (IS_TGL_REVID(dev_priv, TGL_REVID_A0, TGL_REVID_B0))
 		/* Wa_1409767108: tgl */
@@ -5262,29 +5262,35 @@ static void tgl_bw_buddy_init(struct drm_i915_private *dev_priv)
 	else
 		table = tgl_buddy_page_masks;
 
-	for (i = 0; table[i].page_mask != 0; i++)
-		if (table[i].num_channels == num_channels &&
-		    table[i].type == type)
+	if (IS_ROCKETLAKE(dev_priv)) {
+		min_buddy = max_buddy = 0;
+	} else {
+		min_buddy = 1;
+		max_buddy = 2;
+	}
+
+	for (config = 0; table[config].page_mask != 0; config++)
+		if (table[config].num_channels == num_channels &&
+		    table[config].type == type)
 			break;
 
-	if (table[i].page_mask == 0) {
+	if (table[config].page_mask == 0) {
 		drm_dbg(&dev_priv->drm,
 			"Unknown memory configuration; disabling address buddy logic.\n");
-		intel_de_write(dev_priv, BW_BUDDY1_CTL, BW_BUDDY_DISABLE);
-		intel_de_write(dev_priv, BW_BUDDY2_CTL, BW_BUDDY_DISABLE);
+		for (i = min_buddy; i <= max_buddy; i++)
+			intel_de_write(dev_priv, BW_BUDDY_CTL(i),
+				       BW_BUDDY_DISABLE);
 	} else {
-		intel_de_write(dev_priv, BW_BUDDY1_PAGE_MASK,
-			       table[i].page_mask);
-		intel_de_write(dev_priv, BW_BUDDY2_PAGE_MASK,
-			       table[i].page_mask);
+		for (i = min_buddy; i <= max_buddy; i++) {
+			intel_de_write(dev_priv, BW_BUDDY_PAGE_MASK(i),
+				       table[config].page_mask);
 
-		/* Wa_22010178259:tgl */
-		intel_de_rmw(dev_priv, BW_BUDDY1_CTL,
-			     BW_BUDDY_TLB_REQ_TIMER_MASK,
-			     REG_FIELD_PREP(BW_BUDDY_TLB_REQ_TIMER_MASK, 0x8));
-		intel_de_rmw(dev_priv, BW_BUDDY2_CTL,
-			     BW_BUDDY_TLB_REQ_TIMER_MASK,
-			     REG_FIELD_PREP(BW_BUDDY_TLB_REQ_TIMER_MASK, 0x8));
+			/* Wa_22010178259:tgl,rkl */
+			intel_de_rmw(dev_priv, BW_BUDDY_CTL(i),
+				     BW_BUDDY_TLB_REQ_TIMER_MASK,
+				     REG_FIELD_PREP(BW_BUDDY_TLB_REQ_TIMER_MASK,
+						    0x8));
+		}
 	}
 }
 
