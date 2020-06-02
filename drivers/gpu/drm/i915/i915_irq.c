@@ -167,6 +167,17 @@ static const u32 hpd_tgp[HPD_NUM_PINS] = {
 	[HPD_PORT_I] = SDE_TC_HOTPLUG_ICP(PORT_TC6),
 };
 
+/*
+ * TGP when paired with RKL has different pin mappings than when paired
+ * with TGL.
+ */
+static const u32 hpd_rkl_tgp[HPD_NUM_PINS] = {
+	[HPD_PORT_A] = SDE_DDI_HOTPLUG_ICP(PORT_A),
+	[HPD_PORT_B] = SDE_DDI_HOTPLUG_ICP(PORT_B),
+	[HPD_PORT_C] = SDE_TC_HOTPLUG_ICP(PORT_TC1),
+	[HPD_PORT_D] = SDE_TC_HOTPLUG_ICP(PORT_TC2),
+};
+
 static void intel_hpd_init_pins(struct drm_i915_private *dev_priv)
 {
 	struct i915_hotplug *hpd = &dev_priv->hotplug;
@@ -196,7 +207,9 @@ static void intel_hpd_init_pins(struct drm_i915_private *dev_priv)
 	if (!HAS_PCH_SPLIT(dev_priv) || HAS_PCH_NOP(dev_priv))
 		return;
 
-	if (HAS_PCH_TGP(dev_priv) || HAS_PCH_JSP(dev_priv))
+	if (HAS_PCH_TGP(dev_priv) && IS_ROCKETLAKE(dev_priv))
+		hpd->pch_hpd = hpd_rkl_tgp;
+	else if (HAS_PCH_TGP(dev_priv) || HAS_PCH_JSP(dev_priv))
 		hpd->pch_hpd = hpd_tgp;
 	else if (HAS_PCH_ICP(dev_priv) || HAS_PCH_MCC(dev_priv))
 		hpd->pch_hpd = hpd_icp;
