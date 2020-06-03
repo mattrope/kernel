@@ -639,11 +639,11 @@ struct tgl_dkl_phy_ddi_buf_trans {
 static const struct tgl_dkl_phy_ddi_buf_trans tgl_dkl_phy_dp_ddi_trans[] = {
 				/* VS	pre-emp	Non-trans mV	Pre-emph dB */
 	{ 0x7, 0x0, 0x00 },	/* 0	0	400mV		0 dB */
-	{ 0x5, 0x0, 0x03 },	/* 0	1	400mV		3.5 dB */
-	{ 0x2, 0x0, 0x0b },	/* 0	2	400mV		6 dB */
+	{ 0x5, 0x0, 0x05 },	/* 0	1	400mV		3.5 dB */
+	{ 0x2, 0x0, 0x0B },	/* 0	2	400mV		6 dB */
 	{ 0x0, 0x0, 0x19 },	/* 0	3	400mV		9.5 dB */
 	{ 0x5, 0x0, 0x00 },	/* 1	0	600mV		0 dB */
-	{ 0x2, 0x0, 0x03 },	/* 1	1	600mV		3.5 dB */
+	{ 0x2, 0x0, 0x08 },	/* 1	1	600mV		3.5 dB */
 	{ 0x0, 0x0, 0x14 },	/* 1	2	600mV		6 dB */
 	{ 0x2, 0x0, 0x00 },	/* 2	0	800mV		0 dB */
 	{ 0x0, 0x0, 0x0B },	/* 2	1	800mV		3.5 dB */
@@ -722,10 +722,14 @@ skl_get_buf_trans_dp(struct drm_i915_private *dev_priv, int *n_entries)
 static const struct ddi_buf_trans *
 kbl_get_buf_trans_dp(struct drm_i915_private *dev_priv, int *n_entries)
 {
-	if (IS_KBL_ULX(dev_priv) || IS_CFL_ULX(dev_priv)) {
+	if (IS_KBL_ULX(dev_priv) ||
+	    IS_CFL_ULX(dev_priv) ||
+	    IS_CML_ULX(dev_priv)) {
 		*n_entries = ARRAY_SIZE(kbl_y_ddi_translations_dp);
 		return kbl_y_ddi_translations_dp;
-	} else if (IS_KBL_ULT(dev_priv) || IS_CFL_ULT(dev_priv)) {
+	} else if (IS_KBL_ULT(dev_priv) ||
+		   IS_CFL_ULT(dev_priv) ||
+		   IS_CML_ULT(dev_priv)) {
 		*n_entries = ARRAY_SIZE(kbl_u_ddi_translations_dp);
 		return kbl_u_ddi_translations_dp;
 	} else {
@@ -738,12 +742,16 @@ static const struct ddi_buf_trans *
 skl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 {
 	if (dev_priv->vbt.edp.low_vswing) {
-		if (IS_SKL_ULX(dev_priv) || IS_KBL_ULX(dev_priv) ||
-		    IS_CFL_ULX(dev_priv)) {
+		if (IS_SKL_ULX(dev_priv) ||
+		    IS_KBL_ULX(dev_priv) ||
+		    IS_CFL_ULX(dev_priv) ||
+		    IS_CML_ULX(dev_priv)) {
 			*n_entries = ARRAY_SIZE(skl_y_ddi_translations_edp);
 			return skl_y_ddi_translations_edp;
-		} else if (IS_SKL_ULT(dev_priv) || IS_KBL_ULT(dev_priv) ||
-			   IS_CFL_ULT(dev_priv)) {
+		} else if (IS_SKL_ULT(dev_priv) ||
+			   IS_KBL_ULT(dev_priv) ||
+			   IS_CFL_ULT(dev_priv) ||
+			   IS_CML_ULT(dev_priv)) {
 			*n_entries = ARRAY_SIZE(skl_u_ddi_translations_edp);
 			return skl_u_ddi_translations_edp;
 		} else {
@@ -752,7 +760,9 @@ skl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 		}
 	}
 
-	if (IS_KABYLAKE(dev_priv) || IS_COFFEELAKE(dev_priv))
+	if (IS_KABYLAKE(dev_priv) ||
+	    IS_COFFEELAKE(dev_priv) ||
+	    IS_COMETLAKE(dev_priv))
 		return kbl_get_buf_trans_dp(dev_priv, n_entries);
 	else
 		return skl_get_buf_trans_dp(dev_priv, n_entries);
@@ -761,8 +771,10 @@ skl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 static const struct ddi_buf_trans *
 skl_get_buf_trans_hdmi(struct drm_i915_private *dev_priv, int *n_entries)
 {
-	if (IS_SKL_ULX(dev_priv) || IS_KBL_ULX(dev_priv) ||
-	    IS_CFL_ULX(dev_priv)) {
+	if (IS_SKL_ULX(dev_priv) ||
+	    IS_KBL_ULX(dev_priv) ||
+	    IS_CFL_ULX(dev_priv) ||
+	    IS_CML_ULX(dev_priv)) {
 		*n_entries = ARRAY_SIZE(skl_y_ddi_translations_hdmi);
 		return skl_y_ddi_translations_hdmi;
 	} else {
@@ -784,7 +796,9 @@ static const struct ddi_buf_trans *
 intel_ddi_get_buf_trans_dp(struct drm_i915_private *dev_priv,
 			   enum port port, int *n_entries)
 {
-	if (IS_KABYLAKE(dev_priv) || IS_COFFEELAKE(dev_priv)) {
+	if (IS_KABYLAKE(dev_priv) ||
+	    IS_COFFEELAKE(dev_priv) ||
+	    IS_COMETLAKE(dev_priv)) {
 		const struct ddi_buf_trans *ddi_translations =
 			kbl_get_buf_trans_dp(dev_priv, n_entries);
 		*n_entries = skl_buf_trans_num_entries(port, *n_entries);
@@ -2095,10 +2109,10 @@ static void bxt_ddi_vswing_sequence(struct intel_encoder *encoder,
 				     ddi_translations[level].deemphasis);
 }
 
-u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder)
+static u8 intel_ddi_dp_voltage_max(struct intel_dp *intel_dp)
 {
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 	enum port port = encoder->port;
 	enum phy phy = intel_port_to_phy(dev_priv, port);
 	int n_entries;
@@ -2151,19 +2165,9 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder)
  * used on all DDI platforms. Should that change we need to
  * rethink this code.
  */
-u8 intel_ddi_dp_pre_emphasis_max(struct intel_encoder *encoder, u8 voltage_swing)
+static u8 intel_ddi_dp_preemph_max(struct intel_dp *intel_dp)
 {
-	switch (voltage_swing & DP_TRAIN_VOLTAGE_SWING_MASK) {
-	case DP_TRAIN_VOLTAGE_SWING_LEVEL_0:
-		return DP_TRAIN_PRE_EMPH_LEVEL_3;
-	case DP_TRAIN_VOLTAGE_SWING_LEVEL_1:
-		return DP_TRAIN_PRE_EMPH_LEVEL_2;
-	case DP_TRAIN_VOLTAGE_SWING_LEVEL_2:
-		return DP_TRAIN_PRE_EMPH_LEVEL_1;
-	case DP_TRAIN_VOLTAGE_SWING_LEVEL_3:
-	default:
-		return DP_TRAIN_PRE_EMPH_LEVEL_0;
-	}
+	return DP_TRAIN_PRE_EMPH_LEVEL_3;
 }
 
 static void cnl_ddi_vswing_program(struct intel_encoder *encoder,
@@ -4520,6 +4524,9 @@ intel_ddi_init_dp_connector(struct intel_digital_port *intel_dig_port)
 		intel_dig_port->dp.set_signal_levels = bxt_set_signal_levels;
 	else
 		intel_dig_port->dp.set_signal_levels = hsw_set_signal_levels;
+
+	intel_dig_port->dp.voltage_max = intel_ddi_dp_voltage_max;
+	intel_dig_port->dp.preemph_max = intel_ddi_dp_preemph_max;
 
 	if (INTEL_GEN(dev_priv) < 12) {
 		intel_dig_port->dp.regs.dp_tp_ctl = DP_TP_CTL(port);

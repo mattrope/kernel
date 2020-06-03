@@ -766,6 +766,20 @@ static const struct intel_device_info cfl_gt3_info = {
 		BIT(RCS0) | BIT(VCS0) | BIT(BCS0) | BIT(VECS0) | BIT(VCS1),
 };
 
+#define CML_PLATFORM \
+	GEN9_FEATURES, \
+	PLATFORM(INTEL_COMETLAKE)
+
+static const struct intel_device_info cml_gt1_info = {
+	CML_PLATFORM,
+	.gt = 1,
+};
+
+static const struct intel_device_info cml_gt2_info = {
+	CML_PLATFORM,
+	.gt = 2,
+};
+
 #define GEN10_FEATURES \
 	GEN9_FEATURES, \
 	GEN(10), \
@@ -863,6 +877,15 @@ static const struct intel_device_info tgl_info = {
 		BIT(RCS0) | BIT(BCS0) | BIT(VECS0) | BIT(VCS0) | BIT(VCS2),
 };
 
+static const struct intel_device_info rkl_info = {
+	GEN12_FEATURES,
+	PLATFORM(INTEL_ROCKETLAKE),
+	.pipe_mask = BIT(PIPE_A) | BIT(PIPE_B) | BIT(PIPE_C),
+	.require_force_probe = 1,
+	.engine_mask =
+		BIT(RCS0) | BIT(BCS0) | BIT(VECS0) | BIT(VCS0),
+};
+
 #define GEN12_DGFX_FEATURES \
 	GEN12_FEATURES, \
 	.is_dgfx = 1
@@ -933,14 +956,15 @@ static const struct pci_device_id pciidlist[] = {
 	INTEL_WHL_U_GT2_IDS(&cfl_gt2_info),
 	INTEL_AML_CFL_GT2_IDS(&cfl_gt2_info),
 	INTEL_WHL_U_GT3_IDS(&cfl_gt3_info),
-	INTEL_CML_GT1_IDS(&cfl_gt1_info),
-	INTEL_CML_GT2_IDS(&cfl_gt2_info),
-	INTEL_CML_U_GT1_IDS(&cfl_gt1_info),
-	INTEL_CML_U_GT2_IDS(&cfl_gt2_info),
+	INTEL_CML_GT1_IDS(&cml_gt1_info),
+	INTEL_CML_GT2_IDS(&cml_gt2_info),
+	INTEL_CML_U_GT1_IDS(&cml_gt1_info),
+	INTEL_CML_U_GT2_IDS(&cml_gt2_info),
 	INTEL_CNL_IDS(&cnl_info),
 	INTEL_ICL_11_IDS(&icl_info),
 	INTEL_EHL_IDS(&ehl_info),
 	INTEL_TGL_12_IDS(&tgl_info),
+	INTEL_RKL_IDS(&rkl_info),
 	{0, 0, 0}
 };
 MODULE_DEVICE_TABLE(pci, pciidlist);

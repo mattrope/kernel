@@ -73,6 +73,7 @@ enum intel_platform {
 	INTEL_KABYLAKE,
 	INTEL_GEMINILAKE,
 	INTEL_COFFEELAKE,
+	INTEL_COMETLAKE,
 	/* gen10 */
 	INTEL_CANNONLAKE,
 	/* gen11 */
@@ -80,6 +81,7 @@ enum intel_platform {
 	INTEL_ELKHARTLAKE,
 	/* gen12 */
 	INTEL_TIGERLAKE,
+	INTEL_ROCKETLAKE,
 	INTEL_MAX_PLATFORMS
 };
 

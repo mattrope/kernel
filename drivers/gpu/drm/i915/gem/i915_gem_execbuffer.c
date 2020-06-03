@@ -1626,8 +1626,7 @@ eb_relocate_entry(struct i915_execbuffer *eb,
 			err = i915_vma_bind(target->vma,
 					    target->vma->obj->cache_level,
 					    PIN_GLOBAL, NULL);
-			if (WARN_ONCE(err,
-				      "Unexpected failure to bind target VMA!"))
+			if (err)
 				return err;
 		}
 	}
@@ -1911,8 +1910,8 @@ static int i915_reset_gen7_sol_offsets(struct i915_request *rq)
 	u32 *cs;
 	int i;
 
-	if (!IS_GEN(rq->i915, 7) || rq->engine->id != RCS0) {
-		drm_dbg(&rq->i915->drm, "sol reset is gen7/rcs only\n");
+	if (!IS_GEN(rq->engine->i915, 7) || rq->engine->id != RCS0) {
+		drm_dbg(&rq->engine->i915->drm, "sol reset is gen7/rcs only\n");
 		return -EINVAL;
 	}
 
