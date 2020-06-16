@@ -338,6 +338,27 @@ void intel_combo_phy_power_up_lanes(struct drm_i915_private *dev_priv,
 	intel_de_write(dev_priv, ICL_PORT_CL_DW10(phy), val);
 }
 
+static void rkl_combo_phy_b_init_wa(struct drm_i915_private *i915)
+{
+	u32 grccode, grccode_ldo;
+	u32 iref_rcal_ord, rcompcode_ld_cap_ov;
+
+	intel_de_wait_for_register(i915, ICL_PORT_COMP_DW3(PHY_A),
+				   FIRST_COMP_DONE, FIRST_COMP_DONE, 100);
+
+	grccode = REG_FIELD_GET(GRCCODE,
+				intel_de_read(i915, ICL_PORT_COMP_DW6(PHY_A)));
+	iref_rcal_ord = REG_FIELD_PREP(IREF_RCAL_ORD, grccode);
+	intel_de_rmw(i915, ICL_PORT_COMP_DW2(PHY_B), IREF_RCAL_ORD,
+		     iref_rcal_ord | IREF_RCAL_ORD_EN);
+
+	grccode_ldo = REG_FIELD_GET(GRCCODE_LDO,
+				    intel_de_read(i915, ICL_PORT_COMP_DW0(PHY_A)));
+	rcompcode_ld_cap_ov = REG_FIELD_PREP(RCOMPCODE_LD_CAP_OV, grccode_ldo);
+	intel_de_rmw(i915, ICL_PORT_COMP_DW6(PHY_B), RCOMPCODE_LD_CAP_OV,
+		     rcompcode_ld_cap_ov | RCOMPCODEOVEN_LDO_SYNC);
+}
+
 static void icl_combo_phys_init(struct drm_i915_private *dev_priv)
 {
 	enum phy phy;
@@ -390,6 +411,11 @@ skip_phy_misc:
 		val = intel_de_read(dev_priv, ICL_PORT_CL_DW5(phy));
 		val |= CL_POWER_DOWN_ENABLE;
 		intel_de_write(dev_priv, ICL_PORT_CL_DW5(phy), val);
+
+		if (IS_RKL_REVID(dev_priv, RKL_REVID_A0, RKL_REVID_B0) &&
+		    phy == PHY_B)
+			/* Wa_14011224835:rkl[a0..c0] */
+			rkl_combo_phy_b_init_wa(dev_priv);
 	}
 }
 
