@@ -542,7 +542,7 @@ parse_sdvo_panel_data(struct drm_i915_private *dev_priv,
 static int intel_bios_ssc_frequency(struct drm_i915_private *dev_priv,
 				    bool alternate)
 {
-	switch (INTEL_GEN(dev_priv)) {
+	switch (DISPLAY_VER(dev_priv)) {
 	case 2:
 		return alternate ? 66667 : 48000;
 	case 3:
@@ -608,7 +608,7 @@ parse_sdvo_device_mapping(struct drm_i915_private *dev_priv, u8 bdb_version)
 	 * Only parse SDVO mappings on gens that could have SDVO. This isn't
 	 * accurate and doesn't have to be, as long as it's not too strict.
 	 */
-	if (!IS_GEN_RANGE(dev_priv, 3, 7)) {
+	if (DISPLAY_VER(dev_priv) < 3 || DISPLAY_VER(dev_priv) > 7) {
 		drm_dbg_kms(&dev_priv->drm, "Skipping SDVO device mapping\n");
 		return;
 	}
@@ -682,7 +682,7 @@ parse_driver_features(struct drm_i915_private *dev_priv,
 	if (!driver)
 		return;
 
-	if (INTEL_GEN(dev_priv) >= 5) {
+	if (DISPLAY_VER(dev_priv) >= 5) {
 		/*
 		 * Note that we consider BDB_DRIVER_FEATURE_INT_SDVO_LVDS
 		 * to mean "eDP". The VBT spec doesn't agree with that
@@ -916,7 +916,7 @@ parse_psr(struct drm_i915_private *dev_priv, const struct bdb_header *bdb)
 	 */
 	if (bdb->version >= 205 &&
 	    (IS_GEN9_BC(dev_priv) || IS_GEMINILAKE(dev_priv) ||
-	     INTEL_GEN(dev_priv) >= 10)) {
+	     DISPLAY_VER(dev_priv) >= 10)) {
 		switch (psr_table->tp1_wakeup_time) {
 		case 0:
 			dev_priv->vbt.psr.tp1_wakeup_time_us = 500;
@@ -1825,7 +1825,7 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv,
 	is_hdmi = is_dvi && (child->device_type & DEVICE_TYPE_NOT_HDMI_OUTPUT) == 0;
 	is_edp = is_dp && (child->device_type & DEVICE_TYPE_INTERNAL_CONNECTOR);
 
-	if (port == PORT_A && is_dvi && INTEL_GEN(dev_priv) < 12) {
+	if (port == PORT_A && is_dvi && DISPLAY_VER(dev_priv) < 12) {
 		drm_dbg_kms(&dev_priv->drm,
 			    "VBT claims port A supports DVI%s, ignoring\n",
 			    is_hdmi ? "/HDMI" : "");
@@ -2564,8 +2564,8 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 		dvo_port = child->dvo_port;
 
 		if (dvo_port == DVO_PORT_MIPIA ||
-		    (dvo_port == DVO_PORT_MIPIB && INTEL_GEN(dev_priv) >= 11) ||
-		    (dvo_port == DVO_PORT_MIPIC && INTEL_GEN(dev_priv) < 11)) {
+		    (dvo_port == DVO_PORT_MIPIB && DISPLAY_VER(dev_priv) >= 11) ||
+		    (dvo_port == DVO_PORT_MIPIC && DISPLAY_VER(dev_priv) < 11)) {
 			if (port)
 				*port = dvo_port - DVO_PORT_MIPIA;
 			return true;
