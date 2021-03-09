@@ -2770,7 +2770,9 @@ enum aux_ch intel_bios_port_aux_ch(struct drm_i915_private *dev_priv,
 			aux_ch = AUX_CH_C;
 		break;
 	case DP_AUX_D:
-		if (IS_ALDERLAKE_S(dev_priv))
+		if (DISPLAY_VER(dev_priv) >= 13)
+			aux_ch = AUX_CH_D_XELPD;
+		else if (IS_ALDERLAKE_S(dev_priv))
 			aux_ch = AUX_CH_USBC3;
 		else if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv))
 			aux_ch = AUX_CH_USBC2;
@@ -2778,7 +2780,9 @@ enum aux_ch intel_bios_port_aux_ch(struct drm_i915_private *dev_priv,
 			aux_ch = AUX_CH_D;
 		break;
 	case DP_AUX_E:
-		if (IS_ALDERLAKE_S(dev_priv))
+		if (DISPLAY_VER(dev_priv) >= 13)
+			aux_ch = AUX_CH_E_XELPD;
+		else if (IS_ALDERLAKE_S(dev_priv))
 			aux_ch = AUX_CH_USBC4;
 		else
 			aux_ch = AUX_CH_E;
