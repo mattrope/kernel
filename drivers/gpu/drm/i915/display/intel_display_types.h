@@ -234,6 +234,9 @@ struct intel_encoder {
 	enum intel_display_power_domain power_domain;
 	/* for communication with audio component; protected by av_mutex */
 	const struct drm_connector *audio_connector;
+
+	/* VBT information for this encoder (may be NULL for older platforms) */
+	const struct intel_bios_encoder_data *devdata;
 };
 
 struct intel_panel_bl_funcs {
@@ -1765,6 +1768,18 @@ static inline struct intel_digital_port *
 intel_attached_dig_port(struct intel_connector *connector)
 {
 	return enc_to_dig_port(intel_attached_encoder(connector));
+}
+
+static inline struct intel_hdmi *
+enc_to_intel_hdmi(struct intel_encoder *encoder)
+{
+	return &enc_to_dig_port(encoder)->hdmi;
+}
+
+static inline struct intel_hdmi *
+intel_attached_hdmi(struct intel_connector *connector)
+{
+	return enc_to_intel_hdmi(intel_attached_encoder(connector));
 }
 
 static inline struct intel_dp *enc_to_intel_dp(struct intel_encoder *encoder)
