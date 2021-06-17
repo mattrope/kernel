@@ -1994,7 +1994,7 @@ void intel_engine_apply_whitelist(struct intel_engine_cs *engine)
 static void
 engine_fake_wa_init(struct intel_engine_cs *engine, struct i915_wa_list *wal)
 {
-	u8 mocs;
+	u8 mocs_w, mocs_r;
 
 	/*
 	 * RING_CMD_CCTL are need to be programed to un-cached
@@ -2002,11 +2002,18 @@ engine_fake_wa_init(struct intel_engine_cs *engine, struct i915_wa_list *wal)
 	 * Streamers on Gen12 onward platforms.
 	 */
 	if (GRAPHICS_VER(engine->i915) >= 12) {
-		mocs = engine->gt->mocs.uc_index;
+		if (HAS_L3_CCS_READ(engine->i915) &&
+		    engine->class == COMPUTE_CLASS)
+			mocs_r = engine->gt->mocs.wb_index;
+		else
+			mocs_r = engine->gt->mocs.uc_index;
+
+		mocs_w = engine->gt->mocs.uc_index;
+
 		wa_masked_field_set(wal,
 				    RING_CMD_CCTL(engine->mmio_base),
 				    CMD_CCTL_MOCS_MASK,
-				    CMD_CCTL_MOCS_OVERRIDE(mocs, mocs));
+				    CMD_CCTL_MOCS_OVERRIDE(mocs_w, mocs_r));
 	}
 }
 

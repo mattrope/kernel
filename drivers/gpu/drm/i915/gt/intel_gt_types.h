@@ -221,6 +221,7 @@ struct intel_gt {
 
 	struct {
 		u8 uc_index;
+		u8 wb_index; /* Only for platforms listed in Bspec: 72161 */
 	} mocs;
 
 	struct intel_pxp pxp;
