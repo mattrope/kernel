@@ -88,7 +88,6 @@
 #define   GEN12_HCP_SFC_USAGE_BIT			REG_BIT(0)
 
 #define GEN12_SFC_DONE(n)		_MMIO(0x1cc000 + (n) * 0x1000)
-#define GEN12_SFC_DONE_MAX		4
 
 #define WAIT_FOR_RC6_EXIT		_MMIO(0x20CC)
 /* HSW only */

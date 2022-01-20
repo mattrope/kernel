@@ -32,6 +32,7 @@
 
 #include "i915_drv.h"
 #include "i915_memcpy.h"
+#include "i915_reg.h"
 
 /**
  * DOC: batch buffer command parser
