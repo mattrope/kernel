@@ -40,6 +40,7 @@
 #include "gvt.h"
 #include "i915_pvinfo.h"
 #include "display/intel_display_types.h"
+#include "gt/intel_gt_regs.h"
 
 /* XXX FIXME i915 has changed PP_XXX definition */
 #define PCH_PP_STATUS  _MMIO(0xc7200)
