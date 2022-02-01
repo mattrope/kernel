@@ -11,6 +11,7 @@
 #include "i915_vgpu.h"
 #include "intel_engine_regs.h"
 #include "intel_gt.h"
+#include "intel_gt_regs.h"
 
 /* Write pde (index) from the page directory @pd to the page table @pt */
 static void gen6_write_pde(const struct gen6_ppgtt *ppgtt,

@@ -25,13 +25,14 @@
  *
  */
 
-#include <drm/drm_dp_helper.h>
+#include <drm/dp/drm_dp_helper.h>
 
 #include "display/intel_display.h"
 #include "display/intel_display_types.h"
 #include "display/intel_gmbus.h"
 
 #include "i915_drv.h"
+#include "i915_reg.h"
 
 #define _INTEL_BIOS_PRIVATE
 #include "intel_vbt_defs.h"
