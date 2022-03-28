@@ -155,48 +155,32 @@ int intel_sseu_copy_eumask_to_user(void __user *to,
 	return copy_to_user(to, eu_mask, len);
 }
 
-static u32 get_ss_stride_mask(struct sseu_dev_info *sseu, u8 s, u32 ss_en)
-{
-	u32 ss_mask;
-
-	ss_mask = ss_en >> (s * sseu->max_subslices);
-	ss_mask &= GENMASK(sseu->max_subslices - 1, 0);
-
-	return ss_mask;
-}
-
-static void gen11_compute_sseu_info(struct sseu_dev_info *sseu, u8 s_en,
+static void gen11_compute_sseu_info(struct sseu_dev_info *sseu,
 				    u32 g_ss_en, u32 c_ss_en, u16 eu_en)
 {
-	int s;
+	u32 valid_ss_mask = GENMASK(sseu->max_subslices - 1, 0);
 
 	/* g_ss_en/c_ss_en represent entire subslice mask across all slices */
 	GEM_BUG_ON(sseu->max_slices * sseu->max_subslices >
 		   sizeof(g_ss_en) * BITS_PER_BYTE);
 
-	for (s = 0; s < sseu->max_slices; s++) {
-		if ((s_en & BIT(s)) == 0)
-			continue;
+	sseu->slice_mask |= BIT(0);
 
-		sseu->slice_mask |= BIT(s);
+	/*
+	 * XeHP introduces the concept of compute vs geometry DSS. To reduce
+	 * variation between GENs around subslice usage, store a mask for both
+	 * the geometry and compute enabled masks since userspace will need to
+	 * be able to query these masks independently.  Also compute a total
+	 * enabled subslice count for the purposes of selecting subslices to
+	 * use in a particular GEM context.
+	 */
+	intel_sseu_set_subslices(sseu, 0, sseu->compute_subslice_mask,
+				 c_ss_en & valid_ss_mask);
+	intel_sseu_set_subslices(sseu, 0, sseu->geometry_subslice_mask,
+				 g_ss_en & valid_ss_mask);
+	intel_sseu_set_subslices(sseu, 0, sseu->subslice_mask,
+				 (g_ss_en | c_ss_en) & valid_ss_mask);
 
-		/*
-		 * XeHP introduces the concept of compute vs geometry DSS. To
-		 * reduce variation between GENs around subslice usage, store a
-		 * mask for both the geometry and compute enabled masks since
-		 * userspace will need to be able to query these masks
-		 * independently.  Also compute a total enabled subslice count
-		 * for the purposes of selecting subslices to use in a
-		 * particular GEM context.
-		 */
-		intel_sseu_set_subslices(sseu, s, sseu->compute_subslice_mask,
-					 get_ss_stride_mask(sseu, s, c_ss_en));
-		intel_sseu_set_subslices(sseu, s, sseu->geometry_subslice_mask,
-					 get_ss_stride_mask(sseu, s, g_ss_en));
-		intel_sseu_set_subslices(sseu, s, sseu->subslice_mask,
-					 get_ss_stride_mask(sseu, s,
-							    g_ss_en | c_ss_en));
-	}
 	sseu->has_common_ss_eumask = 1;
 	sseu->eu_mask[0] = eu_en;
 	sseu->eu_per_subslice = hweight16(eu_en);
@@ -229,7 +213,7 @@ static void xehp_sseu_info_init(struct intel_gt *gt)
 		if (eu_en_fuse & BIT(eu))
 			eu_en |= BIT(eu * 2) | BIT(eu * 2 + 1);
 
-	gen11_compute_sseu_info(sseu, 0x1, g_dss_en, c_dss_en, eu_en);
+	gen11_compute_sseu_info(sseu, g_dss_en, c_dss_en, eu_en);
 }
 
 static void gen12_sseu_info_init(struct intel_gt *gt)
@@ -249,8 +233,15 @@ static void gen12_sseu_info_init(struct intel_gt *gt)
 	 */
 	intel_sseu_set_info(sseu, 1, 6, 16);
 
+	/*
+	 * Although gen12 architecture supported multiple slices, TGL, RKL,
+	 * DG1, and ADL only had a single slice.
+	 */
 	s_en = intel_uncore_read(uncore, GEN11_GT_SLICE_ENABLE) &
 		GEN11_GT_S_ENA_MASK;
+	if (s_en != 0x1)
+		drm_dbg(&gt->i915->drm, "Slice mask %#x is not the expected 0x1!\n",
+			s_en);
 
 	g_dss_en = intel_uncore_read(uncore, GEN12_GT_GEOMETRY_DSS_ENABLE);
 
@@ -262,7 +253,7 @@ static void gen12_sseu_info_init(struct intel_gt *gt)
 		if (eu_en_fuse & BIT(eu))
 			eu_en |= BIT(eu * 2) | BIT(eu * 2 + 1);
 
-	gen11_compute_sseu_info(sseu, s_en, g_dss_en, 0, eu_en);
+	gen11_compute_sseu_info(sseu, g_dss_en, 0, eu_en);
 
 	/* TGL only supports slice-level power gating */
 	sseu->has_slice_pg = 1;
@@ -281,14 +272,22 @@ static void gen11_sseu_info_init(struct intel_gt *gt)
 	else
 		intel_sseu_set_info(sseu, 1, 8, 8);
 
+	/*
+	 * Although gen11 architecture supported multiple slices, ICL and
+	 * EHL/JSL only had a single slice in practice.
+	 */
 	s_en = intel_uncore_read(uncore, GEN11_GT_SLICE_ENABLE) &
 		GEN11_GT_S_ENA_MASK;
+	if (s_en != 0x1)
+		drm_dbg(&gt->i915->drm, "Slice mask %#x is not the expected 0x1!\n",
+			s_en);
+
 	ss_en = ~intel_uncore_read(uncore, GEN11_GT_SUBSLICE_DISABLE);
 
 	eu_en = ~(intel_uncore_read(uncore, GEN11_EU_DISABLE) &
 		  GEN11_EU_DIS_MASK);
 
-	gen11_compute_sseu_info(sseu, s_en, ss_en, 0, eu_en);
+	gen11_compute_sseu_info(sseu, ss_en, 0, eu_en);
 
 	/* ICL has no power gating restrictions. */
 	sseu->has_slice_pg = 1;
