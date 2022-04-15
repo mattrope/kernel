@@ -28,56 +28,49 @@ void intel_sseu_set_info(struct sseu_dev_info *sseu, u8 max_slices,
 unsigned int
 intel_sseu_subslice_total(const struct sseu_dev_info *sseu)
 {
-	unsigned int i, total = 0;
-
-	for (i = 0; i < ARRAY_SIZE(sseu->subslice_mask); i++)
-		total += hweight8(sseu->subslice_mask[i]);
-
-	return total;
+	return bitmap_weight(sseu->subslice_mask.b, I915_MAX_SS_FUSE_BITS);
 }
 
-static u32
-sseu_get_subslices(const struct sseu_dev_info *sseu,
-		   const u8 *subslice_mask, u8 slice)
+static intel_sseu_ss_mask_t
+get_ss_mask_for_slice(const struct sseu_dev_info *sseu,
+		      intel_sseu_ss_mask_t all_ss,
+		      int slice)
 {
-	int i, offset = slice * sseu->ss_stride;
-	u32 mask = 0;
+	intel_sseu_ss_mask_t mask = {}, slice_ss = {};
+	int offset = slice * sseu->max_subslices;
 
 	GEM_BUG_ON(slice >= sseu->max_slices);
 
-	for (i = 0; i < sseu->ss_stride; i++)
-		mask |= (u32)subslice_mask[offset + i] << i * BITS_PER_BYTE;
+	if (sseu->max_slices == 1)
+		return all_ss;
 
-	return mask;
+	bitmap_set(mask.b, offset, sseu->max_subslices);
+	bitmap_and(slice_ss.b, all_ss.b, mask.b, I915_MAX_SS_FUSE_BITS);
+	bitmap_shift_right(slice_ss.b, slice_ss.b, offset, I915_MAX_SS_FUSE_BITS);
+
+	return slice_ss;
 }
 
-u32 intel_sseu_get_subslices(const struct sseu_dev_info *sseu, u8 slice)
+intel_sseu_ss_mask_t
+intel_sseu_get_subslices(const struct sseu_dev_info *sseu, u8 slice)
 {
-	return sseu_get_subslices(sseu, sseu->subslice_mask, slice);
+	return get_ss_mask_for_slice(sseu, sseu->subslice_mask, slice);
 }
 
-static u32 sseu_get_geometry_subslices(const struct sseu_dev_info *sseu)
+/*
+ * Set the subslice mask associated with a specific slice.  Only needed on
+ * pre-gen11 platforms that have multiple slices.
+ */
+static void set_subslices(struct sseu_dev_info *sseu, int slice, u32 ss_mask)
 {
-	return sseu_get_subslices(sseu, sseu->geometry_subslice_mask, 0);
-}
+	intel_sseu_ss_mask_t mask = {}, newbits = {};
+	int offset = slice * sseu->max_subslices;
 
-u32 intel_sseu_get_compute_subslices(const struct sseu_dev_info *sseu)
-{
-	return sseu_get_subslices(sseu, sseu->compute_subslice_mask, 0);
-}
-
-void intel_sseu_set_subslices(struct sseu_dev_info *sseu, int slice,
-			      u8 *subslice_mask, u32 ss_mask)
-{
-	int offset = slice * sseu->ss_stride;
-
-	memcpy(&subslice_mask[offset], &ss_mask, sseu->ss_stride);
-}
-
-unsigned int
-intel_sseu_subslices_per_slice(const struct sseu_dev_info *sseu, u8 slice)
-{
-	return hweight32(intel_sseu_get_subslices(sseu, slice));
+	bitmap_set(mask.b, offset, sseu->max_subslices);
+	bitmap_from_arr32(newbits.b, &ss_mask, 32);
+	bitmap_shift_left(newbits.b, newbits.b, offset, I915_MAX_SS_FUSE_BITS);
+	bitmap_replace(sseu->subslice_mask.b, sseu->subslice_mask.b,
+		       newbits.b, mask.b, I915_MAX_SS_FUSE_BITS);
 }
 
 static int sseu_eu_idx(const struct sseu_dev_info *sseu, int slice,
@@ -115,7 +108,7 @@ static u16 compute_eu_total(const struct sseu_dev_info *sseu)
 	u16 i, total = 0;
 
 	if (sseu->has_common_ss_eumask)
-		return intel_sseu_subslices_per_slice(sseu, 0) *
+		return bitmap_weight(sseu->subslice_mask.b, I915_MAX_SS_FUSE_BITS) *
 			hweight16(sseu->eu_mask[0]);
 
 	for (i = 0; i < ARRAY_SIZE(sseu->eu_mask); i++)
@@ -155,11 +148,42 @@ int intel_sseu_copy_eumask_to_user(void __user *to,
 	return copy_to_user(to, eu_mask, len);
 }
 
-static void gen11_compute_sseu_info(struct sseu_dev_info *sseu,
-				    u32 g_ss_en, u32 c_ss_en, u16 eu_en)
+/**
+ * intel_sseu_copy_ssmask_to_user - Copy subslice mask into a userspace buffer
+ * @to: Pointer to userspace buffer to copy to
+ * @sseu: SSEU structure containing subslice mask to copy
+ *
+ * Copies the subslice mask to a userspace buffer in the format expected by
+ * the query ioctl's topology queries.
+ *
+ * Returns the result of the copy_to_user() operation.
+ */
+int intel_sseu_copy_ssmask_to_user(void __user *to,
+				   const struct sseu_dev_info *sseu)
 {
-	u32 valid_ss_mask = GENMASK(sseu->max_subslices - 1, 0);
+	u8 ss_mask[GEN_SS_MASK_SIZE] = {};
+	int len = sseu->max_slices * sseu->ss_stride;
+	int s, ss, i;
 
+	for (s = 0; s < sseu->max_slices; s++) {
+		for (ss = 0; ss < sseu->max_subslices; ss++) {
+			i = s * sseu->ss_stride + ss;
+
+			if (!intel_sseu_has_subslice(sseu, s, ss))
+				continue;
+
+			ss_mask[i / BITS_PER_BYTE] |= BIT(i % BITS_PER_BYTE);
+		}
+	}
+
+	return copy_to_user(to, ss_mask, len);
+}
+
+static void gen11_compute_sseu_info(struct sseu_dev_info *sseu,
+				    intel_sseu_ss_mask_t g_ss_en,
+				    intel_sseu_ss_mask_t c_ss_en,
+				    u16 eu_en)
+{
 	/* g_ss_en/c_ss_en represent entire subslice mask across all slices */
 	GEM_BUG_ON(sseu->max_slices * sseu->max_subslices >
 		   sizeof(g_ss_en) * BITS_PER_BYTE);
@@ -174,12 +198,12 @@ static void gen11_compute_sseu_info(struct sseu_dev_info *sseu,
 	 * enabled subslice count for the purposes of selecting subslices to
 	 * use in a particular GEM context.
 	 */
-	intel_sseu_set_subslices(sseu, 0, sseu->compute_subslice_mask,
-				 c_ss_en & valid_ss_mask);
-	intel_sseu_set_subslices(sseu, 0, sseu->geometry_subslice_mask,
-				 g_ss_en & valid_ss_mask);
-	intel_sseu_set_subslices(sseu, 0, sseu->subslice_mask,
-				 (g_ss_en | c_ss_en) & valid_ss_mask);
+	bitmap_copy(sseu->compute_subslice_mask.b, c_ss_en.b, I915_MAX_SS_FUSE_BITS);
+	bitmap_copy(sseu->geometry_subslice_mask.b, g_ss_en.b, I915_MAX_SS_FUSE_BITS);
+	bitmap_or(sseu->subslice_mask.b,
+		  sseu->compute_subslice_mask.b,
+		  sseu->geometry_subslice_mask.b,
+		  I915_MAX_SS_FUSE_BITS);
 
 	sseu->has_common_ss_eumask = 1;
 	sseu->eu_mask[0] = eu_en;
@@ -191,7 +215,8 @@ static void xehp_sseu_info_init(struct intel_gt *gt)
 {
 	struct sseu_dev_info *sseu = &gt->info.sseu;
 	struct intel_uncore *uncore = gt->uncore;
-	u32 g_dss_en, c_dss_en = 0;
+	intel_sseu_ss_mask_t g_dss_en = {}, c_dss_en = {};
+	u32 val;
 	u16 eu_en = 0;
 	u8 eu_en_fuse;
 	int eu;
@@ -204,8 +229,11 @@ static void xehp_sseu_info_init(struct intel_gt *gt)
 	 */
 	intel_sseu_set_info(sseu, 1, 32, 16);
 
-	g_dss_en = intel_uncore_read(uncore, GEN12_GT_GEOMETRY_DSS_ENABLE);
-	c_dss_en = intel_uncore_read(uncore, GEN12_GT_COMPUTE_DSS_ENABLE);
+	val = intel_uncore_read(uncore, GEN12_GT_GEOMETRY_DSS_ENABLE);
+	bitmap_from_arr32(g_dss_en.b, &val, 32);
+
+	val = intel_uncore_read(uncore, GEN12_GT_COMPUTE_DSS_ENABLE);
+	bitmap_from_arr32(c_dss_en.b, &val, 32);
 
 	eu_en_fuse = intel_uncore_read(uncore, XEHP_EU_ENABLE) & XEHP_EU_ENA_MASK;
 
@@ -220,7 +248,8 @@ static void gen12_sseu_info_init(struct intel_gt *gt)
 {
 	struct sseu_dev_info *sseu = &gt->info.sseu;
 	struct intel_uncore *uncore = gt->uncore;
-	u32 g_dss_en;
+	intel_sseu_ss_mask_t g_dss_en = {}, empty_mask = {};
+	u32 val;
 	u16 eu_en = 0;
 	u8 eu_en_fuse;
 	u8 s_en;
@@ -243,7 +272,8 @@ static void gen12_sseu_info_init(struct intel_gt *gt)
 		drm_dbg(&gt->i915->drm, "Slice mask %#x is not the expected 0x1!\n",
 			s_en);
 
-	g_dss_en = intel_uncore_read(uncore, GEN12_GT_GEOMETRY_DSS_ENABLE);
+	val = intel_uncore_read(uncore, GEN12_GT_GEOMETRY_DSS_ENABLE);
+	bitmap_from_arr32(g_dss_en.b, &val, 32);
 
 	/* one bit per pair of EUs */
 	eu_en_fuse = ~(intel_uncore_read(uncore, GEN11_EU_DISABLE) &
@@ -253,7 +283,7 @@ static void gen12_sseu_info_init(struct intel_gt *gt)
 		if (eu_en_fuse & BIT(eu))
 			eu_en |= BIT(eu * 2) | BIT(eu * 2 + 1);
 
-	gen11_compute_sseu_info(sseu, g_dss_en, 0, eu_en);
+	gen11_compute_sseu_info(sseu, g_dss_en, empty_mask, eu_en);
 
 	/* TGL only supports slice-level power gating */
 	sseu->has_slice_pg = 1;
@@ -263,7 +293,8 @@ static void gen11_sseu_info_init(struct intel_gt *gt)
 {
 	struct sseu_dev_info *sseu = &gt->info.sseu;
 	struct intel_uncore *uncore = gt->uncore;
-	u32 ss_en;
+	intel_sseu_ss_mask_t ss_en = {}, empty_mask = {};
+	u32 val;
 	u8 eu_en;
 	u8 s_en;
 
@@ -282,12 +313,13 @@ static void gen11_sseu_info_init(struct intel_gt *gt)
 		drm_dbg(&gt->i915->drm, "Slice mask %#x is not the expected 0x1!\n",
 			s_en);
 
-	ss_en = ~intel_uncore_read(uncore, GEN11_GT_SUBSLICE_DISABLE);
+	val = ~intel_uncore_read(uncore, GEN11_GT_SUBSLICE_DISABLE);
+	bitmap_from_arr32(ss_en.b, &val, 32);
 
 	eu_en = ~(intel_uncore_read(uncore, GEN11_EU_DISABLE) &
 		  GEN11_EU_DIS_MASK);
 
-	gen11_compute_sseu_info(sseu, ss_en, 0, eu_en);
+	gen11_compute_sseu_info(sseu, ss_en, empty_mask, eu_en);
 
 	/* ICL has no power gating restrictions. */
 	sseu->has_slice_pg = 1;
@@ -328,7 +360,7 @@ static void cherryview_sseu_info_init(struct intel_gt *gt)
 		sseu_set_eus(sseu, 0, 1, ~disabled_mask);
 	}
 
-	intel_sseu_set_subslices(sseu, 0, sseu->subslice_mask, subslice_mask);
+	set_subslices(sseu, 0, subslice_mask);
 
 	sseu->eu_total = compute_eu_total(sseu);
 
@@ -384,8 +416,7 @@ static void gen9_sseu_info_init(struct intel_gt *gt)
 			/* skip disabled slice */
 			continue;
 
-		intel_sseu_set_subslices(sseu, s, sseu->subslice_mask,
-					 subslice_mask);
+		set_subslices(sseu, s, subslice_mask);
 
 		eu_disable = intel_uncore_read(uncore, GEN9_EU_DISABLE(s));
 		for (ss = 0; ss < sseu->max_subslices; ss++) {
@@ -442,8 +473,8 @@ static void gen9_sseu_info_init(struct intel_gt *gt)
 	sseu->has_eu_pg = sseu->eu_per_subslice > 2;
 
 	if (IS_GEN9_LP(i915)) {
-#define IS_SS_DISABLED(ss)	(!(sseu->subslice_mask[0] & BIT(ss)))
-		info->has_pooled_eu = hweight8(sseu->subslice_mask[0]) == 3;
+#define IS_SS_DISABLED(ss)	test_bit(ss, sseu->subslice_mask.b)
+		info->has_pooled_eu = hweight8(sseu->subslice_mask.b[0]) == 3;
 
 		sseu->min_eu_in_pool = 0;
 		if (info->has_pooled_eu) {
@@ -497,8 +528,7 @@ static void bdw_sseu_info_init(struct intel_gt *gt)
 			/* skip disabled slice */
 			continue;
 
-		intel_sseu_set_subslices(sseu, s, sseu->subslice_mask,
-					 subslice_mask);
+		set_subslices(sseu, s, subslice_mask);
 
 		for (ss = 0; ss < sseu->max_subslices; ss++) {
 			u8 eu_disabled_mask;
@@ -595,8 +625,7 @@ static void hsw_sseu_info_init(struct intel_gt *gt)
 			    sseu->eu_per_subslice);
 
 	for (s = 0; s < sseu->max_slices; s++) {
-		intel_sseu_set_subslices(sseu, s, sseu->subslice_mask,
-					 subslice_mask);
+		set_subslices(sseu, s, subslice_mask);
 
 		for (ss = 0; ss < sseu->max_subslices; ss++) {
 			sseu_set_eus(sseu, s, ss,
@@ -685,7 +714,7 @@ u32 intel_sseu_make_rpcs(struct intel_gt *gt,
 	 */
 	if (GRAPHICS_VER(i915) == 11 &&
 	    slices == 1 &&
-	    subslices > min_t(u8, 4, hweight8(sseu->subslice_mask[0]) / 2)) {
+	    subslices > min_t(u8, 4, hweight8(sseu->subslice_mask.b[0]) / 2)) {
 		GEM_BUG_ON(subslices & 1);
 
 		subslice_pg = false;
@@ -755,9 +784,11 @@ void intel_sseu_dump(const struct sseu_dev_info *sseu, struct drm_printer *p)
 		   hweight8(sseu->slice_mask), sseu->slice_mask);
 	drm_printf(p, "subslice total: %u\n", intel_sseu_subslice_total(sseu));
 	for (s = 0; s < sseu->max_slices; s++) {
-		drm_printf(p, "slice%d: %u subslices, mask=%08x\n",
-			   s, intel_sseu_subslices_per_slice(sseu, s),
-			   intel_sseu_get_subslices(sseu, s));
+		intel_sseu_ss_mask_t ssmask = intel_sseu_get_subslices(sseu, s);
+
+		drm_printf(p, "slice%d: %u subslices, mask=%*pb\n",
+			   s, bitmap_weight(ssmask.b, I915_MAX_SS_FUSE_BITS),
+			   I915_MAX_SS_FUSE_BITS, ssmask.b);
 	}
 	drm_printf(p, "EU total: %u\n", sseu->eu_total);
 	drm_printf(p, "EU per subslice: %u\n", sseu->eu_per_subslice);
@@ -775,9 +806,11 @@ static void sseu_print_hsw_topology(const struct sseu_dev_info *sseu,
 	int s, ss;
 
 	for (s = 0; s < sseu->max_slices; s++) {
-		drm_printf(p, "slice%d: %u subslice(s) (0x%08x):\n",
-			   s, intel_sseu_subslices_per_slice(sseu, s),
-			   intel_sseu_get_subslices(sseu, s));
+		intel_sseu_ss_mask_t ssmask = intel_sseu_get_subslices(sseu, s);
+
+		drm_printf(p, "slice%d: %u subslice(s) (0x%*pb):\n",
+			   s, bitmap_weight(ssmask.b, I915_MAX_SS_FUSE_BITS),
+			   I915_MAX_SS_FUSE_BITS, ssmask.b);
 
 		for (ss = 0; ss < sseu->max_subslices; ss++) {
 			u16 enabled_eus = sseu_get_eus(sseu, s, ss);
@@ -791,16 +824,14 @@ static void sseu_print_hsw_topology(const struct sseu_dev_info *sseu,
 static void sseu_print_xehp_topology(const struct sseu_dev_info *sseu,
 				     struct drm_printer *p)
 {
-	u32 g_dss_mask = sseu_get_geometry_subslices(sseu);
-	u32 c_dss_mask = intel_sseu_get_compute_subslices(sseu);
 	int dss;
 
 	for (dss = 0; dss < sseu->max_subslices; dss++) {
 		u16 enabled_eus = sseu_get_eus(sseu, 0, dss);
 
 		drm_printf(p, "DSS_%02d: G:%3s C:%3s, %2u EUs (0x%04hx)\n", dss,
-			   str_yes_no(g_dss_mask & BIT(dss)),
-			   str_yes_no(c_dss_mask & BIT(dss)),
+			   str_yes_no(test_bit(dss, sseu->geometry_subslice_mask.b)),
+			   str_yes_no(test_bit(dss, sseu->compute_subslice_mask.b)),
 			   hweight16(enabled_eus), enabled_eus);
 	}
 }
@@ -818,20 +849,24 @@ void intel_sseu_print_topology(struct drm_i915_private *i915,
 	}
 }
 
-u16 intel_slicemask_from_dssmask(u64 dss_mask, int dss_per_slice)
+u16 intel_slicemask_from_dssmask(intel_sseu_ss_mask_t dss_mask,
+				 int dss_per_slice)
 {
+	intel_sseu_ss_mask_t per_slice_mask = {};
 	u16 slice_mask = 0;
 	int i;
 
-	WARN_ON(sizeof(dss_mask) * 8 / dss_per_slice > 8 * sizeof(slice_mask));
+	WARN_ON(DIV_ROUND_UP(I915_MAX_SS_FUSE_BITS, dss_per_slice) >
+		8 * sizeof(slice_mask));
 
-	for (i = 0; dss_mask; i++) {
-		if (dss_mask & GENMASK(dss_per_slice - 1, 0))
+	bitmap_fill(per_slice_mask.b, dss_per_slice);
+	for (i = 0; !bitmap_empty(dss_mask.b, I915_MAX_SS_FUSE_BITS); i++) {
+		if (bitmap_intersects(dss_mask.b, per_slice_mask.b, dss_per_slice))
 			slice_mask |= BIT(i);
 
-		dss_mask >>= dss_per_slice;
+		bitmap_shift_right(dss_mask.b, dss_mask.b, dss_per_slice,
+				   I915_MAX_SS_FUSE_BITS);
 	}
 
 	return slice_mask;
 }
-

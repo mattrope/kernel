@@ -52,11 +52,22 @@ struct drm_printer;
 #define GEN_MAX_GSLICES		(GEN_MAX_DSS / GEN_DSS_PER_GSLICE)
 #define GEN_MAX_CSLICES		(GEN_MAX_DSS / GEN_DSS_PER_CSLICE)
 
+/*
+ * Maximum number of 32-bit registers used by hardware to express the
+ * enabled/disabled subslices.
+ */
+#define I915_MAX_SS_FUSE_REGS	1
+#define I915_MAX_SS_FUSE_BITS	(I915_MAX_SS_FUSE_REGS * 32)
+
+typedef struct {
+	unsigned long b[BITS_TO_LONGS(I915_MAX_SS_FUSE_BITS)];
+} intel_sseu_ss_mask_t;
+
 struct sseu_dev_info {
 	u8 slice_mask;
-	u8 subslice_mask[GEN_SS_MASK_SIZE];
-	u8 geometry_subslice_mask[GEN_SS_MASK_SIZE];
-	u8 compute_subslice_mask[GEN_SS_MASK_SIZE];
+	intel_sseu_ss_mask_t subslice_mask;
+	intel_sseu_ss_mask_t geometry_subslice_mask;
+	intel_sseu_ss_mask_t compute_subslice_mask;
 
 	/*
 	 * EU masks.  Use has_common_ss_eumask to determine how the field
@@ -107,7 +118,7 @@ intel_sseu_from_device_info(const struct sseu_dev_info *sseu)
 {
 	struct intel_sseu value = {
 		.slice_mask = sseu->slice_mask,
-		.subslice_mask = sseu->subslice_mask[0],
+		.subslice_mask = sseu->subslice_mask.b[0],
 		.min_eus_per_subslice = sseu->max_eus_per_subslice,
 		.max_eus_per_subslice = sseu->max_eus_per_subslice,
 	};
@@ -119,18 +130,8 @@ static inline bool
 intel_sseu_has_subslice(const struct sseu_dev_info *sseu, int slice,
 			int subslice)
 {
-	u8 mask;
-	int ss_idx = subslice / BITS_PER_BYTE;
-
-	if (slice >= sseu->max_slices ||
-	    subslice >= sseu->max_subslices)
-		return false;
-
-	GEM_BUG_ON(ss_idx >= sseu->ss_stride);
-
-	mask = sseu->subslice_mask[slice * sseu->ss_stride + ss_idx];
-
-	return mask & BIT(subslice % BITS_PER_BYTE);
+	return test_bit(slice * sseu->ss_stride + subslice,
+			sseu->subslice_mask.b);
 }
 
 void intel_sseu_set_info(struct sseu_dev_info *sseu, u8 max_slices,
@@ -139,15 +140,14 @@ void intel_sseu_set_info(struct sseu_dev_info *sseu, u8 max_slices,
 unsigned int
 intel_sseu_subslice_total(const struct sseu_dev_info *sseu);
 
-unsigned int
-intel_sseu_subslices_per_slice(const struct sseu_dev_info *sseu, u8 slice);
+intel_sseu_ss_mask_t
+intel_sseu_get_subslices(const struct sseu_dev_info *sseu, u8 slice);
 
-u32 intel_sseu_get_subslices(const struct sseu_dev_info *sseu, u8 slice);
-
-u32 intel_sseu_get_compute_subslices(const struct sseu_dev_info *sseu);
+intel_sseu_ss_mask_t
+intel_sseu_get_compute_subslices(const struct sseu_dev_info *sseu);
 
 void intel_sseu_set_subslices(struct sseu_dev_info *sseu, int slice,
-			      u8 *subslice_mask, u32 ss_mask);
+			      u32 ss_mask);
 
 void intel_sseu_info_init(struct intel_gt *gt);
 
@@ -159,9 +159,11 @@ void intel_sseu_print_topology(struct drm_i915_private *i915,
 			       const struct sseu_dev_info *sseu,
 			       struct drm_printer *p);
 
-u16 intel_slicemask_from_dssmask(u64 dss_mask, int dss_per_slice);
+u16 intel_slicemask_from_dssmask(intel_sseu_ss_mask_t dss_mask, int dss_per_slice);
 
 int intel_sseu_copy_eumask_to_user(void __user *to,
+				   const struct sseu_dev_info *sseu);
+int intel_sseu_copy_ssmask_to_user(void __user *to,
 				   const struct sseu_dev_info *sseu);
 
 #endif /* __INTEL_SSEU_H__ */

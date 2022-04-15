@@ -4,6 +4,7 @@
  * Copyright © 2020 Intel Corporation
  */
 
+#include <linux/bitmap.h>
 #include <linux/string_helpers.h>
 
 #include "i915_drv.h"
@@ -12,11 +13,15 @@
 #include "intel_sseu_debugfs.h"
 
 static void sseu_copy_subslices(const struct sseu_dev_info *sseu,
-				int slice, u8 *to_mask)
+				int slice,
+				intel_sseu_ss_mask_t *to_mask)
 {
-	int offset = slice * sseu->ss_stride;
+	int offset = slice * sseu->max_subslices;
 
-	memcpy(&to_mask[offset], &sseu->subslice_mask[offset], sseu->ss_stride);
+	bitmap_fill(to_mask->b, sseu->max_subslices);
+	bitmap_shift_left(to_mask->b, to_mask->b, offset, I915_MAX_SS_FUSE_BITS);
+	bitmap_and(to_mask->b, to_mask->b, sseu->subslice_mask.b, I915_MAX_SS_FUSE_BITS);
+	bitmap_shift_right(to_mask->b, to_mask->b, offset, I915_MAX_SS_FUSE_BITS);
 }
 
 static void cherryview_sseu_device_status(struct intel_gt *gt,
@@ -41,7 +46,7 @@ static void cherryview_sseu_device_status(struct intel_gt *gt,
 			continue;
 
 		sseu->slice_mask = BIT(0);
-		sseu->subslice_mask[0] |= BIT(ss);
+		set_bit(0, sseu->subslice_mask.b);
 		eu_cnt = ((sig1[ss] & CHV_EU08_PG_ENABLE) ? 0 : 2) +
 			 ((sig1[ss] & CHV_EU19_PG_ENABLE) ? 0 : 2) +
 			 ((sig1[ss] & CHV_EU210_PG_ENABLE) ? 0 : 2) +
@@ -92,7 +97,7 @@ static void gen11_sseu_device_status(struct intel_gt *gt,
 			continue;
 
 		sseu->slice_mask |= BIT(s);
-		sseu_copy_subslices(&info->sseu, s, sseu->subslice_mask);
+		sseu_copy_subslices(&info->sseu, s, &sseu->subslice_mask);
 
 		for (ss = 0; ss < info->sseu.max_subslices; ss++) {
 			unsigned int eu_cnt;
@@ -148,20 +153,17 @@ static void gen9_sseu_device_status(struct intel_gt *gt,
 
 		if (IS_GEN9_BC(gt->i915))
 			sseu_copy_subslices(&info->sseu, s,
-					    sseu->subslice_mask);
+					    &sseu->subslice_mask);
 
 		for (ss = 0; ss < info->sseu.max_subslices; ss++) {
 			unsigned int eu_cnt;
-			u8 ss_idx = s * info->sseu.ss_stride +
-				    ss / BITS_PER_BYTE;
 
 			if (IS_GEN9_LP(gt->i915)) {
 				if (!(s_reg[s] & (GEN9_PGCTL_SS_ACK(ss))))
 					/* skip disabled subslice */
 					continue;
 
-				sseu->subslice_mask[ss_idx] |=
-					BIT(ss % BITS_PER_BYTE);
+				set_bit(ss, sseu->subslice_mask.b);
 			}
 
 			eu_cnt = eu_reg[2 * s + ss / 2] & eu_mask[ss % 2];
@@ -189,7 +191,7 @@ static void bdw_sseu_device_status(struct intel_gt *gt,
 		sseu->eu_per_subslice = info->sseu.eu_per_subslice;
 		for (s = 0; s < fls(sseu->slice_mask); s++)
 			sseu_copy_subslices(&info->sseu, s,
-					    sseu->subslice_mask);
+					    &sseu->subslice_mask);
 		sseu->eu_total = sseu->eu_per_subslice *
 				 intel_sseu_subslice_total(sseu);
 
@@ -217,8 +219,10 @@ static void i915_print_sseu_info(struct seq_file *m,
 	seq_printf(m, "  %s Subslice Total: %u\n", type,
 		   intel_sseu_subslice_total(sseu));
 	for (s = 0; s < fls(sseu->slice_mask); s++) {
+		intel_sseu_ss_mask_t ssmask = intel_sseu_get_subslices(sseu, s);
+
 		seq_printf(m, "  %s Slice%i subslices: %u\n", type,
-			   s, intel_sseu_subslices_per_slice(sseu, s));
+			   s, bitmap_weight(ssmask.b, I915_MAX_SS_FUSE_BITS));
 	}
 	seq_printf(m, "  %s EU Total: %u\n", type,
 		   sseu->eu_total);

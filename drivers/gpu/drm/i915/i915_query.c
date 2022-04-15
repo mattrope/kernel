@@ -31,7 +31,7 @@ static int copy_query_item(void *query_hdr, size_t query_sz,
 
 static int fill_topology_info(const struct sseu_dev_info *sseu,
 			      struct drm_i915_query_item *query_item,
-			      const u8 *subslice_mask)
+			      intel_sseu_ss_mask_t subslice_mask)
 {
 	struct drm_i915_query_topology_info topo;
 	u32 slice_length, subslice_length, eu_length, total_length;
@@ -71,9 +71,9 @@ static int fill_topology_info(const struct sseu_dev_info *sseu,
 			 &sseu->slice_mask, slice_length))
 		return -EFAULT;
 
-	if (copy_to_user(u64_to_user_ptr(query_item->data_ptr +
-					 sizeof(topo) + slice_length),
-			 subslice_mask, subslice_length))
+	if (intel_sseu_copy_ssmask_to_user(u64_to_user_ptr(query_item->data_ptr +
+							   sizeof(topo) + slice_length),
+					   sseu))
 		return -EFAULT;
 
 	if (intel_sseu_copy_eumask_to_user(u64_to_user_ptr(query_item->data_ptr +
