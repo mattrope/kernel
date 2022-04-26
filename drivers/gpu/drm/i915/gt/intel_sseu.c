@@ -78,45 +78,74 @@ intel_sseu_subslices_per_slice(const struct sseu_dev_info *sseu, u8 slice)
 	return hweight32(intel_sseu_get_subslices(sseu, slice));
 }
 
-static int sseu_eu_idx(const struct sseu_dev_info *sseu, int slice,
-		       int subslice)
-{
-	int slice_stride = sseu->max_subslices * sseu->eu_stride;
-
-	return slice * slice_stride + subslice * sseu->eu_stride;
-}
-
 static u16 sseu_get_eus(const struct sseu_dev_info *sseu, int slice,
 			int subslice)
 {
-	int i, offset = sseu_eu_idx(sseu, slice, subslice);
-	u16 eu_mask = 0;
-
-	for (i = 0; i < sseu->eu_stride; i++)
-		eu_mask |=
-			((u16)sseu->eu_mask[offset + i]) << (i * BITS_PER_BYTE);
-
-	return eu_mask;
+	if (sseu->has_xehp_dss) {
+		WARN_ON(slice > 0);
+		return sseu->eu_mask.xehp[subslice];
+	} else {
+		return sseu->eu_mask.hsw[slice][subslice];
+	}
 }
 
 static void sseu_set_eus(struct sseu_dev_info *sseu, int slice, int subslice,
 			 u16 eu_mask)
 {
-	int i, offset = sseu_eu_idx(sseu, slice, subslice);
-
-	for (i = 0; i < sseu->eu_stride; i++)
-		sseu->eu_mask[offset + i] =
-			(eu_mask >> (BITS_PER_BYTE * i)) & 0xff;
+	if (sseu->has_xehp_dss) {
+		WARN_ON(slice > 0);
+		sseu->eu_mask.xehp[subslice] = eu_mask;
+	} else {
+		eu_mask &= GENMASK(sseu->max_eus_per_subslice - 1, 0);
+		sseu->eu_mask.hsw[slice][subslice] = eu_mask;
+	}
 }
 
 static u16 compute_eu_total(const struct sseu_dev_info *sseu)
 {
-	u16 i, total = 0;
+	int s, ss, total = 0;
 
-	for (i = 0; i < ARRAY_SIZE(sseu->eu_mask); i++)
-		total += hweight8(sseu->eu_mask[i]);
+	for (s = 0; s < sseu->max_slices; s++)
+		for (ss = 0; ss < sseu->max_subslices; ss++)
+			if (sseu->has_xehp_dss)
+				total += hweight16(sseu->eu_mask.xehp[ss]);
+			else
+				total += hweight16(sseu->eu_mask.hsw[s][ss]);
 
 	return total;
+}
+
+/**
+ * intel_sseu_copy_eumask_to_user - Copy EU mask into a userspace buffer
+ * @to: Pointer to userspace buffer to copy to
+ * @sseu: SSEU structure containing EU mask to copy
+ *
+ * Copies the EU mask to a userspace buffer in the format expected by
+ * the query ioctl's topology queries.
+ *
+ * Returns the result of the copy_to_user() operation.
+ */
+int intel_sseu_copy_eumask_to_user(void __user *to,
+				   const struct sseu_dev_info *sseu)
+{
+	u8 eu_mask[GEN_SS_MASK_SIZE * GEN_MAX_EU_STRIDE] = {};
+	int len = sseu->max_slices * sseu->max_subslices * sseu->eu_stride;
+	int s, ss, i;
+
+	for (s = 0; s < sseu->max_slices; s++) {
+		for (ss = 0; ss < sseu->max_subslices; ss++) {
+			int uapi_offset =
+				s * sseu->max_subslices * sseu->eu_stride +
+				ss * sseu->eu_stride;
+			u16 mask = sseu_get_eus(sseu, s, ss);
+
+			for (i = 0; i < sseu->eu_stride; i++)
+				eu_mask[uapi_offset + i] =
+					(mask >> (BITS_PER_BYTE * i)) & 0xff;
+		}
+	}
+
+	return copy_to_user(to, eu_mask, len);
 }
 
 static void gen11_compute_sseu_info(struct sseu_dev_info *sseu,
