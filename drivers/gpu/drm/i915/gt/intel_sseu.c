@@ -91,34 +91,68 @@ static int sseu_eu_idx(const struct sseu_dev_info *sseu, int slice,
 static u16 sseu_get_eus(const struct sseu_dev_info *sseu, int slice,
 			int subslice)
 {
-	int i, offset = sseu_eu_idx(sseu, slice, subslice);
-	u16 eu_mask = 0;
+	if (!intel_sseu_has_subslice(sseu, slice, subslice))
+		return 0;
 
-	for (i = 0; i < sseu->eu_stride; i++)
-		eu_mask |=
-			((u16)sseu->eu_mask[offset + i]) << (i * BITS_PER_BYTE);
-
-	return eu_mask;
+	if (sseu->has_common_ss_eumask)
+		return sseu->eu_mask[0];
+	else
+		return sseu->eu_mask[slice * sseu->max_subslices + subslice];
 }
 
 static void sseu_set_eus(struct sseu_dev_info *sseu, int slice, int subslice,
 			 u16 eu_mask)
 {
-	int i, offset = sseu_eu_idx(sseu, slice, subslice);
+	WARN_ON(sseu->has_common_ss_eumask);
+	WARN_ON(sseu->max_eus_per_subslice > sizeof(sseu->eu_mask[0]) * BITS_PER_BYTE);
 
-	for (i = 0; i < sseu->eu_stride; i++)
-		sseu->eu_mask[offset + i] =
-			(eu_mask >> (BITS_PER_BYTE * i)) & 0xff;
+	sseu->eu_mask[slice * sseu->max_subslices + subslice] =
+		eu_mask & GENMASK(sseu->max_eus_per_subslice - 1, 0);
 }
 
 static u16 compute_eu_total(const struct sseu_dev_info *sseu)
 {
 	u16 i, total = 0;
 
+	if (sseu->has_common_ss_eumask)
+		return intel_sseu_subslices_per_slice(sseu, 0) *
+			hweight16(sseu->eu_mask[0]);
+
 	for (i = 0; i < ARRAY_SIZE(sseu->eu_mask); i++)
-		total += hweight8(sseu->eu_mask[i]);
+		total += hweight16(sseu->eu_mask[i]);
 
 	return total;
+}
+
+/**
+ * intel_sseu_copy_eumask_to_user - Copy EU mask into a userspace buffer
+ * @to: Pointer to userspace buffer to copy to
+ * @sseu: SSEU structure containing EU mask to copy
+ *
+ * Copies the EU mask to a userspace buffer in the format expected by
+ * the query ioctl's topology queries.
+ *
+ * Returns the result of the copy_to_user() operation.
+ */
+int intel_sseu_copy_eumask_to_user(void __user *to,
+				   const struct sseu_dev_info *sseu)
+{
+	u8 eu_mask[GEN_SS_MASK_SIZE * GEN_MAX_EU_STRIDE] = {};
+	int len = sseu->max_slices * sseu->max_subslices * sseu->eu_stride;
+	int s, ss, i;
+
+	for (s = 0; s < sseu->max_slices; s++) {
+		for (ss = 0; ss < sseu->max_subslices; ss++) {
+			int offset = sseu_eu_idx(sseu, s, ss);
+			u16 mask = sseu_get_eus(sseu, s, ss);
+
+			for (i = 0; i < sseu->eu_stride; i++)
+				eu_mask[offset + i] =
+					(mask >> (BITS_PER_BYTE * i)) & 0xff;
+		}
+	}
+
+	return copy_to_user(to, eu_mask, len);
 }
 
 static u32 get_ss_stride_mask(struct sseu_dev_info *sseu, u8 s, u32 ss_en)
@@ -134,7 +168,7 @@ static u32 get_ss_stride_mask(struct sseu_dev_info *sseu, u8 s, u32 ss_en)
 static void gen11_compute_sseu_info(struct sseu_dev_info *sseu, u8 s_en,
 				    u32 g_ss_en, u32 c_ss_en, u16 eu_en)
 {
-	int s, ss;
+	int s;
 
 	/* g_ss_en/c_ss_en represent entire subslice mask across all slices */
 	GEM_BUG_ON(sseu->max_slices * sseu->max_subslices >
@@ -162,11 +196,9 @@ static void gen11_compute_sseu_info(struct sseu_dev_info *sseu, u8 s_en,
 		intel_sseu_set_subslices(sseu, s, sseu->subslice_mask,
 					 get_ss_stride_mask(sseu, s,
 							    g_ss_en | c_ss_en));
-
-		for (ss = 0; ss < sseu->max_subslices; ss++)
-			if (intel_sseu_has_subslice(sseu, s, ss))
-				sseu_set_eus(sseu, s, ss, eu_en);
 	}
+	sseu->has_common_ss_eumask = 1;
+	sseu->eu_mask[0] = eu_en;
 	sseu->eu_per_subslice = hweight16(eu_en);
 	sseu->eu_total = compute_eu_total(sseu);
 }

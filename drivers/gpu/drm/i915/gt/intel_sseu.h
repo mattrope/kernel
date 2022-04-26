@@ -57,7 +57,21 @@ struct sseu_dev_info {
 	u8 subslice_mask[GEN_SS_MASK_SIZE];
 	u8 geometry_subslice_mask[GEN_SS_MASK_SIZE];
 	u8 compute_subslice_mask[GEN_SS_MASK_SIZE];
-	u8 eu_mask[GEN_SS_MASK_SIZE * GEN_MAX_EU_STRIDE];
+
+	/*
+	 * EU masks.  Use has_common_ss_eumask to determine how the field
+	 * will be interpreted.
+	 *
+	 * On pre-gen11 platforms, each subslice has independent EU fusing, so
+	 * we store an array of u16's that are sufficient to represent each
+	 * subslice's EU mask on pre-gen11 platforms.
+	 *
+	 * For gen11 and beyond, all subslices will always have the same set of
+	 * enabled/disabled EUs so only eu_mask[0] is utilized; all other array
+	 * entries are ignored.
+	 */
+	u16 eu_mask[GEN_MAX_HSW_SLICES * GEN_MAX_SS_PER_HSW_SLICE];
+
 	u16 eu_total;
 	u8 eu_per_subslice;
 	u8 min_eu_in_pool;
@@ -66,6 +80,8 @@ struct sseu_dev_info {
 	u8 has_slice_pg:1;
 	u8 has_subslice_pg:1;
 	u8 has_eu_pg:1;
+	/* All subslices have the same set of enabled/disabled EUs? */
+	u8 has_common_ss_eumask:1;
 
 	/* Topology fields */
 	u8 max_slices;
@@ -144,5 +160,8 @@ void intel_sseu_print_topology(struct drm_i915_private *i915,
 			       struct drm_printer *p);
 
 u16 intel_slicemask_from_dssmask(u64 dss_mask, int dss_per_slice);
+
+int intel_sseu_copy_eumask_to_user(void __user *to,
+				   const struct sseu_dev_info *sseu);
 
 #endif /* __INTEL_SSEU_H__ */
