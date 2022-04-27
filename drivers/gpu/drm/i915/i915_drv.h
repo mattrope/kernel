@@ -61,6 +61,7 @@
 #include "gt/intel_workarounds.h"
 #include "gt/uc/intel_uc.h"
 
+#include "i915_drm_client.h"
 #include "i915_gem.h"
 #include "i915_gpu_error.h"
 #include "i915_params.h"
@@ -503,6 +504,7 @@ struct drm_i915_private {
 	struct pci_dev *bridge_dev;
 
 	struct rb_root uabi_engines;
+	unsigned int engine_uabi_class_count[I915_LAST_UABI_ENGINE_CLASS + 1];
 
 	struct resource mch_res;
 
@@ -769,6 +771,14 @@ struct drm_i915_private {
 	/* Abstract the submission mechanism (legacy ringbuffer or execlists) away */
 	struct intel_gt gt0;
 
+	/*
+	 * i915->gt[0] == &i915->gt0
+	 */
+#define I915_MAX_GT 4
+	struct intel_gt *gt[I915_MAX_GT];
+
+	struct kobject *sysfs_gt;
+
 	struct {
 		struct i915_gem_contexts {
 			spinlock_t lock; /* locks list */
@@ -812,6 +822,8 @@ struct drm_i915_private {
 	struct intel_audio_private audio;
 
 	struct i915_pmu pmu;
+
+	struct i915_drm_clients clients;
 
 	struct i915_hdcp_comp_master *hdcp_master;
 	bool hdcp_comp_added;
@@ -1206,6 +1218,8 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 	((gt)->info.engine_mask &						\
 	 GENMASK(first__ + count__ - 1, first__)) >> first__;		\
 })
+#define RCS_MASK(gt) \
+	ENGINE_INSTANCES_MASK(gt, RCS0, I915_MAX_RCS)
 #define VDBOX_MASK(gt) \
 	ENGINE_INSTANCES_MASK(gt, VCS0, I915_MAX_VCS)
 #define VEBOX_MASK(gt) \
@@ -1299,6 +1313,14 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 
 #define HAS_DMC(dev_priv)	(INTEL_INFO(dev_priv)->display.has_dmc)
 
+#define HAS_HECI_PXP(dev_priv) \
+	(INTEL_INFO(dev_priv)->has_heci_pxp)
+
+#define HAS_HECI_GSCFI(dev_priv) \
+	(INTEL_INFO(dev_priv)->has_heci_gscfi)
+
+#define HAS_HECI_GSC(dev_priv) (HAS_HECI_PXP(dev_priv) || HAS_HECI_GSCFI(dev_priv))
+
 #define HAS_MSO(i915)		(DISPLAY_VER(i915) >= 12)
 
 #define HAS_RUNTIME_PM(dev_priv) (INTEL_INFO(dev_priv)->has_runtime_pm)
@@ -1367,6 +1389,9 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 
 #define HAS_GUC_DEPRIVILEGE(dev_priv) \
 	(INTEL_INFO(dev_priv)->has_guc_deprivilege)
+
+#define HAS_PERCTX_PREEMPT_CTRL(i915) \
+	((GRAPHICS_VER(i915) >= 9) &&  GRAPHICS_VER_FULL(i915) < IP_VER(12, 55))
 
 #define HAS_D12_PLANE_MINIMIZATION(dev_priv) (IS_ROCKETLAKE(dev_priv) || \
 					      IS_ALDERLAKE_S(dev_priv))
