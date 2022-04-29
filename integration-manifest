@@ -1,0 +1,26 @@
+drm drm-fixes 9d9f720733b7e8d11e4cc53b53f461b117dab839
+	Merge tag 'amd-drm-fixes-5.18-2022-04-27' of https://gitlab.freedesktop.org/agd5f/linux into drm-fixes
+drm-misc drm-misc-fixes dc3ae06c5f2170d879ff58696f629d8c3868aec3
+	drm/sun4i: Remove obsolete references to PHYS_OFFSET
+drm-intel drm-intel-fixes f7e1089f43761ca221914aea9a755b23dc7cbc33
+	drm/i915/fbc: Consult hw.crtc instead of uapi.crtc
+drm drm-next 15e2b419a83777ef652bf5f0ea4385ef7711f710
+	Merge tag 'drm-misc-next-2022-04-28' of git://anongit.freedesktop.org/drm/drm-misc into drm-next
+drm-misc drm-misc-next-fixes 67bae5f28c895f8737a1974c3f31cf12b9170b14
+	drm: of: Properly try all possible cases for bridge/panel detection
+drm-intel drm-intel-next-fixes 00f4150d27d2c01eaeffe1091fc311a7c0872c69
+	drm/i915: Fix renamed struct field
+drm-misc drm-misc-next 9ff9236394dd8a4fc7d1d3f3dc9d00cda3dd58be
+	drm/panel: simple: Add Startek KD070WVFPA043-C069A panel support
+drm-intel drm-intel-next 119125d96b8bb31d95345738e4827998115d70c9
+	Merge tag 'gvt-next-2022-04-29' of https://github.com/intel/gvt-linux into drm-intel-next
+drm-intel drm-intel-gt-next 59a4752895b2e43351c7c1dd2b264d17d74e8466
+	drm/i915: Xe_HP SDV and DG2 have up to 4 CCS engines
+sound-upstream for-linus 7cf3dead1ad70c72edb03e2d98e1f3dcd332cdb2
+	Linux 5.13
+sound-upstream for-next 7cf3dead1ad70c72edb03e2d98e1f3dcd332cdb2
+	Linux 5.13
+drm-intel topic/core-for-CI ed8616a003376adcda3d7a265d1de5677c8fe960
+	ALSA: hda/i915: Fix one too many pci_dev_put()
+drm-misc topic/i915-ttm 1e3944578b749449bd7fa6bf0bae4c3d3f5f1733
+	Merge tag 'amd-drm-next-5.16-2021-09-27' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
