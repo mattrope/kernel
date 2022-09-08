@@ -1,0 +1,28 @@
+drm drm-fixes c0521598a58cfbba7bb0625d16124e32645c152f
+	Merge tag 'amd-drm-fixes-6.0-2022-09-07' of https://gitlab.freedesktop.org/agd5f/linux into drm-fixes
+drm-misc drm-misc-fixes 8f7115c1923cd11146525f1615beb29018001964
+	drm/panel-edp: Fix delays for Innolux N116BCA-EA1
+drm-intel drm-intel-fixes 151e0e0fdb4d6365305598af3b9072d44e896ef0
+	drm/i915: consider HAS_FLAT_CCS() in needs_ccs_pages
+drm drm-next 8284bae723f025cb6a8431566757a3854a3c53eb
+	Merge tag 'drm-misc-next-2022-08-20-1' of git://anongit.freedesktop.org/drm/drm-misc into drm-next
+drm-misc drm-misc-next-fixes 2939deac1fa220bc82b89235f146df1d9b52e876
+	drm/gem: Properly annotate WW context on drm_gem_lock_reservations() error
+drm-intel drm-intel-next-fixes 9d50bff40e3e366886ec37299fc317edf84be0c9
+	drm/i915: pass a pointer for tlb seqno at vma_invalidate_tlb()
+drm-misc drm-misc-next 5d832b6694e094b176627ed9918a1b21c56fb742
+	drm/dp_mst: Avoid deleting payloads for connectors staying enabled
+drm-intel drm-intel-next f2c9df101095bfef7682caec8a5fa7d4f3b29182
+	drm/i915: Round TMDS clock to nearest
+drm-intel drm-intel-gt-next 79391a502c7b574c90a4d8f6f447bf9ccf97585e
+	drm/i915/gsc: allocate extended operational memory in LMEM
+sound-upstream for-linus 7cf3dead1ad70c72edb03e2d98e1f3dcd332cdb2
+	Linux 5.13
+sound-upstream for-next 7cf3dead1ad70c72edb03e2d98e1f3dcd332cdb2
+	Linux 5.13
+drm-intel topic/core-for-CI 71c564ea758b4d4c64f29dd09a192e9039d37e98
+	scsi: sd: Revert "Rework asynchronous resume support"
+drm-misc topic/i915-ttm 1e3944578b749449bd7fa6bf0bae4c3d3f5f1733
+	Merge tag 'amd-drm-next-5.16-2021-09-27' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
+drm topic/nouveau-misc dfc4005f8c172eea359f9db08c3b2b0ff0153699
+	drm/nouveau/disp: move DAC load detection method
