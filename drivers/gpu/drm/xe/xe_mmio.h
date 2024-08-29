@@ -27,11 +27,8 @@ int xe_mmio_probe_tiles(struct xe_device *xe);
 		 const struct xe_mmio *: (ptr), \
 		 struct xe_mmio *: (ptr))
 
-u8 __xe_mmio_read8(struct xe_mmio *mmio, struct xe_reg reg);
-#define xe_mmio_read8(p, reg) __xe_mmio_read8(__to_xe_mmio(p), reg)
-
-u16 __xe_mmio_read16(struct xe_mmio *mmio, struct xe_reg reg);
-#define xe_mmio_read16(p, reg) __xe_mmio_read16(__to_xe_mmio(p), reg)
+u8 xe_mmio_read8(struct xe_mmio *mmio, struct xe_reg reg);
+u16 xe_mmio_read16(struct xe_mmio *mmio, struct xe_reg reg);
 
 void __xe_mmio_write32(struct xe_mmio *mmio, struct xe_reg reg, u32 val);
 #define xe_mmio_write32(p, reg, val) __xe_mmio_write32(__to_xe_mmio(p), reg, val)

@@ -200,7 +200,7 @@ static void mmio_flush_pending_writes(struct xe_mmio *mmio)
 		writel(0, mmio->regs + DUMMY_REG_OFFSET);
 }
 
-u8 __xe_mmio_read8(struct xe_mmio *mmio, struct xe_reg reg)
+u8 xe_mmio_read8(struct xe_mmio *mmio, struct xe_reg reg)
 {
 	u32 addr = xe_mmio_adjusted_addr(mmio, reg.addr);
 	u8 val;
@@ -214,7 +214,7 @@ u8 __xe_mmio_read8(struct xe_mmio *mmio, struct xe_reg reg)
 	return val;
 }
 
-u16 __xe_mmio_read16(struct xe_mmio *mmio, struct xe_reg reg)
+u16 xe_mmio_read16(struct xe_mmio *mmio, struct xe_reg reg)
 {
 	u32 addr = xe_mmio_adjusted_addr(mmio, reg.addr);
 	u16 val;
