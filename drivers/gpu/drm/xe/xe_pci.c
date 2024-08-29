@@ -473,13 +473,15 @@ enum xe_gmdid_type {
 
 static void read_gmdid(struct xe_device *xe, enum xe_gmdid_type type, u32 *ver, u32 *revid)
 {
-	struct xe_gt *gt = xe_root_mmio_gt(xe);
+	struct xe_mmio *mmio = xe_root_tile_mmio(xe);
 	struct xe_reg gmdid_reg = GMD_ID;
 	u32 val;
 
 	KUNIT_STATIC_STUB_REDIRECT(read_gmdid, xe, type, ver, revid);
 
 	if (IS_SRIOV_VF(xe)) {
+		struct xe_gt *gt = xe_root_mmio_gt(xe);
+
 		/*
 		 * To get the value of the GMDID register, VFs must obtain it
 		 * from the GuC using MMIO communication.
@@ -515,14 +517,15 @@ static void read_gmdid(struct xe_device *xe, enum xe_gmdid_type type, u32 *ver, 
 		gt->info.type = XE_GT_TYPE_UNINITIALIZED;
 	} else {
 		/*
-		 * We need to apply the GSI offset explicitly here as at this
-		 * point the xe_gt is not fully uninitialized and only basic
-		 * access to MMIO registers is possible.
+		 * We need to apply the GSI offset explicitly here since we're
+		 * reading through the tile-level MMIO accessor (at this
+		 * point the GT is not fully uninitialized and only basic
+		 * access to MMIO registers is possible).
 		 */
 		if (type == GMDID_MEDIA)
 			gmdid_reg.addr += MEDIA_GT_GSI_OFFSET;
 
-		val = xe_mmio_read32(gt, gmdid_reg);
+		val = xe_mmio_read32(mmio, gmdid_reg);
 	}
 
 	*ver = REG_FIELD_GET(GMD_ID_ARCH_MASK, val) * 100 + REG_FIELD_GET(GMD_ID_RELEASE_MASK, val);
