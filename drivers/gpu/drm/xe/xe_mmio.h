@@ -56,10 +56,8 @@ int __xe_mmio_wait32(struct xe_mmio *mmio, struct xe_reg reg, u32 mask, u32 val,
 #define xe_mmio_wait32(p, reg, mask, val, timeout_us, out_val, atomic) \
 	__xe_mmio_wait32(__to_xe_mmio(p), reg, mask, val, timeout_us, out_val, atomic)
 
-int __xe_mmio_wait32_not(struct xe_mmio *mmio, struct xe_reg reg, u32 mask,
-			 u32 val, u32 timeout_us, u32 *out_val, bool atomic);
-#define xe_mmio_wait32_not(p, reg, mask, val, timeout_us, out_val, atomic) \
-	__xe_mmio_wait32_not(__to_xe_mmio(p), reg, mask, val, timeout_us, out_val, atomic)
+int xe_mmio_wait32_not(struct xe_mmio *mmio, struct xe_reg reg, u32 mask,
+		       u32 val, u32 timeout_us, u32 *out_val, bool atomic);
 
 static inline u32 __xe_mmio_adjusted_addr(const struct xe_mmio *mmio, u32 addr)
 {

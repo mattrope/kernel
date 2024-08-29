@@ -430,8 +430,8 @@ int __xe_mmio_wait32(struct xe_mmio *mmio, struct xe_reg reg, u32 mask, u32 val,
  * This function works exactly like xe_mmio_wait32() with the exception that
  * @val is expected not to be matched.
  */
-int __xe_mmio_wait32_not(struct xe_mmio *mmio, struct xe_reg reg, u32 mask, u32 val, u32 timeout_us,
-			 u32 *out_val, bool atomic)
+int xe_mmio_wait32_not(struct xe_mmio *mmio, struct xe_reg reg, u32 mask, u32 val, u32 timeout_us,
+		       u32 *out_val, bool atomic)
 {
 	return ____xe_mmio_wait32(mmio, reg, mask, val, timeout_us, out_val, atomic, false);
 }
