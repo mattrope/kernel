@@ -659,10 +659,16 @@ static void xe_info_probe_tile_count(struct xe_device *xe)
 
 static struct xe_gt *init_primary_gt(struct xe_tile *tile,
 				     const struct xe_graphics_desc *graphics_desc,
-				     const struct xe_media_desc *media_desc)
+				     const struct xe_media_desc *media_desc,
+				     u64 gt_types_allowed)
 {
 	struct xe_device *xe = tile_to_xe(tile);
 	struct xe_gt *gt;
+
+	if ((gt_types_allowed & BIT_ULL(XE_GT_TYPE_MAIN)) == 0) {
+		drm_info(&xe->drm, "Primary GT disabled via configfs\n");
+		return NULL;
+	}
 
 	gt = xe_gt_alloc(tile);
 	if (IS_ERR(gt))
@@ -684,10 +690,16 @@ static struct xe_gt *init_primary_gt(struct xe_tile *tile,
 }
 
 static struct xe_gt *init_media_gt(struct xe_tile *tile,
-				   const struct xe_media_desc *media_desc)
+				   const struct xe_media_desc *media_desc,
+				   u64 gt_types_allowed)
 {
 	struct xe_device *xe = tile_to_xe(tile);
 	struct xe_gt *gt;
+
+	if ((gt_types_allowed & BIT_ULL(XE_GT_TYPE_MEDIA)) == 0) {
+		drm_info(&xe->drm, "Media GT disabled via configfs\n");
+		return NULL;
+	}
 
 	gt = xe_gt_alloc(tile);
 	if (IS_ERR(gt))
@@ -720,6 +732,7 @@ static int xe_info_init(struct xe_device *xe,
 	const struct xe_media_desc *media_desc;
 	struct xe_tile *tile;
 	struct xe_gt *gt;
+	u64 gt_types_allowed;
 	u8 id;
 
 	/*
@@ -782,6 +795,8 @@ static int xe_info_init(struct xe_device *xe,
 			return err;
 	}
 
+	gt_types_allowed = xe_configfs_get_gt_types_allowed(to_pci_dev(xe->drm.dev));
+
 	/* Allocate any GT and VRAM structures necessary for the platform. */
 	for_each_tile(tile, xe, id) {
 		int err;
@@ -790,11 +805,25 @@ static int xe_info_init(struct xe_device *xe,
 		if (err)
 			return err;
 
-		tile->primary_gt = init_primary_gt(tile, graphics_desc, media_desc);
+		tile->primary_gt = init_primary_gt(tile, graphics_desc, media_desc,
+						   gt_types_allowed);
 		if (IS_ERR(tile->primary_gt))
 			return PTR_ERR(tile->primary_gt);
 
-		tile->media_gt = init_media_gt(tile, media_desc);
+		/*
+		 * It's not currently possible to probe a device with the
+		 * primary GT disabled.  With some work, this may be future in
+		 * the possible for igpu platforms (although probably not for
+		 * dgpu's since access to the primary GT's BCS engines is
+		 * required for VRAM management).
+		 */
+		if (!tile->primary_gt) {
+			drm_err(&xe->drm, "Cannot probe device with without a primary GT\n");
+			return -ENODEV;
+		}
+
+		tile->media_gt = init_media_gt(tile, media_desc,
+					       gt_types_allowed);
 		if (IS_ERR(tile->media_gt))
 			return PTR_ERR(tile->media_gt);
 	}
