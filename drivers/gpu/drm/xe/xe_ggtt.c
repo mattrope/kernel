@@ -286,7 +286,8 @@ int xe_ggtt_init_early(struct xe_ggtt *ggtt)
 	if (GRAPHICS_VERx100(xe) >= 1270)
 		ggtt->pt_ops = (ggtt->tile->media_gt &&
 			       XE_GT_WA(ggtt->tile->media_gt, 22019338487)) ||
-			       XE_GT_WA(ggtt->tile->primary_gt, 22019338487) ?
+			       (ggtt->tile->primary_gt &&
+				XE_GT_WA(ggtt->tile->primary_gt, 22019338487)) ?
 			       &xelpg_pt_wa_ops : &xelpg_pt_ops;
 	else
 		ggtt->pt_ops = &xelp_pt_ops;
