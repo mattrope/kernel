@@ -656,7 +656,7 @@ static void xe_irq_postinstall(struct xe_device *xe)
 			xe_memirq_postinstall(&tile->memirq);
 	}
 
-	xe_display_irq_postinstall(xe, xe_root_mmio_gt(xe));
+	xe_display_irq_postinstall(xe);
 
 	/*
 	 * ASLE backlight operations are reported via GUnit GSE interrupts
