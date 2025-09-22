@@ -10,6 +10,7 @@
 #include "regs/xe_regs.h"
 
 #include "xe_assert.h"
+#include "xe_configfs.h"
 #include "xe_device.h"
 #include "xe_mmio.h"
 #include "xe_sriov.h"
@@ -55,11 +56,25 @@ static bool test_is_vf(struct xe_device *xe)
  * SR-IOV PF mode detection is based on PCI @dev_is_pf() function.
  * SR-IOV VF mode detection is based on dedicated MMIO register read.
  */
-void xe_sriov_probe_early(struct xe_device *xe)
+int xe_sriov_probe_early(struct xe_device *xe)
 {
 	struct pci_dev *pdev = to_pci_dev(xe->drm.dev);
 	enum xe_sriov_mode mode = XE_SRIOV_MODE_NONE;
 	bool has_sriov = xe->info.has_sriov;
+	bool has_primary_gt = xe_configfs_get_gt_types_allowed(to_pci_dev(xe->drm.dev)) &
+		BIT_ULL(XE_GT_TYPE_MAIN);
+
+	/*
+	 * SR-IOV operation relies on the primary GT's GuC.  Fail VF device
+	 * probe if the primary GT is disabled, and force PF probe back to
+	 * native (non-SRIOV) mode.
+	 */
+	if (test_is_vf(xe) && !has_primary_gt) {
+		drm_err(&xe->drm, "Cannot probe device in SR-IOV VF without primary GT enabled.\n");
+		return -ENODEV;
+	} else if (!has_primary_gt) {
+		has_sriov = false;
+	}
 
 	if (has_sriov) {
 		if (test_is_vf(xe))
@@ -85,6 +100,8 @@ void xe_sriov_probe_early(struct xe_device *xe)
 	if (IS_SRIOV(xe))
 		drm_info(&xe->drm, "Running in %s mode\n",
 			 xe_sriov_mode_to_string(xe_device_sriov_mode(xe)));
+
+	return 0;
 }
 
 static void fini_sriov(struct drm_device *drm, void *arg)

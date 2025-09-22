@@ -733,7 +733,9 @@ int xe_device_probe_early(struct xe_device *xe)
 	if (err)
 		return err;
 
-	xe_sriov_probe_early(xe);
+	err = xe_sriov_probe_early(xe);
+	if (err)
+		return err;
 
 	sriov_update_device_info(xe);
 
