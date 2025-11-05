@@ -42,8 +42,9 @@ static void read_l3cc_table(struct xe_gt *gt,
 			    const struct xe_mocs_info *info)
 {
 	struct kunit *test = kunit_get_current_test();
+	struct xe_force_wake_ref fw_ref;
 	u32 l3cc, l3cc_expected;
-	unsigned int fw_ref, i;
+	unsigned int i;
 	u32 reg_val;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FORCEWAKE_ALL);
@@ -81,15 +82,16 @@ static void read_mocs_table(struct xe_gt *gt,
 			    const struct xe_mocs_info *info)
 {
 	struct kunit *test = kunit_get_current_test();
+	struct xe_force_wake_ref fw_ref;
 	u32 mocs, mocs_expected;
-	unsigned int fw_ref, i;
+	unsigned int i;
 	u32 reg_val;
 
 	KUNIT_EXPECT_TRUE_MSG(test, info->unused_entries_index,
 			      "Unused entries index should have been defined\n");
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
-	KUNIT_ASSERT_NE_MSG(test, fw_ref, 0, "Forcewake Failed.\n");
+	KUNIT_ASSERT_NE_MSG(test, fw_ref.domains, 0, "Forcewake Failed.\n");
 
 	for (i = 0; i < info->num_mocs_regs; i++) {
 		if (regs_are_mcr(gt))

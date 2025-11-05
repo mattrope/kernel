@@ -811,7 +811,8 @@ int xe_mocs_dump(struct xe_gt *gt, struct drm_printer *p)
 	struct xe_device *xe = gt_to_xe(gt);
 	enum xe_force_wake_domains domain;
 	struct xe_mocs_info table;
-	unsigned int fw_ref, flags;
+	struct xe_force_wake_ref fw_ref;
+	unsigned int flags;
 	int err = 0;
 
 	flags = get_mocs_settings(xe, &table);

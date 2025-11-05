@@ -135,7 +135,7 @@ static bool event_gt_forcewake(struct perf_event *event)
 	struct xe_device *xe = container_of(event->pmu, typeof(*xe), pmu.base);
 	u64 config = event->attr.config;
 	struct xe_gt *gt;
-	unsigned int *fw_ref;
+	struct xe_force_wake_ref *fw_ref;
 
 	if (!is_engine_event(config) && !is_gt_frequency_event(event))
 		return true;
@@ -147,7 +147,7 @@ static bool event_gt_forcewake(struct perf_event *event)
 		return false;
 
 	*fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
-	if (!*fw_ref) {
+	if (fw_ref->domains) {
 		kfree(fw_ref);
 		return false;
 	}
