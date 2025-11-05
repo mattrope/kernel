@@ -169,11 +169,12 @@ static int domain_sleep_wait(struct xe_gt *gt,
  * Return: opaque reference to woken domains or zero if none of requested
  * domains were awake.
  */
-unsigned int __must_check xe_force_wake_get(struct xe_force_wake *fw,
-					    enum xe_force_wake_domains domains)
+struct xe_force_wake_ref __must_check xe_force_wake_get(struct xe_force_wake *fw,
+							enum xe_force_wake_domains domains)
 {
 	struct xe_gt *gt = fw->gt;
 	struct xe_force_wake_domain *domain;
+	struct xe_force_wake_ref fw_ref;
 	unsigned int ref_incr = 0, awake_rqst = 0, awake_failed = 0;
 	unsigned int tmp, ref_rqst;
 	unsigned long flags;
@@ -208,7 +209,10 @@ unsigned int __must_check xe_force_wake_get(struct xe_force_wake *fw,
 	if (domains == XE_FORCEWAKE_ALL && ref_incr == fw->initialized_domains)
 		ref_incr |= XE_FORCEWAKE_ALL;
 
-	return ref_incr;
+	fw_ref.fw = fw;
+	fw_ref.domains = ref_incr;
+
+	return fw_ref;
 }
 
 /**
@@ -221,8 +225,9 @@ unsigned int __must_check xe_force_wake_get(struct xe_force_wake *fw,
  * and waits for acknowledgment for domain to sleep within 50 milisec timeout.
  * Warns in case of timeout of ack from domain.
  */
-void xe_force_wake_put(struct xe_force_wake *fw, unsigned int fw_ref)
+void xe_force_wake_put(struct xe_force_wake_ref fw_ref)
 {
+	struct xe_force_wake *fw = fw_ref.fw;
 	struct xe_gt *gt = fw->gt;
 	struct xe_force_wake_domain *domain;
 	unsigned int tmp, sleep = 0;
@@ -233,14 +238,14 @@ void xe_force_wake_put(struct xe_force_wake *fw, unsigned int fw_ref)
 	 * Avoid unnecessary lock and unlock when the function is called
 	 * in error path of individual domains.
 	 */
-	if (!fw_ref)
+	if (!fw_ref.domains)
 		return;
 
 	if (xe_force_wake_ref_has_domain(fw_ref, XE_FORCEWAKE_ALL))
-		fw_ref = fw->initialized_domains;
+		fw_ref.domains = fw->initialized_domains;
 
 	spin_lock_irqsave(&fw->lock, flags);
-	for_each_fw_domain_masked(domain, fw_ref, fw, tmp) {
+	for_each_fw_domain_masked(domain, fw_ref.domains, fw, tmp) {
 		xe_gt_assert(gt, domain->ref);
 
 		if (!--domain->ref) {

@@ -107,4 +107,19 @@ struct xe_force_wake {
 	struct xe_force_wake_domain domains[XE_FW_DOMAIN_ID_COUNT];
 };
 
+/**
+ * struct xe_force_wake_ref - Xe force wake reference
+ *
+ * Represents a wakeref for a subset of the power domains belonging to an
+ * xe_force_wake collection.  Returned by xe_force_wake_get() and passed
+ * to xe_force_wake_put().
+ */
+struct xe_force_wake_ref {
+	/** @fw: back pointer to force wake collection */
+	struct xe_force_wake *fw;
+
+	/** @domains: mask of individual domains held by this reference */
+	unsigned int domains;
+};
+
 #endif

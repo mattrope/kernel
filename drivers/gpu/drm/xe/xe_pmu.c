@@ -214,12 +214,10 @@ static bool event_param_valid(struct perf_event *event)
 static void xe_pmu_event_destroy(struct perf_event *event)
 {
 	struct xe_device *xe = container_of(event->pmu, typeof(*xe), pmu.base);
-	struct xe_gt *gt;
-	unsigned int *fw_ref = event->pmu_private;
+	struct xe_force_wake_ref *fw_ref = event->pmu_private;
 
 	if (fw_ref) {
-		gt = xe_device_get_gt(xe, config_to_gt_id(event->attr.config));
-		xe_force_wake_put(gt_to_fw(gt), *fw_ref);
+		xe_force_wake_put(*fw_ref);
 		kfree(fw_ref);
 		event->pmu_private = NULL;
 	}

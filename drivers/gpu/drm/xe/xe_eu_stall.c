@@ -49,7 +49,7 @@ struct xe_eu_stall_data_stream {
 	wait_queue_head_t poll_wq;
 	size_t data_record_size;
 	size_t per_xecore_buf_size;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	struct xe_gt *gt;
 	struct xe_bo *bo;

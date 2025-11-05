@@ -198,7 +198,7 @@ static int forcewake_open(struct inode *inode, struct file *file)
 	struct xe_device *xe = inode->i_private;
 	struct xe_gt *gt;
 	u8 id, last_gt;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	xe_pm_runtime_get(xe);
 	for_each_gt(gt, xe, id) {
@@ -213,10 +213,19 @@ static int forcewake_open(struct inode *inode, struct file *file)
 
 err_fw_get:
 	for_each_gt(gt, xe, id) {
+		struct xe_force_wake_ref all_fw_ref;
+
+		/*
+		 * A bit of a hack since we didn't save the actual forcewake
+		 * reference above.
+		 */
+		all_fw_ref.fw = gt_to_fw(gt);
+		all_fw_ref.domains = XE_FORCEWAKE_ALL;
+
 		if (id < last_gt)
-			xe_force_wake_put(gt_to_fw(gt), XE_FORCEWAKE_ALL);
+			xe_force_wake_put(all_fw_ref);
 		else if (id == last_gt)
-			xe_force_wake_put(gt_to_fw(gt), fw_ref);
+			xe_force_wake_put(fw_ref);
 		else
 			break;
 	}
@@ -228,11 +237,15 @@ err_fw_get:
 static int forcewake_release(struct inode *inode, struct file *file)
 {
 	struct xe_device *xe = inode->i_private;
+	struct xe_force_wake_ref all_fw_ref;
 	struct xe_gt *gt;
 	u8 id;
 
-	for_each_gt(gt, xe, id)
-		xe_force_wake_put(gt_to_fw(gt), XE_FORCEWAKE_ALL);
+	all_fw_ref.domains = XE_FORCEWAKE_ALL;
+	for_each_gt(gt, xe, id) {
+		all_fw_ref.fw = gt_to_fw(gt);
+		xe_force_wake_put(all_fw_ref);
+	}
 	xe_pm_runtime_put(xe);
 
 	return 0;

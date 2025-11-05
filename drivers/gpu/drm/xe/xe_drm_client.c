@@ -287,7 +287,7 @@ static struct xe_hw_engine *any_engine(struct xe_device *xe)
 
 static bool force_wake_get_any_engine(struct xe_device *xe,
 				      struct xe_hw_engine **phwe,
-				      unsigned int *pfw_ref)
+				      struct xe_force_wake_ref *pfw_ref)
 {
 	enum xe_force_wake_domains domain;
 	unsigned int fw_ref;
@@ -322,7 +322,7 @@ static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 	struct xe_hw_engine *hwe;
 	struct xe_exec_queue *q;
 	u64 gpu_timestamp;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	/*
 	 * RING_TIMESTAMP registers are inaccessible in VF mode.

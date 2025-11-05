@@ -15,9 +15,9 @@ void xe_force_wake_init_gt(struct xe_gt *gt,
 			   struct xe_force_wake *fw);
 void xe_force_wake_init_engines(struct xe_gt *gt,
 				struct xe_force_wake *fw);
-unsigned int __must_check xe_force_wake_get(struct xe_force_wake *fw,
-					    enum xe_force_wake_domains domains);
-void xe_force_wake_put(struct xe_force_wake *fw, unsigned int fw_ref);
+struct xe_force_wake_ref __must_check xe_force_wake_get(struct xe_force_wake *fw,
+							enum xe_force_wake_domains domains);
+void xe_force_wake_put(struct xe_force_wake_ref fw_ref);
 
 static inline int
 xe_force_wake_ref(struct xe_force_wake *fw,
@@ -56,9 +56,10 @@ xe_force_wake_assert_held(struct xe_force_wake *fw,
  * Return: true if domain is refcounted.
  */
 static inline bool
-xe_force_wake_ref_has_domain(unsigned int fw_ref, enum xe_force_wake_domains domain)
+xe_force_wake_ref_has_domain(struct xe_force_wake_ref fw_ref,
+			     enum xe_force_wake_domains domain)
 {
-	return fw_ref & domain;
+	return fw_ref.domains & domain;
 }
 
 #endif

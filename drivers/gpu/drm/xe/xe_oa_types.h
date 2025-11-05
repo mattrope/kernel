@@ -266,6 +266,6 @@ struct xe_oa_stream {
 	struct xe_sync_entry *syncs;
 
 	/** @fw_ref: Forcewake reference */
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 };
 #endif
