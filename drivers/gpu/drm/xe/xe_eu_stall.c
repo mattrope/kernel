@@ -832,7 +832,7 @@ static int xe_eu_stall_disable_locked(struct xe_eu_stall_data_stream *stream)
 		xe_gt_mcr_multicast_write(gt, ROW_CHICKEN2,
 					  _MASKED_BIT_DISABLE(DISABLE_DOP_GATING));
 
-	xe_force_wake_put(gt_to_fw(gt), stream->fw_ref);
+	xe_force_wake_put(stream->fw_ref);
 	xe_pm_runtime_put(gt_to_xe(gt));
 
 	return 0;

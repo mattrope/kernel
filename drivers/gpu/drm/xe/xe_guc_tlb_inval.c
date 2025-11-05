@@ -71,7 +71,7 @@ static int send_tlb_inval_ggtt(struct xe_tlb_inval *tlb_inval, u32 seqno)
 		return send_tlb_inval(guc, action, ARRAY_SIZE(action));
 	} else if (xe_device_uc_enabled(xe) && !xe_device_wedged(xe)) {
 		struct xe_mmio *mmio = &gt->mmio;
-		unsigned int fw_ref;
+		struct xe_force_wake_ref fw_ref;
 
 		if (IS_SRIOV_VF(xe))
 			return -ECANCELED;
@@ -86,7 +86,7 @@ static int send_tlb_inval_ggtt(struct xe_tlb_inval *tlb_inval, u32 seqno)
 			xe_mmio_write32(mmio, GUC_TLB_INV_CR,
 					GUC_TLB_INV_CR_INVALIDATE);
 		}
-		xe_force_wake_put(gt_to_fw(gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 	}
 
 	return -ECANCELED;

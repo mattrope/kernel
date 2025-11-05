@@ -103,7 +103,7 @@ void xe_gt_idle_enable_pg(struct xe_gt *gt)
 	struct xe_gt_idle *gtidle = &gt->gtidle;
 	struct xe_mmio *mmio = &gt->mmio;
 	u32 vcs_mask, vecs_mask;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	int i, j;
 
 	if (IS_SRIOV_VF(xe))
@@ -146,13 +146,13 @@ void xe_gt_idle_enable_pg(struct xe_gt *gt)
 	}
 
 	xe_mmio_write32(mmio, POWERGATE_ENABLE, gtidle->powergate_enable);
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 }
 
 void xe_gt_idle_disable_pg(struct xe_gt *gt)
 {
 	struct xe_gt_idle *gtidle = &gt->gtidle;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	if (IS_SRIOV_VF(gt_to_xe(gt)))
 		return;
@@ -162,7 +162,7 @@ void xe_gt_idle_disable_pg(struct xe_gt *gt)
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
 	xe_mmio_write32(&gt->mmio, POWERGATE_ENABLE, gtidle->powergate_enable);
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 }
 
 /**
@@ -181,7 +181,7 @@ int xe_gt_idle_pg_print(struct xe_gt *gt, struct drm_printer *p)
 	enum xe_gt_idle_state state;
 	u32 pg_enabled, pg_status = 0;
 	u32 vcs_mask, vecs_mask;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	int n;
 	/*
 	 * Media Slices
@@ -219,13 +219,13 @@ int xe_gt_idle_pg_print(struct xe_gt *gt, struct drm_printer *p)
 	/* Do not wake the GT to read powergating status */
 	if (state != GT_IDLE_C6) {
 		fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
-		if (!fw_ref)
+		if (!fw_ref.domains)
 			return -ETIMEDOUT;
 
 		pg_enabled = xe_mmio_read32(&gt->mmio, POWERGATE_ENABLE);
 		pg_status = xe_mmio_read32(&gt->mmio, POWERGATE_DOMAIN_STATUS);
 
-		xe_force_wake_put(gt_to_fw(gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 	}
 
 	if (gt->info.engine_mask & XE_HW_ENGINE_RCS_MASK) {
@@ -396,7 +396,7 @@ void xe_gt_idle_enable_c6(struct xe_gt *gt)
 
 int xe_gt_idle_disable_c6(struct xe_gt *gt)
 {
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	xe_device_assert_mem_access(gt_to_xe(gt));
 
@@ -404,13 +404,13 @@ int xe_gt_idle_disable_c6(struct xe_gt *gt)
 		return 0;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
-	if (!fw_ref)
+	if (!fw_ref.domains)
 		return -ETIMEDOUT;
 
 	xe_mmio_write32(&gt->mmio, RC_CONTROL, 0);
 	xe_mmio_write32(&gt->mmio, RC_STATE, 0);
 
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	return 0;
 }

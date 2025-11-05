@@ -245,7 +245,7 @@ static int tile_vram_size(struct xe_tile *tile, u64 *vram_size,
 {
 	struct xe_device *xe = tile_to_xe(tile);
 	struct xe_gt *gt = tile->primary_gt;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	u64 offset;
 	u32 reg;
 
@@ -266,7 +266,7 @@ static int tile_vram_size(struct xe_tile *tile, u64 *vram_size,
 	}
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
-	if (!fw_ref)
+	if (!fw_ref.domains)
 		return -ETIMEDOUT;
 
 	/* actual size */
@@ -289,7 +289,7 @@ static int tile_vram_size(struct xe_tile *tile, u64 *vram_size,
 	/* remove the tile offset so we have just the available size */
 	*vram_size = offset - *tile_offset;
 
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	return 0;
 }

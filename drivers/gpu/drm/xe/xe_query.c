@@ -122,7 +122,7 @@ query_engine_cycles(struct xe_device *xe,
 	__ktime_func_t cpu_clock;
 	struct xe_hw_engine *hwe;
 	struct xe_gt *gt;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	if (IS_SRIOV_VF(xe))
 		return -EOPNOTSUPP;
@@ -160,14 +160,14 @@ query_engine_cycles(struct xe_device *xe,
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FORCEWAKE_ALL);
 	if (!xe_force_wake_ref_has_domain(fw_ref, XE_FORCEWAKE_ALL))  {
-		xe_force_wake_put(gt_to_fw(gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 		return -EIO;
 	}
 
 	hwe_read_timestamp(hwe, &resp.engine_cycles, &resp.cpu_timestamp,
 			   &resp.cpu_delta, cpu_clock);
 
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	if (GRAPHICS_VER(xe) >= 20)
 		resp.width = 64;

@@ -58,7 +58,7 @@ bool xe_pxp_is_enabled(const struct xe_pxp *pxp)
 static bool pxp_prerequisites_done(const struct xe_pxp *pxp)
 {
 	struct xe_gt *gt = pxp->gt;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	bool ready;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FORCEWAKE_ALL);
@@ -77,7 +77,7 @@ static bool pxp_prerequisites_done(const struct xe_pxp *pxp)
 	ready = xe_huc_is_authenticated(&gt->uc.huc, XE_HUC_AUTH_VIA_GSC) &&
 		xe_gsc_proxy_init_done(&gt->uc.gsc);
 
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	return ready;
 }
@@ -135,7 +135,7 @@ static void pxp_invalidate_queues(struct xe_pxp *pxp);
 static int pxp_terminate_hw(struct xe_pxp *pxp)
 {
 	struct xe_gt *gt = pxp->gt;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	int ret = 0;
 
 	drm_dbg(&pxp->xe->drm, "Terminating PXP\n");
@@ -162,7 +162,7 @@ static int pxp_terminate_hw(struct xe_pxp *pxp)
 	ret = xe_pxp_submit_session_invalidation(&pxp->gsc_res, ARB_SESSION);
 
 out:
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	return ret;
 }
 
@@ -326,14 +326,14 @@ static int kcr_pxp_set_status(const struct xe_pxp *pxp, bool enable)
 {
 	u32 val = enable ? _MASKED_BIT_ENABLE(KCR_INIT_ALLOW_DISPLAY_ME_WRITES) :
 		  _MASKED_BIT_DISABLE(KCR_INIT_ALLOW_DISPLAY_ME_WRITES);
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(pxp->gt), XE_FW_GT);
 	if (!xe_force_wake_ref_has_domain(fw_ref, XE_FW_GT))
 		return -EIO;
 
 	xe_mmio_write32(&pxp->gt->mmio, KCR_INIT, val);
-	xe_force_wake_put(gt_to_fw(pxp->gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	return 0;
 }
@@ -453,7 +453,7 @@ out:
 static int __pxp_start_arb_session(struct xe_pxp *pxp)
 {
 	int ret;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(pxp->gt), XE_FW_GT);
 	if (!xe_force_wake_ref_has_domain(fw_ref, XE_FW_GT))
@@ -479,7 +479,7 @@ static int __pxp_start_arb_session(struct xe_pxp *pxp)
 	drm_dbg(&pxp->xe->drm, "PXP ARB session is active\n");
 
 out_force_wake:
-	xe_force_wake_put(gt_to_fw(pxp->gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	return ret;
 }
 

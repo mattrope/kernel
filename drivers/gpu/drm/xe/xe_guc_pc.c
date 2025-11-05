@@ -511,7 +511,7 @@ u32 xe_guc_pc_get_cur_freq_fw(struct xe_guc_pc *pc)
 int xe_guc_pc_get_cur_freq(struct xe_guc_pc *pc, u32 *freq)
 {
 	struct xe_gt *gt = pc_to_gt(pc);
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	/*
 	 * GuC SLPC plays with cur freq request when GuCRC is enabled
@@ -519,13 +519,13 @@ int xe_guc_pc_get_cur_freq(struct xe_guc_pc *pc, u32 *freq)
 	 */
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
 	if (!xe_force_wake_ref_has_domain(fw_ref, XE_FW_GT)) {
-		xe_force_wake_put(gt_to_fw(gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 		return -ETIMEDOUT;
 	}
 
 	*freq = get_cur_freq(gt);
 
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	return 0;
 }
 
@@ -1223,7 +1223,7 @@ int xe_guc_pc_start(struct xe_guc_pc *pc)
 	struct xe_device *xe = pc_to_xe(pc);
 	struct xe_gt *gt = pc_to_gt(pc);
 	u32 size = PAGE_ALIGN(sizeof(struct slpc_shared_data));
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	ktime_t earlier;
 	int ret;
 
@@ -1231,7 +1231,7 @@ int xe_guc_pc_start(struct xe_guc_pc *pc)
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FW_GT);
 	if (!xe_force_wake_ref_has_domain(fw_ref, XE_FW_GT)) {
-		xe_force_wake_put(gt_to_fw(gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 		return -ETIMEDOUT;
 	}
 
@@ -1298,7 +1298,7 @@ int xe_guc_pc_start(struct xe_guc_pc *pc)
 		xe_gt_err(gt, "Failed to set SLPC power profile: %pe\n", ERR_PTR(ret));
 
 out:
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	return ret;
 }
 
@@ -1330,7 +1330,7 @@ static void xe_guc_pc_fini_hw(void *arg)
 {
 	struct xe_guc_pc *pc = arg;
 	struct xe_device *xe = pc_to_xe(pc);
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	if (xe_device_wedged(xe))
 		return;
@@ -1342,7 +1342,7 @@ static void xe_guc_pc_fini_hw(void *arg)
 	/* Bind requested freq to mert_freq_cap before unload */
 	pc_set_cur_freq(pc, min(pc_max_freq_cap(pc), pc->rpe_freq));
 
-	xe_force_wake_put(gt_to_fw(pc_to_gt(pc)), fw_ref);
+	xe_force_wake_put(fw_ref);
 }
 
 /**

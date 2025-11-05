@@ -290,7 +290,7 @@ static bool force_wake_get_any_engine(struct xe_device *xe,
 				      struct xe_force_wake_ref *pfw_ref)
 {
 	enum xe_force_wake_domains domain;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	struct xe_hw_engine *hwe;
 	struct xe_force_wake *fw;
 
@@ -303,7 +303,7 @@ static bool force_wake_get_any_engine(struct xe_device *xe,
 
 	fw_ref = xe_force_wake_get(fw, domain);
 	if (!xe_force_wake_ref_has_domain(fw_ref, domain)) {
-		xe_force_wake_put(fw, fw_ref);
+		xe_force_wake_put(fw_ref);
 		return false;
 	}
 
@@ -360,7 +360,7 @@ static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 
 	gpu_timestamp = xe_hw_engine_read_timestamp(hwe);
 
-	xe_force_wake_put(gt_to_fw(hwe->gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	xe_pm_runtime_put(xe);
 
 	for (class = 0; class < XE_ENGINE_CLASS_MAX; class++) {

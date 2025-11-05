@@ -1225,7 +1225,7 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 	struct xe_guc *guc = exec_queue_to_guc(q);
 	const char *process_name = "no process";
 	struct xe_device *xe = guc_to_xe(guc);
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	int err = -ETIME;
 	pid_t pid = -1;
 	int i = 0;
@@ -1264,7 +1264,7 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 
 		xe_engine_snapshot_capture_for_queue(q);
 
-		xe_force_wake_put(gt_to_fw(q->gt), fw_ref);
+		xe_force_wake_put(fw_ref);
 	}
 
 	/*

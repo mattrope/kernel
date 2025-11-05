@@ -118,7 +118,7 @@ static int hw_engines(struct xe_gt *gt, struct drm_printer *p)
 {
 	struct xe_hw_engine *hwe;
 	enum xe_hw_engine_id id;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 	int ret = 0;
 
 	fw_ref = xe_force_wake_get(gt_to_fw(gt), XE_FORCEWAKE_ALL);
@@ -131,7 +131,7 @@ static int hw_engines(struct xe_gt *gt, struct drm_printer *p)
 		xe_hw_engine_print(hwe, p);
 
 fw_put:
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 
 	return ret;
 }

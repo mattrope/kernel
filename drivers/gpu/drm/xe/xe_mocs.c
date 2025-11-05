@@ -828,7 +828,7 @@ int xe_mocs_dump(struct xe_gt *gt, struct drm_printer *p)
 	table.ops->dump(&table, flags, gt, p);
 
 err_fw:
-	xe_force_wake_put(gt_to_fw(gt), fw_ref);
+	xe_force_wake_put(fw_ref);
 	xe_pm_runtime_put(xe);
 	return err;
 }
