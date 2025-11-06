@@ -6,6 +6,7 @@
 
 #include <drm/drm_print.h>
 #include <uapi/drm/xe_drm.h>
+#include <linux/cleanup.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -285,33 +286,47 @@ static struct xe_hw_engine *any_engine(struct xe_device *xe)
 	return NULL;
 }
 
-static bool force_wake_get_any_engine(struct xe_device *xe,
-				      struct xe_hw_engine **phwe,
-				      unsigned int *pfw_ref)
+/*
+ * Pick any engine and grab its forcewake.  On error phwe will be NULL and
+ * the returned forcewake reference will be invalid.  Callers should check
+ * phwe against NULL.
+ */
+static struct xe_force_wake_ref force_wake_get_any_engine(struct xe_device *xe,
+							  struct xe_hw_engine **phwe)
 {
 	enum xe_force_wake_domains domain;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref = {};
 	struct xe_hw_engine *hwe;
-	struct xe_force_wake *fw;
+
+	*phwe = NULL;
 
 	hwe = any_engine(xe);
 	if (!hwe)
-		return false;
+		return fw_ref;	/* will be invalid */
 
 	domain = xe_hw_engine_to_fw_domain(hwe);
-	fw = gt_to_fw(hwe->gt);
 
-	fw_ref = xe_force_wake_get(fw, domain);
-	if (!xe_force_wake_ref_has_domain(fw_ref, domain)) {
-		xe_force_wake_put(fw, fw_ref);
-		return false;
-	}
+	fw_ref.fw = gt_to_fw(hwe->gt);
+	fw_ref.domains = xe_force_wake_get(fw_ref.fw, domain);
+	if (xe_force_wake_ref_has_domain(fw_ref.domains, domain))
+		*phwe = hwe;	/* valid forcewake */
 
-	*phwe = hwe;
-	*pfw_ref = fw_ref;
-
-	return true;
+	return fw_ref;
 }
+
+static void drop_fw_if_valid(struct xe_force_wake_ref fw_ref)
+{
+	/*
+	 * If force_wake_get_any_engine() fails, there's no real forcewake
+	 * reference to drop, and fw_ref.fw will be NULL.
+	 */
+	if (fw_ref.fw)
+		xe_force_wake_put(fw_ref.fw, fw_ref.domains);
+}
+
+DEFINE_CLASS(xe_force_wake_any_engine, struct xe_force_wake_ref,
+	     drop_fw_if_valid(_T), force_wake_get_any_engine(xe, phwe),
+	     struct xe_device *xe, struct xe_hw_engine **phwe);
 
 static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 {
@@ -322,7 +337,7 @@ static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 	struct xe_hw_engine *hwe;
 	struct xe_exec_queue *q;
 	u64 gpu_timestamp;
-	unsigned int fw_ref;
+	struct xe_force_wake_ref fw_ref;
 
 	/*
 	 * RING_TIMESTAMP registers are inaccessible in VF mode.
@@ -340,7 +355,8 @@ static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 		       !atomic_read(&xef->exec_queue.pending_removal));
 
 	xe_pm_runtime_get(xe);
-	if (!force_wake_get_any_engine(xe, &hwe, &fw_ref)) {
+	fw_ref = force_wake_get_any_engine(xe, &hwe);
+	if (!hwe) {
 		xe_pm_runtime_put(xe);
 		return;
 	}
@@ -360,7 +376,7 @@ static void show_run_ticks(struct drm_printer *p, struct drm_file *file)
 
 	gpu_timestamp = xe_hw_engine_read_timestamp(hwe);
 
-	xe_force_wake_put(gt_to_fw(hwe->gt), fw_ref);
+	xe_force_wake_put(gt_to_fw(hwe->gt), fw_ref.domains);
 	xe_pm_runtime_put(xe);
 
 	for (class = 0; class < XE_ENGINE_CLASS_MAX; class++) {
