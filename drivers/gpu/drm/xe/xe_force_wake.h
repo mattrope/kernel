@@ -62,4 +62,16 @@ xe_force_wake_ref_has_domain(struct xe_force_wake_ref fw_ref,
 	return fw_ref.domains & domain;
 }
 
+DEFINE_CLASS(xe_force_wake, struct xe_force_wake_ref,
+	     xe_force_wake_put(_T), xe_force_wake_get(fw, domains),
+	     struct xe_force_wake *fw, unsigned int domains);
+
+/*
+ * Scoped helper for the forcewake class, using the same trick as scoped_guard()
+ * to bind the lifetime to the next statement/block.
+ */
+#define xe_with_force_wake(ref, fw, domains) \
+	for (CLASS(xe_force_wake, ref)(fw, domains), *done = NULL; \
+	     !done; done = (void *)1)
+
 #endif
