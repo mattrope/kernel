@@ -394,9 +394,8 @@ static ssize_t xe_sriov_dev_attr_store(struct kobject *kobj, struct attribute *a
 	if (!vattr->store)
 		return -EPERM;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	ret = xe_sriov_pf_wait_ready(xe) ?: vattr->store(xe, buf, count);
-	xe_pm_runtime_put(xe);
 
 	return ret;
 }
@@ -430,9 +429,8 @@ static ssize_t xe_sriov_vf_attr_store(struct kobject *kobj, struct attribute *at
 	if (!vattr->store)
 		return -EPERM;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	ret = xe_sriov_pf_wait_ready(xe) ?: vattr->store(xe, vfid, buf, count);
-	xe_pm_runtime_get(xe);
 
 	return ret;
 }
