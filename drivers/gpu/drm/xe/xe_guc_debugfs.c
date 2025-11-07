@@ -72,9 +72,8 @@ static int guc_debugfs_show(struct seq_file *m, void *data)
 	int (*print)(struct xe_guc *, struct drm_printer *) = node->info_ent->data;
 	int ret;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	ret = print(&gt->uc.guc, &p);
-	xe_pm_runtime_put(xe);
 
 	return ret;
 }
