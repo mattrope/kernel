@@ -212,12 +212,11 @@ int xe_pci_sriov_configure(struct pci_dev *pdev, int num_vfs)
 	if (num_vfs && pci_num_vf(pdev))
 		return -EBUSY;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	if (num_vfs > 0)
 		ret = pf_enable_vfs(xe, num_vfs);
 	else
 		ret = pf_disable_vfs(xe);
-	xe_pm_runtime_put(xe);
 
 	return ret;
 }
