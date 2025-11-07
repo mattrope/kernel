@@ -84,9 +84,8 @@ int xe_tile_debugfs_show_with_rpm(struct seq_file *m, void *data)
 	struct xe_device *xe = tile_to_xe(tile);
 	int ret;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	ret = xe_tile_debugfs_simple_show(m, data);
-	xe_pm_runtime_put(xe);
 
 	return ret;
 }
