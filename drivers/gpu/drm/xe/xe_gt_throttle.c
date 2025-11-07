@@ -97,9 +97,8 @@ u32 xe_gt_throttle_get_limit_reasons(struct xe_gt *gt)
 	else
 		mask = GT0_PERF_LIMIT_REASONS_MASK;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	val = xe_mmio_read32(&gt->mmio, reg) & mask;
-	xe_pm_runtime_put(xe);
 
 	return val;
 }

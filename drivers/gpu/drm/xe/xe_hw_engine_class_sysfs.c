@@ -47,9 +47,8 @@ static ssize_t xe_hw_engine_class_sysfs_attr_show(struct kobject *kobj,
 
 	kattr = container_of(attr, struct kobj_attribute, attr);
 	if (kattr->show) {
-		xe_pm_runtime_get(xe);
+		guard(xe_pm_runtime)(xe);
 		ret = kattr->show(kobj, kattr, buf);
-		xe_pm_runtime_put(xe);
 	}
 
 	return ret;
@@ -66,9 +65,8 @@ static ssize_t xe_hw_engine_class_sysfs_attr_store(struct kobject *kobj,
 
 	kattr = container_of(attr, struct kobj_attribute, attr);
 	if (kattr->store) {
-		xe_pm_runtime_get(xe);
+		guard(xe_pm_runtime)(xe);
 		ret = kattr->store(kobj, kattr, buf, count);
-		xe_pm_runtime_put(xe);
 	}
 
 	return ret;
