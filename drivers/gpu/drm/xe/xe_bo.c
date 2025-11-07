@@ -2035,9 +2035,8 @@ static int xe_bo_vm_access(struct vm_area_struct *vma, unsigned long addr,
 	struct xe_device *xe = xe_bo_device(bo);
 	int ret;
 
-	xe_pm_runtime_get(xe);
+	guard(xe_pm_runtime)(xe);
 	ret = ttm_bo_vm_access(vma, addr, buf, len, write);
-	xe_pm_runtime_put(xe);
 
 	return ret;
 }
