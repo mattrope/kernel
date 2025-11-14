@@ -1,0 +1,34 @@
+drm drm-fixes 362a7d4fd5c473d43c498e68e13ff7acf8ca4ccf
+	Merge tag 'drm-xe-fixes-2025-11-13' of https://gitlab.freedesktop.org/drm/xe/kernel into drm-fixes
+drm-misc drm-misc-fixes 660b299bed2a2a55a1f9102d029549d0235f881c
+	Revert "drm/tegra: dsi: Clear enable register if powered by bootloader"
+drm-rust drm-rust-fixes 211ddde0823f1442e4ad052a2f30f050145ccada
+	Linux 6.18-rc2
+drm-intel drm-intel-fixes f2687d3cc9f905505d7b510c50970176115066a2
+	drm/i915/dp_mst: Disable Panel Replay
+drm-xe drm-xe-fixes 240372edaf854c9136f5ead45f2d8cd9496a9cb3
+	drm/xe/xe3lpg: Extend Wa_15016589081 for xe3lpg
+drm drm-next 2a084f4ad727244768b919455aa9dc1c04630487
+	Merge tag 'amd-drm-next-6.19-2025-11-07' of https://gitlab.freedesktop.org/agd5f/linux into drm-next
+drm-misc drm-misc-next-fixes adefb2ccea1e96b452cbbc39150bc0ccf1688b99
+	drm/v3d: create a dedicated lock for dma fence
+drm-intel drm-intel-next-fixes 3a8660878839faadb4f1a6dd72c3179c1df56787
+	Linux 6.18-rc1
+drm-xe drm-xe-next-fixes 3a8660878839faadb4f1a6dd72c3179c1df56787
+	Linux 6.18-rc1
+drm-misc drm-misc-next 2e1fe44e06e3f5ac234190a6680d6cd8147f3083
+	drm/tegra: Add NVJPG driver
+drm-rust drm-rust-next 38b7cc448a5b6772cad2b853a011f507ad95306a
+	gpu: nova-core: implement Display for Spec
+drm-intel drm-intel-next b84befa3126634d78e31260f538453d534742908
+	drm/i915/display: Add default case to mipi_exec_send_packet
+drm-intel drm-intel-gt-next 3bcf7894a93e18bff802088a368c13d86a5987a0
+	drm/i915/gt: Use standard API for seqcount read in TLB invalidation
+drm-xe drm-xe-next 78ff838a8ab78b3cd438e382ff5204b93db3237e
+	drm/xe/pf: Check for fence error on VRAM save/restore
+drm-intel topic/core-for-CI 7699f1e58837bde8d1038b84841c2b7929ef708b
+	Revert "lockdep: Enable PROVE_RAW_LOCK_NESTING with PROVE_LOCKING."
+drm-xe topic/xe-for-CI da39e07e72ce7927980f9eada791aa74cd2c9717
+	topic/for-xe-CI: drm/xe/cri: Define GuC firmware for CRI
+drm topic/drm-next-nouveau-r570 6cc6e08d4542473d79ea83d9123d9d35e9c01c92
+	drm/nouveau/kms: add support for GB20x
