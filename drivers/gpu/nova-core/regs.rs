@@ -7,12 +7,27 @@
 #[macro_use]
 pub(crate) mod macros;
 
-use crate::falcon::{
-    DmaTrfCmdSize, FalconCoreRev, FalconCoreRevSubversion, FalconFbifMemType, FalconFbifTarget,
-    FalconModSelAlgo, FalconSecurityModel, PFalcon2Base, PFalconBase, PeregrineCoreSelect,
-};
-use crate::gpu::{Architecture, Chipset};
 use kernel::prelude::*;
+
+use crate::{
+    falcon::{
+        DmaTrfCmdSize,
+        FalconCoreRev,
+        FalconCoreRevSubversion,
+        FalconFbifMemType,
+        FalconFbifTarget,
+        FalconModSelAlgo,
+        FalconSecurityModel,
+        PFalcon2Base,
+        PFalconBase,
+        PeregrineCoreSelect, //
+    },
+    gpu::{
+        Architecture,
+        Chipset, //
+    },
+    num::FromSafeCast,
+};
 
 // PMC
 
@@ -71,11 +86,15 @@ register!(NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE @ 0x00100ce0 {
     30:30   ecc_mode_enabled as bool;
 });
 
+register!(NV_PGSP_QUEUE_HEAD @ 0x00110c00 {
+    31:0    address as u32;
+});
+
 impl NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE {
     /// Returns the usable framebuffer size, in bytes.
     pub(crate) fn usable_fb_size(self) -> u64 {
         let size = (u64::from(self.lower_mag()) << u64::from(self.lower_scale()))
-            * kernel::sizes::SZ_1M as u64;
+            * u64::from_safe_cast(kernel::sizes::SZ_1M);
 
         if self.ecc_mode_enabled() {
             // Remove the amount of memory reserved for ECC (one per 16 units).
@@ -158,7 +177,7 @@ register!(
 impl NV_USABLE_FB_SIZE_IN_MB {
     /// Returns the usable framebuffer size, in bytes.
     pub(crate) fn usable_fb_size(self) -> u64 {
-        u64::from(self.value()) * kernel::sizes::SZ_1M as u64
+        u64::from(self.value()) * u64::from_safe_cast(kernel::sizes::SZ_1M)
     }
 }
 
@@ -208,6 +227,12 @@ register!(NV_PFALCON_FALCON_MAILBOX0 @ PFalconBase[0x00000040] {
 });
 
 register!(NV_PFALCON_FALCON_MAILBOX1 @ PFalconBase[0x00000044] {
+    31:0    value as u32;
+});
+
+// Used to store version information about the firmware running
+// on the Falcon processor.
+register!(NV_PFALCON_FALCON_OS @ PFalconBase[0x00000080] {
     31:0    value as u32;
 });
 
@@ -320,7 +345,12 @@ register!(NV_PFALCON2_FALCON_BROM_PARAADDR @ PFalcon2Base[0x00000210[1]] {
 
 // PRISCV
 
-register!(NV_PRISCV_RISCV_BCR_CTRL @ PFalconBase[0x00001668] {
+register!(NV_PRISCV_RISCV_CPUCTL @ PFalcon2Base[0x00000388] {
+    0:0     halted as bool;
+    7:7     active_stat as bool;
+});
+
+register!(NV_PRISCV_RISCV_BCR_CTRL @ PFalcon2Base[0x00000668] {
     0:0     valid as bool;
     4:4     core_select as bool => PeregrineCoreSelect;
     8:8     br_fetch as bool;
